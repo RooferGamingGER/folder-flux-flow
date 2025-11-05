@@ -2715,6 +2715,7 @@ const FileCard = memo(function FileCard({
 function DetailsView({ project }: { project: Project }) {
   const { details, saveDetails, isSaving } = useProjectDetails(project.id);
   const { canManageProjects } = useUserRole();
+  const isReadOnly = !canManageProjects;
   const [activeTab, setActiveTab] = useState<'details' | 'members'>('details');
   
   const [form, setForm] = useState<ProjectDetailsData>({
