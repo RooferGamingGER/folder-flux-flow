@@ -2753,7 +2753,7 @@ const FileCard = memo(function FileCard({
         <div className="relative">
           <button onClick={(e) => { e.stopPropagation(); setMenu((v) => !v); }} className="px-2 py-1 rounded-md border border-border hover:bg-accent transition-colors" title="Aktionen">⋯</button>
           {menu && (
-            <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-10 text-sm min-w-[160px]">
+            <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 text-sm min-w-[160px]">
               {dirs.map((d) => (
                 <button key={d} onClick={(e) => { e.stopPropagation(); setMenu(false); if (d !== file.folder) onMove(file.id, d); }} className={`block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors ${d === file.folder ? "text-primary font-semibold" : "text-foreground"}`}>
                   📂 {d}
