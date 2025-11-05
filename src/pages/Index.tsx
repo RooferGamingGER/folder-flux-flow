@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "@/hooks/use-toast";
-import { exportProjectsToExcel, exportProjectToPDF, exportProjectToWord } from "@/lib/exportUtils";
+import { exportProjectsToExcel, exportProjectToWord } from "@/lib/exportUtils";
 import { PROJECT_STATUS_OPTIONS, STATUS_COLORS } from "@/lib/constants";
 import { format, isSameMonth, isSameDay } from "date-fns";
 import { de } from "date-fns/locale";
@@ -2684,17 +2684,6 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
     toast({ title: 'Word-Export erfolgreich' });
   };
 
-  const handlePDFExport = async () => {
-    await exportProjectToPDF(
-      project,
-      details,
-      notes || [],
-      contacts || [],
-      messages || []
-    );
-    onClose();
-    toast({ title: 'PDF-Export erfolgreich' });
-  };
   
   const handleExcelExport = () => {
     exportProjectsToExcel([{ ...project, created_at: project.created_at || new Date().toISOString() }], allDetails);
@@ -2720,23 +2709,13 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
             </div>
           </button>
           <button
-            onClick={handlePDFExport}
-            className="w-full px-6 py-4 rounded-lg border-2 border-border bg-card hover:bg-accent transition-colors text-left flex items-center gap-4"
-          >
-            <FileText className="w-8 h-8 text-destructive" />
-            <div>
-              <div className="font-semibold">PDF-Export</div>
-              <div className="text-xs text-muted-foreground">Projekt mit Details, Notizen und Kontakten als PDF</div>
-            </div>
-          </button>
-          <button
             onClick={handleExcelExport}
             className="w-full px-6 py-4 rounded-lg border-2 border-border bg-card hover:bg-accent transition-colors text-left flex items-center gap-4"
           >
-            <FileText className="w-8 h-8 text-success" />
+            <Download className="w-8 h-8 text-success" />
             <div>
               <div className="font-semibold">Excel-Export</div>
-              <div className="text-xs text-muted-foreground">Projektdaten als Excel-Datei</div>
+              <div className="text-xs text-muted-foreground">Alle Projekte als Tabelle exportieren</div>
             </div>
           </button>
         </div>

@@ -13,8 +13,13 @@ import {
   TableRow,
   TableCell,
   WidthType,
-  BorderStyle
+  BorderStyle,
+  Header,
+  Footer,
+  PageNumber,
+  convertInchesToTwip
 } from 'docx';
+import logoImage from '@/assets/nobis-logo.png';
 
 export function exportProjectsToExcel(projects: any[], allDetails: any[]) {
   const wb = XLSX.utils.book_new();
@@ -134,73 +139,41 @@ export async function exportProjectToWord(
   messages: any[]
 ) {
   // Logo laden
-  const logoUrl = new URL('/src/assets/nobis-logo.jpg', import.meta.url).href;
-  const logoBase64 = await imageUrlToBase64(logoUrl);
-  const logoData = logoBase64.split(',')[1];
+  const logoResponse = await fetch(logoImage);
+  const logoBlob = await logoResponse.blob();
+  const logoBase64 = await new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+    reader.readAsDataURL(logoBlob);
+  });
 
-  const paragraphs: Paragraph[] = [];
-
-  // Logo einfügen
-  if (logoData) {
-    paragraphs.push(
+  // Header mit Logo erstellen
+  const header = new Header({
+    children: [
       new Paragraph({
         children: [
           new ImageRun({
-            type: 'jpg',
-            data: Uint8Array.from(atob(logoData), c => c.charCodeAt(0)),
+            type: 'png',
+            data: Uint8Array.from(atob(logoBase64), c => c.charCodeAt(0)),
             transformation: {
-              width: 500,
-              height: 100,
+              width: 550,
+              height: 110,
             },
           }),
         ],
         alignment: AlignmentType.CENTER,
-        spacing: { after: 400 },
-      })
-    );
-  }
+        spacing: { after: 200 },
+      }),
+    ],
+  });
 
   // Überschrift
-  paragraphs.push(
-    new Paragraph({
-      text: "Projektdokumentation",
-      heading: HeadingLevel.HEADING_1,
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 300, after: 400 },
-    })
-  );
-
-  // Projektname
-  paragraphs.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: project.title || 'Unbenanntes Projekt',
-          bold: true,
-          size: 32,
-        }),
-      ],
-      spacing: { after: 200 },
-    })
-  );
-
-  // Projekt-ID
-  if (details?.auftragsnummer) {
-    paragraphs.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: 'Projekt-ID: ',
-            bold: true,
-          }),
-          new TextRun({
-            text: details.auftragsnummer,
-          }),
-        ],
-        spacing: { after: 300 },
-      })
-    );
-  }
+  const titleParagraph = new Paragraph({
+    text: "Projektdokumentation",
+    heading: HeadingLevel.HEADING_1,
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 200, after: 300 },
+  });
 
   // Projektdetails Tabelle
   const detailsRows = [
@@ -222,7 +195,7 @@ export async function exportProjectToWord(
           children: [new Paragraph({ 
             children: [new TextRun({ text: label, bold: true })],
           })],
-          width: { size: 30, type: WidthType.PERCENTAGE },
+          width: { size: 35, type: WidthType.PERCENTAGE },
           borders: {
             top: { style: BorderStyle.NONE },
             bottom: { style: BorderStyle.NONE },
@@ -232,7 +205,7 @@ export async function exportProjectToWord(
         }),
         new TableCell({
           children: [new Paragraph(value)],
-          width: { size: 70, type: WidthType.PERCENTAGE },
+          width: { size: 65, type: WidthType.PERCENTAGE },
           borders: {
             top: { style: BorderStyle.NONE },
             bottom: { style: BorderStyle.NONE },
@@ -244,16 +217,14 @@ export async function exportProjectToWord(
     })),
   });
 
-  paragraphs.push(
-    new Paragraph({
-      text: "",
-      spacing: { before: 200, after: 200 },
-    })
-  );
+  const firstPageContent: (Paragraph | Table)[] = [
+    titleParagraph,
+    detailsTable,
+  ];
 
   // Notizen
   if (notes && notes.length > 0) {
-    paragraphs.push(
+    firstPageContent.push(
       new Paragraph({
         children: [
           new TextRun({
@@ -262,12 +233,12 @@ export async function exportProjectToWord(
             size: 28,
           }),
         ],
-        spacing: { before: 300, after: 200 },
+        spacing: { before: 400, after: 200 },
       })
     );
     
     notes.forEach(note => {
-      paragraphs.push(
+      firstPageContent.push(
         new Paragraph({
           children: [
             new TextRun({
@@ -282,7 +253,7 @@ export async function exportProjectToWord(
 
   // Kontakte
   if (contacts && contacts.length > 0) {
-    paragraphs.push(
+    firstPageContent.push(
       new Paragraph({
         children: [
           new TextRun({
@@ -291,12 +262,12 @@ export async function exportProjectToWord(
             size: 28,
           }),
         ],
-        spacing: { before: 300, after: 200 },
+        spacing: { before: 400, after: 200 },
       })
     );
     
     contacts.forEach(contact => {
-      paragraphs.push(
+      firstPageContent.push(
         new Paragraph({
           children: [
             new TextRun({
@@ -313,8 +284,10 @@ export async function exportProjectToWord(
     });
   }
 
-  // Chat-Verlauf - Neue Seite
-  paragraphs.push(
+  // Chat-Verlauf - Neue Seite mit 2 Spalten
+  const chatPageContent: (Paragraph | Table)[] = [];
+  
+  chatPageContent.push(
     new Paragraph({
       text: "",
       pageBreakBefore: true,
@@ -332,36 +305,42 @@ export async function exportProjectToWord(
     })
   );
 
-  // Messages
+  // Chat-Messages in 2-Spalten-Tabelle
   if (messages && messages.length > 0) {
+    const messageRows: TableRow[] = [];
+    let currentRow: any[] = [];
+
     for (const msg of messages) {
       const timestamp = new Date(msg.timestamp).toLocaleString('de-DE');
       const sender = msg.profile 
         ? `${msg.profile.first_name} ${msg.profile.last_name}`
         : msg.sender || 'Unbekannt';
 
-      // Nachricht-Header
-      paragraphs.push(
+      const messageCellContent: (Paragraph | Table)[] = [];
+
+      // Header
+      messageCellContent.push(
         new Paragraph({
           children: [
             new TextRun({
               text: `${sender} - ${timestamp}`,
               bold: true,
               color: '666666',
-              size: 20,
+              size: 18,
             }),
           ],
-          spacing: { before: 200, after: 100 },
+          spacing: { after: 100 },
         })
       );
 
-      // Text-Nachricht
+      // Content
       if (msg.type === 'text' && msg.content?.text) {
-        paragraphs.push(
+        messageCellContent.push(
           new Paragraph({
             children: [
               new TextRun({
                 text: msg.content.text,
+                size: 20,
               }),
             ],
             spacing: { after: 100 },
@@ -369,32 +348,30 @@ export async function exportProjectToWord(
         );
       }
       
-      // Bilder
       if (msg.type === 'image' && msg.content?.url) {
         try {
           const imageBase64 = await imageUrlToBase64(msg.content.url);
           if (imageBase64) {
             const imgData = imageBase64.split(',')[1];
-            const imageType = msg.content.url.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
-            paragraphs.push(
+            messageCellContent.push(
               new Paragraph({
                 children: [
                   new ImageRun({
-                    type: imageType,
+                    type: 'png',
                     data: Uint8Array.from(atob(imgData), c => c.charCodeAt(0)),
                     transformation: {
-                      width: 400,
-                      height: 300,
+                      width: 220,
+                      height: 165,
                     },
                   }),
                 ],
-                spacing: { after: 200 },
+                spacing: { after: 100 },
               })
             );
           }
         } catch (error) {
           console.error('Error loading image:', error);
-          paragraphs.push(
+          messageCellContent.push(
             new Paragraph({
               children: [
                 new TextRun({
@@ -403,15 +380,13 @@ export async function exportProjectToWord(
                   color: '999999',
                 }),
               ],
-              spacing: { after: 100 },
             })
           );
         }
       }
 
-      // Audio
-      if (msg.type === 'audio' && msg.content?.url) {
-        paragraphs.push(
+      if (msg.type === 'audio') {
+        messageCellContent.push(
           new Paragraph({
             children: [
               new TextRun({
@@ -419,22 +394,122 @@ export async function exportProjectToWord(
                 italics: true,
               }),
             ],
-            spacing: { after: 100 },
+          })
+        );
+      }
+
+      if (msg.type === 'video') {
+        messageCellContent.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: '🎥 Video',
+                italics: true,
+              }),
+            ],
+          })
+        );
+      }
+
+      if (msg.type === 'file') {
+        messageCellContent.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `📄 ${msg.content?.name || 'Datei'}`,
+                italics: true,
+              }),
+            ],
           })
         );
       }
 
       // Trennlinie
-      paragraphs.push(
+      messageCellContent.push(
         new Paragraph({
-          text: "─────────────────────────────────────",
-          alignment: AlignmentType.LEFT,
-          spacing: { after: 100 },
+          children: [
+            new TextRun({
+              text: "──────────────",
+              color: 'CCCCCC',
+            }),
+          ],
+          spacing: { before: 100 },
+        })
+      );
+
+      // Zu aktueller Zeile hinzufügen
+      currentRow.push(messageCellContent);
+
+      // Wenn 2 Spalten voll, neue Zeile erstellen
+      if (currentRow.length === 2) {
+        messageRows.push(
+          new TableRow({
+            children: [
+              new TableCell({
+                children: currentRow[0],
+                width: { size: 48, type: WidthType.PERCENTAGE },
+                margins: {
+                  top: convertInchesToTwip(0.1),
+                  bottom: convertInchesToTwip(0.1),
+                  left: convertInchesToTwip(0.1),
+                  right: convertInchesToTwip(0.1),
+                },
+                verticalAlign: 'top' as any,
+              }),
+              new TableCell({
+                children: currentRow[1],
+                width: { size: 48, type: WidthType.PERCENTAGE },
+                margins: {
+                  top: convertInchesToTwip(0.1),
+                  bottom: convertInchesToTwip(0.1),
+                  left: convertInchesToTwip(0.1),
+                  right: convertInchesToTwip(0.1),
+                },
+                verticalAlign: 'top' as any,
+              }),
+            ],
+          })
+        );
+        currentRow = [];
+      }
+    }
+
+    // Letzte Zeile (falls ungerade Anzahl)
+    if (currentRow.length === 1) {
+      messageRows.push(
+        new TableRow({
+          children: [
+            new TableCell({
+              children: currentRow[0],
+              width: { size: 48, type: WidthType.PERCENTAGE },
+              margins: {
+                top: convertInchesToTwip(0.1),
+                bottom: convertInchesToTwip(0.1),
+                left: convertInchesToTwip(0.1),
+                right: convertInchesToTwip(0.1),
+              },
+              verticalAlign: 'top' as any,
+            }),
+            new TableCell({
+              children: [new Paragraph({ text: '' })],
+              width: { size: 48, type: WidthType.PERCENTAGE },
+            }),
+          ],
+        })
+      );
+    }
+
+    if (messageRows.length > 0) {
+      chatPageContent.push(
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: messageRows,
+          columnWidths: [4800, 4800],
         })
       );
     }
   } else {
-    paragraphs.push(
+    chatPageContent.push(
       new Paragraph({
         children: [
           new TextRun({
@@ -454,16 +529,19 @@ export async function exportProjectToWord(
         properties: {
           page: {
             margin: {
-              top: 1440,
+              top: 1800,
               right: 1440,
               bottom: 1440,
               left: 1440,
             },
           },
         },
+        headers: {
+          default: header,
+        },
         children: [
-          detailsTable,
-          ...paragraphs,
+          ...firstPageContent,
+          ...chatPageContent,
         ],
       },
     ],
