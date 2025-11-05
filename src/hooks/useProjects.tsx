@@ -135,11 +135,17 @@ export function useProjects(folderId?: string) {
     mutationFn: async ({ id, archived }: { id: string; archived: boolean }) => {
       if (!user) throw new Error('Not authenticated');
       
-      const project = { id, archived: !archived, updated_at: new Date().toISOString() };
+      const project = { 
+        id, 
+        archived: !archived, 
+        updated_at: new Date().toISOString(),
+        user_id: user.id  // ✅ FIX: user_id hinzufügen für RLS
+      };
       return await syncService.syncProject(project);
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      toast({ title: variables.archived ? 'Projekt wiederhergestellt' : 'Projekt archiviert' });
     },
   });
 

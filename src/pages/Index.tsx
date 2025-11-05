@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState, useEffect, useCallback, memo } from "
 import { useAuth } from "@/hooks/useAuth";
 import { useFolders } from "@/hooks/useFolders";
 import { useProjects } from "@/hooks/useProjects";
+import { useDeletedProjects } from "@/hooks/useDeletedProjects";
 import { useMessages } from "@/hooks/useMessages";
 import { useProjectFiles } from "@/hooks/useProjectFiles";
 import { useProjectDirectories } from "@/hooks/useProjectDirectories";
@@ -12,6 +13,11 @@ import { useContacts } from "@/hooks/useContacts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/hooks/use-toast";
+import { exportProjectsToExcel, exportProjectToPDF } from "@/lib/exportUtils";
+import { 
+  FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
+  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X 
+} from "lucide-react";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
 
@@ -22,6 +28,20 @@ const tsFileSuffix = (d = new Date()) => {
 
 const isImgName = (name = "") => /\.(png|jpg|jpeg|webp|gif|bmp)$/i.test(name);
 const isPdfName = (name = "") => /\.pdf$/i.test(name);
+
+// File icon mapping
+const getFileIcon = (fileName: string, mimeType: string = '') => {
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  
+  if (/\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(fileName)) return ImageIcon;
+  if (/\.(mp4|avi|mov|wmv|webm|mkv)$/i.test(fileName)) return Video;
+  if (/\.(mp3|wav|ogg|flac|aac)$/i.test(fileName)) return Music;
+  if (/\.(zip|rar|7z|tar|gz|bz2)$/i.test(fileName)) return FileArchive;
+  if (/\.(js|ts|tsx|jsx|css|html|json|xml|py|java|cpp|c|h)$/i.test(fileName)) return Code;
+  if (ext === 'pdf' || mimeType === 'application/pdf') return FileText;
+  
+  return FileIcon;
+};
 
 const fileToUrl = (file: File) =>
   new Promise<{ url: string; mime: string }>((resolve) => {
@@ -115,6 +135,7 @@ type ProjectDetails = {
 type Project = {
   id: string;
   title: string;
+  created_at?: string;
   auftragsnummer?: string;
   projektstatus?: string;
   archived: boolean;
@@ -135,12 +156,13 @@ export default function Index() {
   const { user } = useAuth();
   const { folders: dbFolders, isLoading: foldersLoading, createFolder: dbCreateFolder, deleteFolder: dbDeleteFolder, toggleArchive: dbToggleArchive } = useFolders();
   const { projects: dbProjects, isLoading: projectsLoading, createProject: dbCreateProject, deleteProject: dbDeleteProject, toggleArchive: dbToggleProjectArchive } = useProjects();
+  const { deletedProjects, restoreProject, permanentlyDeleteProject } = useDeletedProjects();
   const { allDetails, getDetailsForProject } = useAllProjectDetails();
   
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [fabOpen, setFabOpen] = useState(false);
-  const [view, setView] = useState<"chat" | "files" | "details">("chat");
+  const [view, setView] = useState<"chat" | "files" | "details" | "trash">("chat");
 
   const [showFolderDlg, setShowFolderDlg] = useState(false);
   const [showProjectDlg, setShowProjectDlg] = useState(false);
@@ -151,16 +173,19 @@ export default function Index() {
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
   const [moveDlg, setMoveDlg] = useState<{ folderId: string; projectId: string; targetId: string } | null>(null);
+  
+  // Sort/Filter states
+  const [sortBy, setSortBy] = useState<'title' | 'auftragsnummer' | 'projektstatus' | 'created_at'>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [showExportDlg, setShowExportDlg] = useState(false);
 
-  // Transform DB data to UI format (denormalize)
+  // Transform DB data to UI format (denormalize) + Sort/Filter
   const folders = useMemo(() => {
     if (!dbFolders || !dbProjects) return [];
     
-    return dbFolders.map(folder => ({
-      id: folder.id,
-      name: folder.name,
-      archived: folder.archived,
-      projects: dbProjects
+    return dbFolders.map(folder => {
+      let projectsList = dbProjects
         .filter(p => p.folder_id === folder.id)
         .map(p => {
           const details = getDetailsForProject(p.id);
@@ -168,6 +193,7 @@ export default function Index() {
             id: p.id,
             title: p.title,
             archived: p.archived,
+            created_at: p.created_at,
             auftragsnummer: details?.auftragsnummer || '',
             projektstatus: details?.projektstatus || '',
             dirs: ["Bilder", "Dokumente"],
@@ -189,9 +215,33 @@ export default function Index() {
               contacts: [],
             },
           };
-        })
-    }));
-  }, [dbFolders, dbProjects, getDetailsForProject]);
+        });
+      
+      // Filter by status
+      if (filterStatus) {
+        projectsList = projectsList.filter(p => p.projektstatus === filterStatus);
+      }
+      
+      // Sort projects
+      projectsList.sort((a, b) => {
+        let aVal: any = sortBy === 'created_at' ? new Date(a.created_at || 0).getTime() : (a[sortBy] || '');
+        let bVal: any = sortBy === 'created_at' ? new Date(b.created_at || 0).getTime() : (b[sortBy] || '');
+        
+        if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+        if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+        
+        if (sortOrder === 'asc') return aVal > bVal ? 1 : -1;
+        return aVal < bVal ? 1 : -1;
+      });
+      
+      return {
+        id: folder.id,
+        name: folder.name,
+        archived: folder.archived,
+        projects: projectsList,
+      };
+    });
+  }, [dbFolders, dbProjects, getDetailsForProject, sortBy, sortOrder, filterStatus]);
 
   const isLoading = foldersLoading || projectsLoading;
 
@@ -333,9 +383,79 @@ export default function Index() {
       </header>
 
       <div className="h-[calc(100vh-56px)] grid grid-cols-1 md:grid-cols-[320px_1fr] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
-        <aside className="border-r border-border bg-sidebar relative overflow-hidden">
-          <div className="absolute inset-0 overflow-auto">
-            {isLoading ? (
+        <aside className="border-r border-border bg-sidebar relative overflow-hidden flex flex-col">
+          {/* Navigation Tabs */}
+          <div className="flex border-b border-border bg-card">
+            <button 
+              onClick={() => { setView('chat'); setSelectedProjectId(null); }}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${view === 'trash' ? 'border-transparent text-muted-foreground hover:text-foreground' : 'border-primary text-foreground'}`}
+            >
+              📁 Projekte
+            </button>
+            <button 
+              onClick={() => { setView('trash'); setSelectedProjectId(null); setSelectedFolderId(null); }}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors border-b-2 flex items-center justify-center gap-2 ${view === 'trash' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              <Trash2 className="w-4 h-4" />
+              Papierkorb {deletedProjects.length > 0 && `(${deletedProjects.length})`}
+            </button>
+          </div>
+
+          {/* Sort/Filter Bar (nur bei Projekten) */}
+          {view !== 'trash' && (
+            <div className="px-3 py-2 border-b border-border bg-card space-y-2">
+              <div className="flex gap-2">
+                <select 
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="created_at">Datum</option>
+                  <option value="title">Titel</option>
+                  <option value="auftragsnummer">Auftragsnummer</option>
+                  <option value="projektstatus">Status</option>
+                </select>
+                <button 
+                  onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
+                  className="px-2 py-1.5 bg-secondary border border-border rounded-md hover:bg-accent transition-colors"
+                  title={sortOrder === 'asc' ? 'Aufsteigend' : 'Absteigend'}
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <select 
+                  value={filterStatus || ''}
+                  onChange={(e) => setFilterStatus(e.target.value || null)}
+                  className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="">Alle Status</option>
+                  <option value="In Planung">In Planung</option>
+                  <option value="In Bearbeitung">In Bearbeitung</option>
+                  <option value="Abgeschlossen">Abgeschlossen</option>
+                  <option value="Pausiert">Pausiert</option>
+                </select>
+                {filterStatus && (
+                  <button 
+                    onClick={() => setFilterStatus(null)}
+                    className="px-2 py-1.5 bg-secondary border border-border rounded-md hover:bg-accent transition-colors"
+                    title="Filter zurücksetzen"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          
+          <div className="flex-1 overflow-auto">
+            {view === 'trash' ? (
+              <TrashView 
+                deletedProjects={deletedProjects}
+                onRestore={restoreProject}
+                onPermanentDelete={permanentlyDeleteProject}
+              />
+            ) : isLoading ? (
               <div className="p-4 space-y-4">
                 <Skeleton className="h-12 w-full" />
                 <Skeleton className="h-12 w-full" />
@@ -381,13 +501,24 @@ export default function Index() {
             <h2 className="font-semibold text-lg truncate">
               {selectedProject ? selectedProject.title : selectedFolder ? selectedFolder.name : "–"}
             </h2>
-            {selectedProject && (
-              <div className="hidden sm:flex items-center gap-2 text-sm">
-                <HeaderBtn label="💬 Chat" active={view === "chat"} onClick={() => setView("chat")} />
-                <HeaderBtn label="📁 Dateien" active={view === "files"} onClick={() => setView("files")} />
-                <HeaderBtn label="📋 Details" active={view === "details"} onClick={() => setView("details")} />
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {selectedProject && (
+                <>
+                  <button
+                    onClick={() => setShowExportDlg(true)}
+                    className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export
+                  </button>
+                  <div className="hidden sm:flex items-center gap-2 text-sm">
+                    <HeaderBtn label="💬 Chat" active={view === "chat"} onClick={() => setView("chat")} />
+                    <HeaderBtn label="📁 Dateien" active={view === "files"} onClick={() => setView("files")} />
+                    <HeaderBtn label="📋 Details" active={view === "details"} onClick={() => setView("details")} />
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="absolute inset-0 top-[56px] flex flex-col">
@@ -465,6 +596,14 @@ export default function Index() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {showExportDlg && selectedProject && (
+        <ExportDialog 
+          project={selectedProject} 
+          onClose={() => setShowExportDlg(false)}
+          allDetails={allDetails}
+        />
       )}
     </div>
   );
@@ -974,9 +1113,19 @@ function FilesView({ project }: { project: Project }) {
 
 const FileCard = memo(function FileCard({ file, dirs, onMove, onOpen }: { file: ProjectFile; dirs: string[]; onMove: (id: string, dir: string) => void; onOpen: () => void }) {
   const [menu, setMenu] = useState(false);
+  const IconComponent = getFileIcon(file.name, file.mime);
+  const isImage = ((file.isImage === true) || (file.mime || "").startsWith("image/") || isImgName(file.name));
+  
   return (
     <div className="border border-border rounded-lg overflow-hidden bg-card cursor-pointer group hover:shadow-md transition-all" draggable onDragStart={(e) => e.dataTransfer.setData("text/id", file.id)} onClick={onOpen} title={`${file.name}`}>
-      {((file.isImage === true) || (file.mime || "").startsWith("image/") || isImgName(file.name)) ? (<img src={file.thumbUrl || file.url} alt={file.name} className="w-full h-36 object-cover" />) : (<div className="w-full h-36 flex items-center justify-center bg-secondary text-sm text-muted-foreground font-mono font-semibold">{(file.ext || "FILE").toUpperCase()}</div>)}
+      {isImage ? (
+        <img src={file.thumbUrl || file.url} alt={file.name} className="w-full h-36 object-cover" />
+      ) : (
+        <div className="w-full h-36 flex flex-col items-center justify-center bg-secondary gap-2">
+          <IconComponent className="w-12 h-12 text-muted-foreground" />
+          <div className="text-xs text-muted-foreground font-mono font-semibold">{(file.ext || "FILE").toUpperCase()}</div>
+        </div>
+      )}
       <div className="px-3 py-2 text-xs text-muted-foreground truncate flex items-center justify-between border-t border-border">
         <span className="truncate font-medium text-foreground">{file.name}</span>
         <div className="relative">
@@ -1364,6 +1513,136 @@ function DetailsSidebar({ project }: { project: Project }) {
         )}
       </div>
     </div>
+  );
+}
+
+function TrashView({ 
+  deletedProjects, 
+  onRestore, 
+  onPermanentDelete 
+}: { 
+  deletedProjects: any[]; 
+  onRestore: (id: string) => void; 
+  onPermanentDelete: (id: string) => void; 
+}) {
+  const { allDetails } = useAllProjectDetails();
+  
+  return (
+    <div className="p-4 space-y-2">
+      {deletedProjects.length === 0 ? (
+        <div className="text-sm text-muted-foreground text-center py-12">
+          <Trash2 className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <div>Papierkorb ist leer</div>
+        </div>
+      ) : (
+        deletedProjects.map((p) => {
+          const details = allDetails.find(d => d.project_id === p.id);
+          return (
+            <div key={p.id} className="border border-border rounded-lg p-3 bg-card space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {p.title}
+                    {details?.auftragsnummer && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        ({details.auftragsnummer})
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Gelöscht: {new Date(p.deleted_at).toLocaleDateString('de-DE')}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    if (confirm(`Projekt "${p.title}" wiederherstellen?`)) {
+                      onRestore(p.id);
+                    }
+                  }}
+                  className="flex-1 px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary-hover rounded-md transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Wiederherstellen
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Projekt "${p.title}" DAUERHAFT löschen? Diese Aktion kann nicht rückgängig gemacht werden!`)) {
+                      onPermanentDelete(p.id);
+                    }
+                  }}
+                  className="flex-1 px-3 py-1.5 text-xs font-medium bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-md transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Endgültig löschen
+                </button>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function ExportDialog({ project, onClose, allDetails }: { project: Project; onClose: () => void; allDetails: any[] }) {
+  const { details } = useProjectDetails(project.id);
+  const { notes } = useNotes(project.id);
+  const { contacts } = useContacts(project.id);
+  const { messages } = useMessages(project.id);
+  
+  const handlePDFExport = async () => {
+    await exportProjectToPDF(
+      project,
+      details,
+      notes || [],
+      contacts || [],
+      messages || []
+    );
+    onClose();
+    toast({ title: 'PDF-Export erfolgreich' });
+  };
+  
+  const handleExcelExport = () => {
+    exportProjectsToExcel([{ ...project, created_at: project.created_at || new Date().toISOString() }], allDetails);
+    onClose();
+    toast({ title: 'Excel-Export erfolgreich' });
+  };
+  
+  return (
+    <Modal title="Projekt exportieren" onClose={onClose}>
+      <div className="space-y-4">
+        <div className="text-sm text-muted-foreground mb-4">
+          Wählen Sie das gewünschte Export-Format für das Projekt "{project.title}".
+        </div>
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={handlePDFExport}
+            className="w-full px-6 py-4 rounded-lg border-2 border-border bg-card hover:bg-accent transition-colors text-left flex items-center gap-4"
+          >
+            <FileText className="w-8 h-8 text-destructive" />
+            <div>
+              <div className="font-semibold">PDF-Export</div>
+              <div className="text-xs text-muted-foreground">Projekt mit Details, Notizen und Kontakten als PDF</div>
+            </div>
+          </button>
+          <button
+            onClick={handleExcelExport}
+            className="w-full px-6 py-4 rounded-lg border-2 border-border bg-card hover:bg-accent transition-colors text-left flex items-center gap-4"
+          >
+            <FileText className="w-8 h-8 text-success" />
+            <div>
+              <div className="font-semibold">Excel-Export</div>
+              <div className="text-xs text-muted-foreground">Projektdaten als Excel-Datei</div>
+            </div>
+          </button>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" onClick={onClose}>Abbrechen</Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
