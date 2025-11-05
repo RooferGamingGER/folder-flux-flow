@@ -90,7 +90,7 @@ type Message = {
   id: string;
   sender: string;
   timestamp: string;
-  type: "text" | "image" | "file" | "info";
+  type: "text" | "image" | "file" | "info" | "audio" | "video";
   content: any;
 };
 
@@ -1436,6 +1436,13 @@ function ChatView({ project }: { project: Project }) {
   const { messages, sendMessage } = useMessages(project.id);
   const { uploadFile, isUploading, getFileUrl } = useProjectFiles(project.id);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-Scroll zu neuen Nachrichten
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const sendText = () => {
     const t = text.trim();
@@ -1472,24 +1479,66 @@ function ChatView({ project }: { project: Project }) {
     }
   };
 
+  const handleAudioUpload = async (blob: Blob) => {
+    const file = new File([blob], `audio_${Date.now()}.webm`, { type: 'audio/webm' });
+    
+    uploadFile({ file, folder: 'Sprachnachrichten' }, {
+      onSuccess: (data) => {
+        const fileUrl = getFileUrl(data);
+        sendMessage({
+          type: 'audio',
+          content: {
+            url: fileUrl,
+            name: file.name,
+            fileId: data.id,
+          }
+        });
+      }
+    });
+  };
+
+  const handleVideoUpload = async (blob: Blob) => {
+    const file = new File([blob], `video_${Date.now()}.webm`, { type: 'video/webm' });
+    
+    uploadFile({ file, folder: 'Videos' }, {
+      onSuccess: (data) => {
+        const fileUrl = getFileUrl(data);
+        sendMessage({
+          type: 'video',
+          content: {
+            url: fileUrl,
+            name: file.name,
+            fileId: data.id,
+          }
+        });
+      }
+    });
+  };
+
   return (
-    <div className="flex-1 flex flex-col">
-      <div className="flex-1 overflow-auto px-6 py-4 space-y-3">
+    <div className="h-full flex flex-col">
+      <div 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto px-6 py-4 space-y-3"
+      >
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center text-muted-foreground text-sm px-8 text-center">
             Noch keine Nachrichten.<br/>Starte die projektbezogene Unterhaltung.
           </div>
         ) : (
-          messages.map((m) => <MessageBubble key={m.id} msg={m} />)
+          <>
+            {messages.map((m) => <MessageBubble key={m.id} msg={m} getFileUrl={getFileUrl} />)}
+            <div ref={messagesEndRef} />
+          </>
         )}
       </div>
 
-      <div className="border-t border-border p-4 bg-card shadow-sm">
+      <div className="shrink-0 border-t border-border p-4 bg-card shadow-sm">
         <div className="flex items-center gap-2">
           <input 
             ref={imageInputRef}
             type="file" 
-            accept="image/*,application/pdf,.pdf" 
+            accept="image/*,application/pdf,.pdf,video/*" 
             multiple 
             className="hidden" 
             onChange={(e) => { 
@@ -1505,6 +1554,8 @@ function ChatView({ project }: { project: Project }) {
           >
             📎
           </button>
+          <AudioRecorder onRecordingComplete={handleAudioUpload} />
+          <VideoRecorder onRecordingComplete={handleVideoUpload} />
           <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); } }} placeholder="Eine Nachricht schreiben…" className="flex-1 bg-secondary rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" />
           <button onClick={sendText} className="p-2.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground transition-all hover:scale-105 active:scale-95" title="Senden">➤</button>
         </div>
@@ -1514,9 +1565,208 @@ function ChatView({ project }: { project: Project }) {
   );
 }
 
-const MessageBubble = memo(function MessageBubble({ msg }: { msg: any }) {
+function AudioRecorder({ onRecordingComplete }: { onRecordingComplete: (blob: Blob) => void }) {
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        onRecordingComplete(blob);
+        stream.getTracks().forEach(track => track.stop());
+        setRecordingTime(0);
+        if (timerRef.current) clearInterval(timerRef.current);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (error) {
+      console.error('Fehler beim Zugriff auf Mikrofon:', error);
+      toast({
+        title: 'Mikrofon-Zugriff verweigert',
+        description: 'Bitte erlaube den Mikrofon-Zugriff in den Browser-Einstellungen.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      {!isRecording ? (
+        <button
+          onClick={startRecording}
+          className="p-2.5 rounded-lg border border-border bg-background hover:bg-accent transition-colors"
+          title="Sprachnachricht aufnehmen"
+        >
+          🎤
+        </button>
+      ) : (
+        <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-950/20 border border-red-500 rounded-lg">
+          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          <span className="text-sm font-medium text-red-600 dark:text-red-400">{formatTime(recordingTime)}</span>
+          <button
+            onClick={stopRecording}
+            className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-medium transition-colors"
+          >
+            Stoppen
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VideoRecorder({ onRecordingComplete }: { onRecordingComplete: (blob: Blob) => void }) {
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [showPreview, setShowPreview] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoPreviewRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' },
+        audio: true 
+      });
+      
+      streamRef.current = stream;
+      
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = stream;
+      }
+      setShowPreview(true);
+
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        onRecordingComplete(blob);
+        stream.getTracks().forEach(track => track.stop());
+        setRecordingTime(0);
+        setShowPreview(false);
+        if (timerRef.current) clearInterval(timerRef.current);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (error) {
+      console.error('Fehler beim Zugriff auf Kamera:', error);
+      toast({
+        title: 'Kamera-Zugriff verweigert',
+        description: 'Bitte erlaube den Kamera-Zugriff in den Browser-Einstellungen.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <>
+      {!isRecording ? (
+        <button
+          onClick={startRecording}
+          className="p-2.5 rounded-lg border border-border bg-background hover:bg-accent transition-colors"
+          title="Video aufnehmen"
+        >
+          🎥
+        </button>
+      ) : (
+        <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-950/20 border border-red-500 rounded-lg">
+          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          <span className="text-sm font-medium text-red-600 dark:text-red-400">{formatTime(recordingTime)}</span>
+          <button
+            onClick={stopRecording}
+            className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-medium transition-colors"
+          >
+            Stoppen
+          </button>
+        </div>
+      )}
+
+      {showPreview && (
+        <Modal onClose={stopRecording} title="Video-Aufnahme">
+          <div className="relative">
+            <video
+              ref={videoPreviewRef}
+              autoPlay
+              muted
+              className="w-full max-h-96 rounded-lg bg-black"
+            />
+            <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              REC {formatTime(recordingTime)}
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+const MessageBubble = memo(function MessageBubble({ msg, getFileUrl }: { msg: any; getFileUrl?: any }) {
   const sender = msg.profile ? `${msg.profile.first_name} ${msg.profile.last_name}` : msg.sender || "Du";
   const timestamp = msg.timestamp || new Date().toISOString();
+  const [showPdfPreview, setShowPdfPreview] = useState(false);
   
   return (
     <div className="max-w-2xl bg-card rounded-lg p-3 shadow-sm border border-border">
@@ -1525,14 +1775,100 @@ const MessageBubble = memo(function MessageBubble({ msg }: { msg: any }) {
         <span>•</span>
         <span>{new Date(timestamp).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>
       </div>
+      
       {msg.type === "text" && <div className="text-sm text-foreground whitespace-pre-wrap">{msg.content?.text}</div>}
-      {msg.type === "image" && (<img src={msg.content?.url} alt={msg.content?.name || "Bild"} className="rounded-lg border border-border max-w-xs h-32 object-cover" />)}
-      {msg.type === "file" && (
+      
+      {msg.type === "image" && (
+        <img 
+          src={msg.content?.url} 
+          alt={msg.content?.name || "Bild"} 
+          className="rounded-lg border border-border max-w-xs h-32 object-cover cursor-pointer hover:opacity-90 transition-opacity" 
+          onClick={() => window.open(msg.content?.url, '_blank')}
+        />
+      )}
+      
+      {msg.type === "audio" && (
         <div className="flex items-center gap-3 p-3 bg-secondary rounded-lg border border-border">
-          <div className="text-xs px-2 py-1 rounded-md bg-primary/10 text-primary font-mono font-semibold">{(msg.content?.ext || "FILE").toUpperCase()}</div>
-          <div className="text-sm truncate">{msg.content?.name}</div>
+          <div className="text-2xl">🎤</div>
+          <audio 
+            controls 
+            src={msg.content?.url} 
+            className="flex-1"
+            controlsList="nodownload"
+          />
         </div>
       )}
+      
+      {msg.type === "video" && (
+        <div className="rounded-lg overflow-hidden border border-border bg-black">
+          <video 
+            controls 
+            src={msg.content?.url} 
+            className="w-full max-h-64"
+            controlsList="nodownload"
+          />
+        </div>
+      )}
+      
+      {msg.type === "file" && (
+        <div>
+          <div 
+            className="flex items-center gap-3 p-3 bg-secondary rounded-lg border border-border cursor-pointer hover:bg-accent transition-colors"
+            onClick={() => {
+              const ext = msg.content?.ext?.toLowerCase() || '';
+              if (ext === 'pdf' || ext === '.pdf') {
+                setShowPdfPreview(true);
+              } else {
+                window.open(msg.content?.url, '_blank');
+              }
+            }}
+          >
+            <div className="text-xs px-2 py-1 rounded-md bg-primary/10 text-primary font-mono font-semibold">
+              {(msg.content?.ext || "FILE").toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm truncate">{msg.content?.name}</div>
+              <div className="text-xs text-muted-foreground">Klicke zum Öffnen</div>
+            </div>
+          </div>
+
+          {showPdfPreview && (
+            <Modal onClose={() => setShowPdfPreview(false)} title={msg.content?.name || "PDF"}>
+              <div className="w-full h-[70vh] bg-muted rounded-lg overflow-hidden">
+                <object 
+                  data={msg.content?.url} 
+                  type="application/pdf" 
+                  className="w-full h-full"
+                >
+                  <iframe 
+                    title="PDF Preview" 
+                    src={msg.content?.url} 
+                    className="w-full h-full"
+                  />
+                </object>
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
+                <a 
+                  href={msg.content?.url} 
+                  download 
+                  className="px-4 py-2 rounded-lg border border-border bg-background hover:bg-accent transition-colors"
+                >
+                  ⬇️ Download
+                </a>
+                <a 
+                  href={msg.content?.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground transition-colors"
+                >
+                  In neuem Tab öffnen
+                </a>
+              </div>
+            </Modal>
+          )}
+        </div>
+      )}
+      
       {msg.type === "info" && (<div className="text-xs text-muted-foreground italic">{msg.content?.text}</div>)}
     </div>
   );
@@ -1552,7 +1888,7 @@ function FilesView({ project }: { project: Project }) {
   const { directories, createDirectory, renameDirectory, deleteDirectory } = useProjectDirectories(project.id);
 
   // Standard-Ordner + Datenbank-Ordner kombinieren, Duplikate vermeiden
-  const standardDirs = ["Bilder", "Dokumente", "Chat"];
+  const standardDirs = ["Bilder", "Dokumente", "Chat", "Sprachnachrichten", "Videos"];
   const customDirs = directories.map(d => d.name);
   // Nur Standard-Ordner hinzufügen, die nicht bereits in der Datenbank existieren
   const uniqueStandardDirs = standardDirs.filter(std => !customDirs.includes(std));
