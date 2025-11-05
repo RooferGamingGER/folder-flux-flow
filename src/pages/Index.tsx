@@ -1689,6 +1689,20 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
             <Users className="w-3.5 h-3.5" />
           </button>
         )}
+        {canLeave && (
+          <button 
+            className="px-2 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors opacity-0 group-hover:opacity-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm(`Möchtest du den Ordner "${f.name}" wirklich verlassen? Du verlierst den Zugriff auf alle Projekte in diesem Ordner (außer du bist direkt Projekt-Mitglied).`)) {
+                leaveFolder();
+              }
+            }}
+            title="Ordner verlassen"
+          >
+            <LogOut className="w-3.5 h-3.5 text-orange-600" />
+          </button>
+        )}
         {showMenu && (
           <div className="ml-auto relative">
             <button className="px-2.5 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors" onClick={() => setOpenMenuId(isMenuOpen ? null : menuId)}>⋯</button>
@@ -1751,10 +1765,10 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenu
   
   const isOwner = p.user_id === user?.id;
   const canLeave = !canManageProjects && !isOwner;
-  const showMenu = canManageProjects || !isOwner;
+  const showMenu = canManageProjects;
   
   return (
-    <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 px-4 py-3 cursor-pointer transition-colors ${selected ? "bg-accent" : "hover:bg-accent/50"}`}>
+    <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 px-4 py-3 cursor-pointer transition-colors ${selected ? "bg-accent" : "hover:bg-accent/50"} group`}>
       <div className={`w-1.5 h-full ${p.archived ? "bg-muted-foreground" : "bg-success"} rounded-full`} />
       <div className="min-w-0">
         <div className="text-sm font-medium text-foreground truncate">
@@ -1769,44 +1783,41 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenu
           {p.projektstatus || `Erstellt: ${new Date(p.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}`}
         </div>
       </div>
-      {showMenu && (
-        <div className="relative self-center">
-          <button className="px-2.5 py-1 rounded-md border border-border hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setOpenMenuId(isMenuOpen ? null : menuId); }}>⋯</button>
-          {isMenuOpen && (
-            <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 text-sm min-w-[200px]">
-              {canManageProjects && (
-                <>
-                  <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); onMove(); }}>
-                    📂 In anderen Ordner
-                  </button>
-                  <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); onArchive(); }}>
-                    {p.archived ? "📤 Aus Archiv holen" : "📥 Archivieren"}
-                  </button>
-                  <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); onDelete(); }}>
-                    🗑️ Projekt löschen
-                  </button>
-                  {canLeave && <div className="border-t border-border my-1" />}
-                </>
-              )}
-              {canLeave && (
-                <button 
-                  className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-orange-600 rounded-b-lg" 
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    setOpenMenuId(null); 
-                    if (confirm(`Möchtest du das Projekt "${p.title}" wirklich verlassen?`)) {
-                      leaveProject();
-                      onLeave();
-                    }
-                  }}
-                >
-                  🚪 Projekt verlassen
+      <div className="flex items-center gap-2 self-center">
+        {canLeave && (
+          <button
+            className="px-2 py-1 rounded-md border border-border bg-card hover:bg-accent transition-colors opacity-0 group-hover:opacity-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm(`Möchtest du das Projekt "${p.title}" wirklich verlassen?`)) {
+                leaveProject();
+                onLeave();
+              }
+            }}
+            title="Projekt verlassen"
+          >
+            <LogOut className="w-3.5 h-3.5 text-orange-600" />
+          </button>
+        )}
+        {showMenu && (
+          <div className="relative">
+            <button className="px-2.5 py-1 rounded-md border border-border hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setOpenMenuId(isMenuOpen ? null : menuId); }}>⋯</button>
+            {isMenuOpen && (
+              <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 text-sm min-w-[200px]">
+                <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); onMove(); }}>
+                  📂 In anderen Ordner
                 </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+                <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); onArchive(); }}>
+                  {p.archived ? "📤 Aus Archiv holen" : "📥 Archivieren"}
+                </button>
+                <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); onDelete(); }}>
+                  🗑️ Projekt löschen
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </li>
   );
 }
