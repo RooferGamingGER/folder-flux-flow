@@ -641,10 +641,12 @@ function FilesView({ project }: { project: Project }) {
   const { files: dbFiles, uploadFile, isUploading, getFileUrl, deleteFile, moveFile: dbMoveFile } = useProjectFiles(project.id);
   const { directories, createDirectory, renameDirectory, deleteDirectory } = useProjectDirectories(project.id);
 
-  // Standard-Ordner + Datenbank-Ordner kombinieren
+  // Standard-Ordner + Datenbank-Ordner kombinieren, Duplikate vermeiden
   const standardDirs = ["Bilder", "Dokumente", "Chat"];
   const customDirs = directories.map(d => d.name);
-  const listDirs = [...standardDirs, ...customDirs];
+  // Nur Standard-Ordner hinzufügen, die nicht bereits in der Datenbank existieren
+  const uniqueStandardDirs = standardDirs.filter(std => !customDirs.includes(std));
+  const listDirs = [...uniqueStandardDirs, ...customDirs];
 
   const addFiles = async (files: FileList | null, forceImage = false) => {
     if (!files || files.length === 0) return;
