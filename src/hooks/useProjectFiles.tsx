@@ -115,6 +115,35 @@ export function useProjectFiles(projectId?: string) {
     },
   });
 
+  const moveFile = useMutation({
+    mutationFn: async ({ fileId, newFolder }: { fileId: string; newFolder: string }) => {
+      console.log('📁 Moving file:', fileId, 'to folder:', newFolder);
+      
+      const { error } = await supabase
+        .from('project_files')
+        .update({ folder: newFolder })
+        .eq('id', fileId);
+      
+      if (error) {
+        console.error('Move file error:', error);
+        throw error;
+      }
+      
+      console.log('✅ File moved successfully');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project_files', projectId] });
+      toast({ title: 'Datei verschoben' });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Verschieben fehlgeschlagen',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   const getFileUrl = (file: any) => {
     if (!file.storage_path) return '';
     const bucket = file.is_image ? 'project-images' : 'project-files';
@@ -128,6 +157,8 @@ export function useProjectFiles(projectId?: string) {
     uploadFile: uploadFile.mutate,
     isUploading: uploadFile.isPending,
     deleteFile: deleteFile.mutate,
+    moveFile: moveFile.mutate,
+    isMoving: moveFile.isPending,
     getFileUrl,
   };
 }

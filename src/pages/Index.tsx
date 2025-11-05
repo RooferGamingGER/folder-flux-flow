@@ -5,6 +5,7 @@ import { useProjects } from "@/hooks/useProjects";
 import { useMessages } from "@/hooks/useMessages";
 import { useProjectFiles } from "@/hooks/useProjectFiles";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/hooks/use-toast";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
 
@@ -629,7 +630,7 @@ function FilesView({ project }: { project: Project }) {
   const [newDirName, setNewDirName] = useState("");
   const [preview, setPreview] = useState<{ url: string; mime: string; name: string; __temp: boolean } | null>(null);
   
-  const { files: dbFiles, uploadFile, isUploading, getFileUrl, deleteFile } = useProjectFiles(project.id);
+  const { files: dbFiles, uploadFile, isUploading, getFileUrl, deleteFile, moveFile: dbMoveFile } = useProjectFiles(project.id);
 
   const listDirs = ["Bilder", "Dokumente", "Chat"];
 
@@ -648,7 +649,26 @@ function FilesView({ project }: { project: Project }) {
   };
 
   const moveFile = (fileId: string, newDir: string) => {
-    console.log("File move not yet implemented");
+    if (!fileId || !newDir) return;
+    
+    // Finde die aktuelle Datei
+    const file = dbFiles.find(f => f.id === fileId);
+    if (!file) {
+      console.error('File not found:', fileId);
+      return;
+    }
+    
+    // Prüfe ob die Datei bereits im Zielordner ist
+    if (file.folder === newDir) {
+      toast({
+        title: 'Datei bereits vorhanden',
+        description: `Die Datei befindet sich bereits in "${newDir}"`,
+      });
+      return;
+    }
+    
+    // Verschiebe die Datei
+    dbMoveFile({ fileId, newFolder: newDir });
   };
   
   const onDropToDir = (e: React.DragEvent, dir: string) => { 
