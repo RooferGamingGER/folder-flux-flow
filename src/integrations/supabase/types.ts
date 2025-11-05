@@ -98,6 +98,7 @@ export type Database = {
           sync_status: Database["public"]["Enums"]["sync_status"] | null
           timestamp: string | null
           type: string
+          user_id: string | null
         }
         Insert: {
           content?: Json | null
@@ -108,6 +109,7 @@ export type Database = {
           sync_status?: Database["public"]["Enums"]["sync_status"] | null
           timestamp?: string | null
           type: string
+          user_id?: string | null
         }
         Update: {
           content?: Json | null
@@ -118,6 +120,7 @@ export type Database = {
           sync_status?: Database["public"]["Enums"]["sync_status"] | null
           timestamp?: string | null
           type?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -125,6 +128,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -163,6 +173,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          email: string
+          first_name: string
+          id: string
+          last_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          first_name: string
+          id: string
+          last_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          first_name?: string
+          id?: string
+          last_name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       project_details: {
         Row: {

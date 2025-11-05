@@ -18,7 +18,15 @@ export function useMessages(projectId?: string) {
       if (navigator.onLine) {
         const { data, error } = await supabase
           .from('messages')
-          .select('*')
+          .select(`
+            *,
+            profile:profiles!user_id(
+              id,
+              first_name,
+              last_name,
+              email
+            )
+          `)
           .eq('project_id', projectId)
           .is('deleted_at', null)
           .order('timestamp', { ascending: true });
@@ -62,13 +70,13 @@ export function useMessages(projectId?: string) {
   }, [projectId, queryClient]);
 
   const sendMessage = useMutation({
-    mutationFn: async ({ sender, type, content }: { sender: string; type: string; content: any }) => {
+    mutationFn: async ({ type, content }: { type: string; content: any }) => {
       if (!user || !projectId) throw new Error('Not authenticated or no project');
       
       const message = {
         id: crypto.randomUUID(),
         project_id: projectId,
-        sender,
+        user_id: user.id,
         type,
         content,
         timestamp: new Date().toISOString(),

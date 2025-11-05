@@ -6,6 +6,7 @@ const projectsStore = localforage.createInstance({ name: 'projects' });
 const messagesStore = localforage.createInstance({ name: 'messages' });
 const filesStore = localforage.createInstance({ name: 'files' });
 const syncQueueStore = localforage.createInstance({ name: 'sync_queue' });
+const profilesStore = localforage.createInstance({ name: 'profiles' });
 
 export const offlineStorage = {
   // Folders
@@ -56,5 +57,17 @@ export const offlineStorage = {
     const queue = await this.getSyncQueue();
     const filtered = queue.filter((item: any) => item.id !== id);
     await syncQueueStore.setItem('queue', filtered);
+  },
+  
+  // Profiles
+  async getProfiles() {
+    return await profilesStore.getItem<any[]>('all') || [];
+  },
+  async setProfiles(profiles: any[]) {
+    await profilesStore.setItem('all', profiles);
+  },
+  async getProfileById(userId: string) {
+    const profiles = await this.getProfiles();
+    return profiles.find((p: any) => p.id === userId);
   },
 };
