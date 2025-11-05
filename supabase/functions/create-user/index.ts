@@ -11,7 +11,6 @@ interface CreateUserRequest {
   lastName: string;
   email: string;
   role: string;
-  organizationId?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -25,7 +24,7 @@ const handler = async (req: Request): Promise<Response> => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { firstName, lastName, email, role, organizationId }: CreateUserRequest = await req.json();
+    const { firstName, lastName, email, role }: CreateUserRequest = await req.json();
 
     console.log('Creating user:', { firstName, lastName, email, role });
 
@@ -54,8 +53,7 @@ const handler = async (req: Request): Promise<Response> => {
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({
-        must_change_password: true,
-        organization_id: organizationId
+        must_change_password: true
       })
       .eq('id', authUser.user.id);
 
@@ -71,8 +69,7 @@ const handler = async (req: Request): Promise<Response> => {
       .from('user_roles')
       .insert({
         user_id: authUser.user.id,
-        role: role,
-        organization_id: organizationId
+        role: role
       });
 
     if (roleError) {

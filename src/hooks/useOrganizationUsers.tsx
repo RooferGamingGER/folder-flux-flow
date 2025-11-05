@@ -6,18 +6,15 @@ import { toast } from '@/hooks/use-toast';
 
 export function useOrganizationUsers() {
   const { user } = useAuth();
-  const { organizationId, isAdmin } = useUserRole();
+  const { isAdmin } = useUserRole();
   const queryClient = useQueryClient();
 
   const { data: users = [], isLoading } = useQuery({
-    queryKey: ['organization-users', organizationId],
+    queryKey: ['organization-users'],
     queryFn: async () => {
-      if (!organizationId) return [];
-      
       const { data, error } = await supabase
         .from('user_roles')
         .select('*')
-        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -37,7 +34,7 @@ export function useOrganizationUsers() {
 
       return userData;
     },
-    enabled: !!user && !!organizationId && isAdmin,
+    enabled: !!user && isAdmin,
   });
 
   const createUser = useMutation({
@@ -57,8 +54,7 @@ export function useOrganizationUsers() {
           firstName,
           lastName,
           email,
-          role,
-          organizationId
+          role
         }
       });
 
@@ -95,8 +91,7 @@ export function useOrganizationUsers() {
           userId,
           firstName,
           lastName,
-          role,
-          organizationId
+          role
         }
       });
 

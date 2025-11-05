@@ -11,7 +11,6 @@ interface UpdateUserRequest {
   firstName?: string;
   lastName?: string;
   role?: string;
-  organizationId?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -25,7 +24,7 @@ const handler = async (req: Request): Promise<Response> => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { userId, firstName, lastName, role, organizationId }: UpdateUserRequest = await req.json();
+    const { userId, firstName, lastName, role }: UpdateUserRequest = await req.json();
 
     console.log('Updating user:', { userId, firstName, lastName, role });
 
@@ -60,12 +59,11 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Update role
-    if (role && organizationId) {
+    if (role) {
       const { error: roleError } = await supabaseAdmin
         .from('user_roles')
         .update({ role })
-        .eq('user_id', userId)
-        .eq('organization_id', organizationId);
+        .eq('user_id', userId);
 
       if (roleError) {
         console.error('Role error:', roleError);
