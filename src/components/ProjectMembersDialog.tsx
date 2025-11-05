@@ -49,7 +49,7 @@ export function ProjectMembersDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Projekt-Mitglieder</DialogTitle>
         </DialogHeader>
@@ -63,12 +63,18 @@ export function ProjectMembersDialog({
                   <SelectTrigger className="flex-1">
                     <SelectValue placeholder="Benutzer auswählen..." />
                   </SelectTrigger>
-                  <SelectContent>
-                    {availableUsers.map((user) => (
-                      <SelectItem key={user.user_id} value={user.user_id}>
-                        {user.profile?.first_name} {user.profile?.last_name} ({user.profile?.email})
-                      </SelectItem>
-                    ))}
+                  <SelectContent className="max-h-[300px]">
+                    {availableUsers.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                        Keine weiteren Benutzer verfügbar
+                      </div>
+                    ) : (
+                      availableUsers.map((user) => (
+                        <SelectItem key={user.user_id} value={user.user_id}>
+                          {user.profile?.first_name} {user.profile?.last_name} ({user.profile?.email})
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
                 <Button onClick={handleAdd} disabled={!selectedUserId}>

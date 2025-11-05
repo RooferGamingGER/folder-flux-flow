@@ -28,8 +28,12 @@ import { FolderMembersDialog } from "@/components/FolderMembersDialog";
 import { UserRoleBadge } from "@/components/UserRoleBadge";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
-  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut
+  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu
 } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { CompactDashboard } from "@/components/CompactDashboard";
+import { CompactCalendar } from "@/components/CompactCalendar";
+import { TrashDialog } from "@/components/TrashDialog";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
 
@@ -178,7 +182,8 @@ export default function Index() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [fabOpen, setFabOpen] = useState(false);
-  const [view, setView] = useState<"chat" | "files" | "details" | "trash" | "dashboard" | "calendar">("chat");
+  const [view, setView] = useState<"chat" | "files" | "details">("chat");
+  const [showTrashDialog, setShowTrashDialog] = useState(false);
   
   // User management dialogs
   const [showUserManagement, setShowUserManagement] = useState(false);
@@ -189,6 +194,7 @@ export default function Index() {
   // Mobile states
   const isMobile = useIsMobile();
   const [mobileLevel, setMobileLevel] = useState<'folders' | 'projects' | 'project'>('folders');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [showFolderDlg, setShowFolderDlg] = useState(false);
   const [showProjectDlg, setShowProjectDlg] = useState(false);
@@ -423,6 +429,16 @@ export default function Index() {
               <span className="text-muted-foreground">Archiv anzeigen</span>
             </label>
           )}
+          
+          <button
+            onClick={() => setShowTrashDialog(true)}
+            className="px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors flex items-center gap-2 text-sm font-medium"
+            title="Papierkorb"
+          >
+            <Trash2 className="w-4 h-4" />
+            {!isMobile && deletedProjects.length > 0 && <span>({deletedProjects.length})</span>}
+          </button>
+          
           <UserRoleBadge />
           {isAdmin && (
             <button
@@ -471,97 +487,72 @@ export default function Index() {
       ) : (
         <div className="h-[calc(100vh-56px)] grid grid-cols-1 md:grid-cols-[320px_1fr] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
         <aside className="border-r border-border bg-sidebar relative overflow-hidden flex flex-col">
-          {/* Navigation Tabs */}
-          <div className="flex flex-col border-b border-border bg-card">
-            {canAccessDashboard && (
-              <>
-                <button 
-                  onClick={() => { setView('dashboard'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-                  className={`px-4 py-3 text-sm font-medium transition-colors flex items-center gap-3 hover:bg-accent ${view === 'dashboard' ? 'bg-accent text-foreground border-l-2 border-primary' : 'text-muted-foreground'}`}
-                >
-                  <span className="text-lg">📊</span>
-                  <span>Dashboard</span>
-                </button>
-                <button 
-                  onClick={() => { setView('calendar'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-                  className={`px-4 py-3 text-sm font-medium transition-colors flex items-center gap-3 hover:bg-accent ${view === 'calendar' ? 'bg-accent text-foreground border-l-2 border-primary' : 'text-muted-foreground'}`}
-                >
-                  <span className="text-lg">📅</span>
-                  <span>Kalender</span>
-                </button>
-              </>
-            )}
-            <button 
-              onClick={() => { setView('chat'); setSelectedProjectId(null); }}
-              className={`px-4 py-3 text-sm font-medium transition-colors flex items-center gap-3 hover:bg-accent ${view === 'trash' || view === 'dashboard' || view === 'calendar' ? 'text-muted-foreground' : 'bg-accent text-foreground border-l-2 border-primary'}`}
-            >
-              <span className="text-lg">📁</span>
-              <span>Projekte</span>
-            </button>
-            <button 
-              onClick={() => { setView('trash'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-              className={`px-4 py-3 text-sm font-medium transition-colors flex items-center gap-3 hover:bg-accent ${view === 'trash' ? 'bg-accent text-foreground border-l-2 border-primary' : 'text-muted-foreground'}`}
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Papierkorb</span>
-              {deletedProjects.length > 0 && <span className="text-xs ml-auto">({deletedProjects.length})</span>}
-            </button>
-          </div>
-
-          {/* Sort/Filter Bar (nur bei Projekten) */}
-          {view !== 'trash' && view !== 'dashboard' && view !== 'calendar' && (
-            <div className="px-3 py-2 border-b border-border bg-card space-y-2">
-              <div className="flex gap-2">
-                <select 
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
-                >
-                  <option value="created_at">Datum</option>
-                  <option value="title">Titel</option>
-                  <option value="auftragsnummer">Auftragsnummer</option>
-                  <option value="projektstatus">Status</option>
-                </select>
-                <button 
-                  onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
-                  className="px-2 py-1.5 bg-secondary border border-border rounded-md hover:bg-accent transition-colors"
-                  title={sortOrder === 'asc' ? 'Aufsteigend' : 'Absteigend'}
-                >
-                  <ArrowUpDown className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <select 
-                  value={filterStatus || ''}
-                  onChange={(e) => setFilterStatus(e.target.value || null)}
-                  className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
-                >
-                  <option value="">Alle Status</option>
-                  {PROJECT_STATUS_OPTIONS.map(status => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </select>
-                {filterStatus && (
-                  <button 
-                    onClick={() => setFilterStatus(null)}
-                    className="px-2 py-1.5 bg-secondary border border-border rounded-md hover:bg-accent transition-colors"
-                    title="Filter zurücksetzen"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+          {/* Compact Dashboard Widget */}
+          {canAccessDashboard && (
+            <div className="border-b border-border p-4 bg-card">
+              <CompactDashboard allProjects={allProjects} />
             </div>
           )}
+
+          {/* Compact Calendar Widget */}
+          {canAccessDashboard && (
+            <div className="border-b border-border p-4 bg-card">
+              <CompactCalendar 
+                allProjects={allProjects}
+                onDateSelect={(date) => {
+                  // Filter projects by selected date - future enhancement
+                  console.log('Date selected:', date);
+                }}
+              />
+            </div>
+          )}
+
+          {/* Sort/Filter Bar */}
+          <div className="px-3 py-2 border-b border-border bg-card space-y-2">
+            <div className="flex gap-2">
+              <select 
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="created_at">Datum</option>
+                <option value="title">Titel</option>
+                <option value="auftragsnummer">Auftragsnummer</option>
+                <option value="projektstatus">Status</option>
+              </select>
+              <button 
+                onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
+                className="px-2 py-1.5 bg-secondary border border-border rounded-md hover:bg-accent transition-colors"
+                title={sortOrder === 'asc' ? 'Aufsteigend' : 'Absteigend'}
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <select 
+                value={filterStatus || ''}
+                onChange={(e) => setFilterStatus(e.target.value || null)}
+                className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">Alle Status</option>
+                {PROJECT_STATUS_OPTIONS.map(status => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+              {filterStatus && (
+                <button 
+                  onClick={() => setFilterStatus(null)}
+                  className="px-2 py-1.5 bg-secondary border border-border rounded-md hover:bg-accent transition-colors"
+                  title="Filter zurücksetzen"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
           
           <div className="flex-1 overflow-auto">
-            {view === 'trash' ? (
-              <TrashView 
-                deletedProjects={deletedProjects}
-                onRestore={restoreProject}
-                onPermanentDelete={permanentlyDeleteProject}
-              />
-            ) : isLoading ? (
+            {isLoading ? (
               <div className="p-4 space-y-4">
                 <Skeleton className="h-12 w-full" />
                 <Skeleton className="h-12 w-full" />
@@ -659,11 +650,7 @@ export default function Index() {
           </div>
 
           <div className="absolute inset-0 top-[56px] flex flex-col">
-            {view === "dashboard" ? (
-              <DashboardView allProjects={allProjects} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} setView={setView} />
-            ) : view === "calendar" ? (
-              <CalendarView allProjects={allProjects} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} setView={setView} />
-            ) : selectedProject ? (
+            {selectedProject ? (
               view === "chat" ? (
                 <ChatView project={selectedProject} />
               ) : view === "files" ? (
@@ -771,6 +758,14 @@ export default function Index() {
           }}
         />
       )}
+
+      <TrashDialog
+        open={showTrashDialog}
+        onClose={() => setShowTrashDialog(false)}
+        deletedProjects={deletedProjects}
+        onRestore={restoreProject}
+        onPermanentDelete={permanentlyDeleteProject}
+      />
     </div>
   );
 }
@@ -1129,10 +1124,91 @@ function MobileLayout({
   searchResults: any[];
   setSearch: (search: string) => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { canAccessDashboard } = useUserRole();
+  const { deletedProjects, restoreProject, permanentlyDeleteProject } = useDeletedProjects();
+  const [showTrashDialog, setShowTrashDialog] = useState(false);
+  
   // Level 1: Ordner-Liste
   if (mobileLevel === 'folders') {
     return (
       <div className="h-full flex flex-col bg-background">
+        {/* Header mit Hamburger Menu */}
+        <div className="h-14 border-b border-border px-4 flex items-center gap-3 bg-card">
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetTrigger asChild>
+              <button className="p-2 hover:bg-accent rounded-lg transition-colors">
+                <Menu className="w-5 h-5" />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="left">
+              <SheetHeader>
+                <SheetTitle>Navigation</SheetTitle>
+              </SheetHeader>
+              <div className="mt-6 space-y-2">
+                <button
+                  onClick={() => {
+                    setMobileLevel('folders');
+                    setMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                >
+                  <span className="text-lg">🏠</span>
+                  <span className="font-medium">Ordner-Übersicht</span>
+                </button>
+                {canAccessDashboard && (
+                  <>
+                    <button
+                      onClick={() => {
+                        // Future: Navigate to dashboard view
+                        setMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                    >
+                      <span className="text-lg">📊</span>
+                      <span className="font-medium">Dashboard</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Future: Navigate to calendar view
+                        setMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                    >
+                      <span className="text-lg">📅</span>
+                      <span className="font-medium">Kalender</span>
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => {
+                    setShowTrashDialog(true);
+                    setMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <span className="font-medium">Papierkorb</span>
+                  {deletedProjects.length > 0 && (
+                    <span className="ml-auto text-xs bg-destructive text-destructive-foreground px-2 py-0.5 rounded-full">
+                      {deletedProjects.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </SheetContent>
+          </Sheet>
+          <h2 className="font-semibold text-lg">Ordner</h2>
+        </div>
+
+        <TrashDialog
+          open={showTrashDialog}
+          onClose={() => setShowTrashDialog(false)}
+          deletedProjects={deletedProjects}
+          onRestore={restoreProject}
+          onPermanentDelete={permanentlyDeleteProject}
+        />
+
         {search.trim() ? (
           <div className="flex-1 overflow-auto">
             <SearchList 
@@ -1258,8 +1334,73 @@ function MobileLayout({
   if (mobileLevel === 'project' && selectedProject) {
     return (
       <div className="h-full flex flex-col bg-background">
-        {/* Header mit Zurück-Button */}
+        {/* Header mit Hamburger Menu und Zurück-Button */}
         <div className="h-14 border-b border-border px-4 flex items-center gap-3 bg-card">
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetTrigger asChild>
+              <button className="p-2 hover:bg-accent rounded-lg transition-colors">
+                <Menu className="w-5 h-5" />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="left">
+              <SheetHeader>
+                <SheetTitle>Navigation</SheetTitle>
+              </SheetHeader>
+              <div className="mt-6 space-y-2">
+                <button
+                  onClick={() => {
+                    setMobileLevel('folders');
+                    setSelectedFolderId(null);
+                    setSelectedProjectId(null);
+                    setMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                >
+                  <span className="text-lg">🏠</span>
+                  <span className="font-medium">Ordner-Übersicht</span>
+                </button>
+                {canAccessDashboard && (
+                  <>
+                    <button
+                      onClick={() => {
+                        // Future: Navigate to dashboard view
+                        setMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                    >
+                      <span className="text-lg">📊</span>
+                      <span className="font-medium">Dashboard</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Future: Navigate to calendar view
+                        setMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                    >
+                      <span className="text-lg">📅</span>
+                      <span className="font-medium">Kalender</span>
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => {
+                    setShowTrashDialog(true);
+                    setMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <span className="font-medium">Papierkorb</span>
+                  {deletedProjects.length > 0 && (
+                    <span className="ml-auto text-xs bg-destructive text-destructive-foreground px-2 py-0.5 rounded-full">
+                      {deletedProjects.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </SheetContent>
+          </Sheet>
           <button 
             onClick={() => {
               setMobileLevel('projects');
@@ -1271,6 +1412,14 @@ function MobileLayout({
           </button>
           <h2 className="font-semibold text-base truncate">{selectedProject.title}</h2>
         </div>
+
+        <TrashDialog
+          open={showTrashDialog}
+          onClose={() => setShowTrashDialog(false)}
+          deletedProjects={deletedProjects}
+          onRestore={restoreProject}
+          onPermanentDelete={permanentlyDeleteProject}
+        />
         
         {/* View Content */}
         <div className="flex-1 overflow-auto">
