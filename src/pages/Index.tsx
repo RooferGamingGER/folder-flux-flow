@@ -423,21 +423,23 @@ export default function Index() {
             placeholder="Projekte suchen…"
             className="w-40 md:w-56 lg:w-72 bg-secondary rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all"
           />
-          {!isMobile && (
+          {!isMobile && hasFullAccess && (
             <label className="text-sm flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="accent-primary" /> 
               <span className="text-muted-foreground">Archiv anzeigen</span>
             </label>
           )}
           
-          <button
-            onClick={() => setShowTrashDialog(true)}
-            className="px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors flex items-center gap-2 text-sm font-medium"
-            title="Papierkorb"
-          >
-            <Trash2 className="w-4 h-4" />
-            {!isMobile && deletedProjects.length > 0 && <span>({deletedProjects.length})</span>}
-          </button>
+          {hasFullAccess && (
+            <button
+              onClick={() => setShowTrashDialog(true)}
+              className="px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors flex items-center gap-2 text-sm font-medium"
+              title="Papierkorb"
+            >
+              <Trash2 className="w-4 h-4" />
+              {!isMobile && deletedProjects.length > 0 && <span>({deletedProjects.length})</span>}
+            </button>
+          )}
           
           <UserRoleBadge />
           {isAdmin && (
