@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/hooks/use-toast";
 import { exportProjectsToExcel, exportProjectToPDF } from "@/lib/exportUtils";
+import { PROJECT_STATUS_OPTIONS, STATUS_COLORS } from "@/lib/constants";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
   Download, ArrowUpDown, Filter, Trash2, RotateCcw, X 
@@ -162,7 +163,7 @@ export default function Index() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [fabOpen, setFabOpen] = useState(false);
-  const [view, setView] = useState<"chat" | "files" | "details" | "trash">("chat");
+  const [view, setView] = useState<"chat" | "files" | "details" | "trash" | "dashboard">("chat");
 
   const [showFolderDlg, setShowFolderDlg] = useState(false);
   const [showProjectDlg, setShowProjectDlg] = useState(false);
@@ -387,8 +388,14 @@ export default function Index() {
           {/* Navigation Tabs */}
           <div className="flex border-b border-border bg-card">
             <button 
+              onClick={() => { setView('dashboard'); setSelectedProjectId(null); setSelectedFolderId(null); }}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${view === 'dashboard' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              📊 Dashboard
+            </button>
+            <button 
               onClick={() => { setView('chat'); setSelectedProjectId(null); }}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${view === 'trash' ? 'border-transparent text-muted-foreground hover:text-foreground' : 'border-primary text-foreground'}`}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${view === 'trash' || view === 'dashboard' ? 'border-transparent text-muted-foreground hover:text-foreground' : 'border-primary text-foreground'}`}
             >
               📁 Projekte
             </button>
@@ -402,7 +409,7 @@ export default function Index() {
           </div>
 
           {/* Sort/Filter Bar (nur bei Projekten) */}
-          {view !== 'trash' && (
+          {view !== 'trash' && view !== 'dashboard' && (
             <div className="px-3 py-2 border-b border-border bg-card space-y-2">
               <div className="flex gap-2">
                 <select 
@@ -430,10 +437,9 @@ export default function Index() {
                   className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
                 >
                   <option value="">Alle Status</option>
-                  <option value="In Planung">In Planung</option>
-                  <option value="In Bearbeitung">In Bearbeitung</option>
-                  <option value="Abgeschlossen">Abgeschlossen</option>
-                  <option value="Pausiert">Pausiert</option>
+                  {PROJECT_STATUS_OPTIONS.map(status => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
                 </select>
                 {filterStatus && (
                   <button 
@@ -522,7 +528,9 @@ export default function Index() {
           </div>
 
           <div className="absolute inset-0 top-[56px] flex flex-col">
-            {selectedProject ? (
+            {view === "dashboard" ? (
+              <DashboardView allProjects={allProjects} />
+            ) : selectedProject ? (
               view === "chat" ? (
                 <ChatView project={selectedProject} />
               ) : view === "files" ? (
@@ -605,6 +613,129 @@ export default function Index() {
           allDetails={allDetails}
         />
       )}
+    </div>
+  );
+}
+
+function DashboardView({ allProjects }: { allProjects: { folderId: string; folder: Folder; project: Project }[] }) {
+  const activeProjects = allProjects.filter(({ project }) => !project.archived);
+  
+  // Statistiken berechnen
+  const totalProjects = activeProjects.length;
+  const statusDistribution = activeProjects.reduce((acc, { project }) => {
+    const status = project.projektstatus || "Kein Status";
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  // Timeline-Daten (Projekte nach Startdatum)
+  const timelineProjects = activeProjects
+    .filter(({ project }) => project.details?.startdatum)
+    .sort((a, b) => {
+      const dateA = new Date(a.project.details?.startdatum || 0).getTime();
+      const dateB = new Date(b.project.details?.startdatum || 0).getTime();
+      return dateA - dateB;
+    });
+
+  return (
+    <div className="flex-1 overflow-auto p-6 space-y-6">
+      {/* Überschrift */}
+      <div className="flex items-center gap-3">
+        <h2 className="text-2xl font-bold text-foreground">📊 Dashboard</h2>
+      </div>
+
+      {/* Statistik-Karten */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Gesamtanzahl Projekte */}
+        <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+          <div className="text-sm text-muted-foreground mb-2">Aktive Projekte</div>
+          <div className="text-4xl font-bold text-foreground">{totalProjects}</div>
+        </div>
+
+        {/* Projekte in Bearbeitung */}
+        <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+          <div className="text-sm text-muted-foreground mb-2">In Bearbeitung</div>
+          <div className="text-4xl font-bold text-yellow-600">
+            {statusDistribution["In Bearbeitung"] || 0}
+          </div>
+        </div>
+
+        {/* Abgeschlossene Projekte */}
+        <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+          <div className="text-sm text-muted-foreground mb-2">Abgeschlossen</div>
+          <div className="text-4xl font-bold text-green-600">
+            {statusDistribution["Abgeschlossen"] || 0}
+          </div>
+        </div>
+      </div>
+
+      {/* Status-Verteilung */}
+      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-foreground mb-4">Status-Verteilung</h3>
+        <div className="space-y-3">
+          {Object.entries(statusDistribution).map(([status, count]) => (
+            <div key={status} className="flex items-center gap-3">
+              <div className={`w-4 h-4 rounded-full ${STATUS_COLORS[status] || 'bg-gray-400'}`} />
+              <div className="flex-1 flex items-center justify-between">
+                <span className="text-sm text-foreground">{status}</span>
+                <span className="text-sm font-semibold text-muted-foreground">{count}</span>
+              </div>
+              <div className="w-32 bg-muted rounded-full h-2">
+                <div 
+                  className={`h-2 rounded-full ${STATUS_COLORS[status] || 'bg-gray-400'}`}
+                  style={{ width: `${(count / totalProjects) * 100}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Timeline-Ansicht */}
+      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-foreground mb-4">📅 Projekt-Timeline</h3>
+        <div className="space-y-2">
+          {timelineProjects.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-8">
+              Keine Projekte mit Startdatum vorhanden
+            </div>
+          ) : (
+            timelineProjects.map(({ project, folder }) => {
+              const startDate = project.details?.startdatum 
+                ? new Date(project.details.startdatum).toLocaleDateString('de-DE')
+                : '-';
+              const endDate = project.details?.enddatum
+                ? new Date(project.details.enddatum).toLocaleDateString('de-DE')
+                : 'offen';
+              
+              return (
+                <div 
+                  key={project.id} 
+                  className="flex items-center gap-4 p-3 rounded-lg border border-border hover:bg-accent transition-colors"
+                >
+                  <div className={`w-2 h-2 rounded-full ${STATUS_COLORS[project.projektstatus || "Kein Status"]}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-foreground truncate">
+                      {project.title}
+                      {project.auftragsnummer && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          ({project.auftragsnummer})
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      📁 {folder.name} • {project.projektstatus || "Kein Status"}
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground shrink-0">
+                    {startDate} → {endDate}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1249,11 +1380,16 @@ function DetailsView({ project }: { project: Project }) {
           />
         </Field>
         <Field label="Projektstatus">
-          <input 
-            className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+          <select 
+            className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all cursor-pointer"
             value={form.projektstatus || ""} 
-            onChange={(e) => update("projektstatus", e.target.value)} 
-          />
+            onChange={(e) => update("projektstatus", e.target.value)}
+          >
+            <option value="">-- Status wählen --</option>
+            {PROJECT_STATUS_OPTIONS.map(status => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </select>
         </Field>
       </div>
 
