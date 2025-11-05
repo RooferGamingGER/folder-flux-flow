@@ -3,24 +3,24 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from '@/hooks/use-toast';
 
-export function useProjectMembers(projectId?: string) {
+export function useFolderMembers(folderId?: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: members = [], isLoading } = useQuery({
-    queryKey: ['project-members', projectId],
+    queryKey: ['folder-members', folderId],
     queryFn: async () => {
-      if (!projectId) return [];
+      if (!folderId) return [];
       
       const { data, error } = await supabase
-        .from('project_members')
+        .from('folder_members')
         .select('*')
-        .eq('project_id', projectId)
+        .eq('folder_id', folderId)
         .order('added_at', { ascending: false });
       
       if (error) throw error;
-      
-      // Fetch profiles separately
+
+      // Profile separat laden
       const memberData = await Promise.all(
         (data || []).map(async (member: any) => {
           const { data: profile } = await supabase
@@ -35,17 +35,17 @@ export function useProjectMembers(projectId?: string) {
 
       return memberData;
     },
-    enabled: !!projectId && !!user,
+    enabled: !!folderId && !!user,
   });
 
   const addMember = useMutation({
     mutationFn: async (userId: string) => {
-      if (!projectId) throw new Error('Keine Projekt-ID');
+      if (!folderId) throw new Error('Keine Ordner-ID');
 
       const { error } = await supabase
-        .from('project_members')
+        .from('folder_members')
         .insert({
-          project_id: projectId,
+          folder_id: folderId,
           user_id: userId,
           added_by: user?.id,
         });
@@ -53,10 +53,10 @@ export function useProjectMembers(projectId?: string) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-members', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['folder-members', folderId] });
       toast({
         title: 'Mitglied hinzugefügt',
-        description: 'Das Mitglied wurde erfolgreich zum Projekt hinzugefügt.',
+        description: 'Das Mitglied hat jetzt Zugriff auf alle Projekte in diesem Ordner.',
       });
     },
     onError: (error: any) => {
@@ -71,21 +71,21 @@ export function useProjectMembers(projectId?: string) {
 
   const removeMember = useMutation({
     mutationFn: async (userId: string) => {
-      if (!projectId) throw new Error('Keine Projekt-ID');
+      if (!folderId) throw new Error('Keine Ordner-ID');
 
       const { error } = await supabase
-        .from('project_members')
+        .from('folder_members')
         .delete()
-        .eq('project_id', projectId)
+        .eq('folder_id', folderId)
         .eq('user_id', userId);
 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-members', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['folder-members', folderId] });
       toast({
         title: 'Mitglied entfernt',
-        description: 'Das Mitglied wurde erfolgreich vom Projekt entfernt.',
+        description: 'Der Zugriff auf die Projekte in diesem Ordner wurde entfernt.',
       });
     },
     onError: (error: any) => {
@@ -98,31 +98,31 @@ export function useProjectMembers(projectId?: string) {
     },
   });
 
-  const leaveProject = useMutation({
+  const leaveFolder = useMutation({
     mutationFn: async () => {
-      if (!projectId || !user) throw new Error('Keine Projekt-ID oder User');
+      if (!folderId || !user) throw new Error('Keine Ordner-ID oder User');
 
       const { error } = await supabase
-        .from('project_members')
+        .from('folder_members')
         .delete()
-        .eq('project_id', projectId)
+        .eq('folder_id', folderId)
         .eq('user_id', user.id);
 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-members'] });
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['folder-members'] });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
       toast({
-        title: 'Projekt verlassen',
-        description: 'Du hast das Projekt verlassen.',
+        title: 'Ordner verlassen',
+        description: 'Du hast den Ordner verlassen.',
       });
     },
     onError: (error: any) => {
       console.error('Fehler beim Verlassen:', error);
       toast({
         title: 'Fehler',
-        description: error.message || 'Projekt konnte nicht verlassen werden.',
+        description: error.message || 'Ordner konnte nicht verlassen werden.',
         variant: 'destructive',
       });
     },
@@ -133,9 +133,9 @@ export function useProjectMembers(projectId?: string) {
     isLoading,
     addMember: addMember.mutate,
     removeMember: removeMember.mutate,
-    leaveProject: leaveProject.mutate,
+    leaveFolder: leaveFolder.mutate,
     isAdding: addMember.isPending,
     isRemoving: removeMember.isPending,
-    isLeaving: leaveProject.isPending,
+    isLeaving: leaveFolder.isPending,
   };
 }

@@ -19,6 +19,7 @@ export interface UserRoleData {
   isTeamLeader: boolean;
   hasFullAccess: boolean;
   canManageProjects: boolean;
+  canAccessDashboard: boolean;
   loading: boolean;
 }
 
@@ -61,6 +62,7 @@ export function useUserRole(): UserRoleData {
   const isTeamLeader = role === 'team_projektleiter';
   const hasFullAccess = isAdmin || isOfficeStaff;
   const canManageProjects = hasFullAccess || isTeamLeader;
+  const canAccessDashboard = isAdmin || isOfficeStaff || isTeamLeader;
 
   return {
     role,
@@ -70,6 +72,7 @@ export function useUserRole(): UserRoleData {
     isTeamLeader,
     hasFullAccess,
     canManageProjects,
+    canAccessDashboard,
     loading,
   };
 }

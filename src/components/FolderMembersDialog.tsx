@@ -1,29 +1,24 @@
 import { useState } from 'react';
-import { useProjectMembers } from '@/hooks/useProjectMembers';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { useFolderMembers } from '@/hooks/useFolderMembers';
 import { useOrganizationUsers } from '@/hooks/useOrganizationUsers';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Trash2, UserPlus, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from './ui/dialog';
 
-export function ProjectMembersDialog({ 
-  projectId,
+export function FolderMembersDialog({ 
+  folderId, 
   open,
   onClose 
 }: { 
-  projectId: string; 
+  folderId: string; 
   open: boolean;
   onClose: () => void;
 }) {
   const { user } = useAuth();
-  const { members, isLoading, addMember, removeMember, leaveProject } = useProjectMembers(projectId);
+  const { members, isLoading, addMember, removeMember, leaveFolder } = useFolderMembers(folderId);
   const { users: orgUsers } = useOrganizationUsers();
   const { canManageProjects } = useUserRole();
   const [selectedUserId, setSelectedUserId] = useState('');
@@ -41,8 +36,8 @@ export function ProjectMembersDialog({
   };
 
   const handleLeave = () => {
-    if (confirm('Möchtest du dieses Projekt wirklich verlassen?')) {
-      leaveProject();
+    if (confirm('Möchtest du diesen Ordner wirklich verlassen? Du verlierst den Zugriff auf alle Projekte in diesem Ordner.')) {
+      leaveFolder();
       onClose();
     }
   };
@@ -51,10 +46,17 @@ export function ProjectMembersDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Projekt-Mitglieder</DialogTitle>
+          <DialogTitle>Ordner-Mitglieder verwalten</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-6">
+          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <p className="text-sm text-blue-900 dark:text-blue-100">
+              ℹ️ Mitglieder haben Zugriff auf <strong>alle Projekte</strong> in diesem Ordner. 
+              Die Berechtigungen hängen von ihrer Rolle ab.
+            </p>
+          </div>
+
           {canManage && (
             <div className="border rounded-lg p-4 bg-card">
               <h3 className="font-semibold mb-4">Mitglied hinzufügen</h3>
@@ -120,7 +122,7 @@ export function ProjectMembersDialog({
                 onClick={handleLeave}
               >
                 <LogOut className="w-4 h-4 mr-2" />
-                Projekt verlassen
+                Ordner verlassen
               </Button>
             </div>
           )}

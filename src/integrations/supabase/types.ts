@@ -55,6 +55,38 @@ export type Database = {
           },
         ]
       }
+      folder_members: {
+        Row: {
+          added_at: string | null
+          added_by: string | null
+          folder_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string | null
+          added_by?: string | null
+          folder_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string | null
+          added_by?: string | null
+          folder_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "folder_members_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       folders: {
         Row: {
           archived: boolean | null
@@ -553,6 +585,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_dashboard: { Args: { _user_id: string }; Returns: boolean }
+      can_access_folder: {
+        Args: { _folder_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_access_project: {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
@@ -567,6 +604,10 @@ export type Database = {
       }
       can_delete_message: {
         Args: { _message_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_manage_folder_members: {
+        Args: { _folder_id: string; _user_id: string }
         Returns: boolean
       }
       can_manage_project_members: {

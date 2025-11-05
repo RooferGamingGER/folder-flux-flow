@@ -22,6 +22,7 @@ import { format, isSameMonth, isSameDay } from "date-fns";
 import { de } from "date-fns/locale";
 import { UserManagementDialog } from "@/components/UserManagementDialog";
 import { ProjectMembersDialog } from "@/components/ProjectMembersDialog";
+import { FolderMembersDialog } from "@/components/FolderMembersDialog";
 import { UserRoleBadge } from "@/components/UserRoleBadge";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
@@ -166,7 +167,7 @@ type Folder = {
 
 export default function Index() {
   const { user } = useAuth();
-  const { role, isAdmin, canManageProjects, hasFullAccess, loading: roleLoading } = useUserRole();
+  const { role, isAdmin, canManageProjects, hasFullAccess, canAccessDashboard, loading: roleLoading } = useUserRole();
   const { folders: dbFolders, isLoading: foldersLoading, createFolder: dbCreateFolder, deleteFolder: dbDeleteFolder, toggleArchive: dbToggleArchive } = useFolders();
   const { projects: dbProjects, isLoading: projectsLoading, createProject: dbCreateProject, deleteProject: dbDeleteProject, toggleArchive: dbToggleProjectArchive } = useProjects();
   const { deletedProjects, restoreProject, permanentlyDeleteProject } = useDeletedProjects();
@@ -180,6 +181,8 @@ export default function Index() {
   // User management dialogs
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showProjectMembers, setShowProjectMembers] = useState(false);
+  const [showFolderMembers, setShowFolderMembers] = useState(false);
+  const [selectedFolderForMembers, setSelectedFolderForMembers] = useState<string | null>(null);
   
   // Mobile states
   const isMobile = useIsMobile();
@@ -456,18 +459,22 @@ export default function Index() {
         <aside className="border-r border-border bg-sidebar relative overflow-hidden flex flex-col">
           {/* Navigation Tabs */}
           <div className="flex border-b border-border bg-card overflow-x-auto">
-            <button 
-              onClick={() => { setView('dashboard'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-              className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${view === 'dashboard' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-            >
-              📊 Dashboard
-            </button>
-            <button 
-              onClick={() => { setView('calendar'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-              className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${view === 'calendar' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-            >
-              📅 Kalender
-            </button>
+            {canAccessDashboard && (
+              <>
+                <button 
+                  onClick={() => { setView('dashboard'); setSelectedProjectId(null); setSelectedFolderId(null); }}
+                  className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${view === 'dashboard' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                >
+                  📊 Dashboard
+                </button>
+                <button 
+                  onClick={() => { setView('calendar'); setSelectedProjectId(null); setSelectedFolderId(null); }}
+                  className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${view === 'calendar' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                >
+                  📅 Kalender
+                </button>
+              </>
+            )}
             <button 
               onClick={() => { setView('chat'); setSelectedProjectId(null); }}
               className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${view === 'trash' || view === 'dashboard' || view === 'calendar' ? 'border-transparent text-muted-foreground hover:text-foreground' : 'border-primary text-foreground'}`}
@@ -576,6 +583,12 @@ export default function Index() {
                     <button onClick={() => { setShowProjectMembers(true); setFabOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors border-t border-border">
                       <UserPlus className="w-4 h-4 inline mr-2" />
                       Projekt-Mitglieder
+                    </button>
+                  )}
+                  {canManageProjects && selectedFolder && (
+                    <button onClick={() => { setSelectedFolderForMembers(selectedFolderId); setShowFolderMembers(true); setFabOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
+                      <Users className="w-4 h-4 inline mr-2" />
+                      Ordner-Mitglieder
                     </button>
                   )}
                   {!canManageProjects && (
@@ -717,6 +730,17 @@ export default function Index() {
           projectId={selectedProject.id}
           open={showProjectMembers}
           onClose={() => setShowProjectMembers(false)}
+        />
+      )}
+
+      {showFolderMembers && selectedFolderForMembers && (
+        <FolderMembersDialog 
+          folderId={selectedFolderForMembers}
+          open={showFolderMembers}
+          onClose={() => {
+            setShowFolderMembers(false);
+            setSelectedFolderForMembers(null);
+          }}
         />
       )}
     </div>
