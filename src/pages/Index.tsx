@@ -191,6 +191,10 @@ export default function Index() {
   const [showFolderMembers, setShowFolderMembers] = useState(false);
   const [selectedFolderForMembers, setSelectedFolderForMembers] = useState<string | null>(null);
   
+  // Dashboard & Calendar Dialog states
+  const [showDashboardDialog, setShowDashboardDialog] = useState(false);
+  const [showCalendarDialog, setShowCalendarDialog] = useState(false);
+  
   // Mobile states
   const isMobile = useIsMobile();
   const [mobileLevel, setMobileLevel] = useState<'folders' | 'projects' | 'project'>('folders');
@@ -473,23 +477,21 @@ export default function Index() {
       ) : (
         <div className="h-[calc(100vh-56px)] grid grid-cols-1 md:grid-cols-[320px_1fr] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
         <aside className="border-r border-border bg-sidebar relative overflow-hidden flex flex-col">
-          {/* Compact Dashboard Widget */}
+          {/* Dashboard & Calendar Buttons */}
           {canAccessDashboard && (
-            <div className="border-b border-border p-4 bg-card">
-              <CompactDashboard allProjects={allProjects} />
-            </div>
-          )}
-
-          {/* Compact Calendar Widget */}
-          {canAccessDashboard && (
-            <div className="border-b border-border p-4 bg-card">
-              <CompactCalendar 
-                allProjects={allProjects}
-                onDateSelect={(date) => {
-                  // Filter projects by selected date - future enhancement
-                  console.log('Date selected:', date);
-                }}
-              />
+            <div className="border-b border-border p-3 bg-card flex gap-2">
+              <button
+                onClick={() => setShowDashboardDialog(true)}
+                className="flex-1 px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center justify-center gap-2"
+              >
+                📊 Dashboard
+              </button>
+              <button
+                onClick={() => setShowCalendarDialog(true)}
+                className="flex-1 px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center justify-center gap-2"
+              >
+                📅 Kalender
+              </button>
             </div>
           )}
 
@@ -746,6 +748,51 @@ export default function Index() {
         onRestore={restoreProject}
         onPermanentDelete={permanentlyDeleteProject}
       />
+
+      {/* Dashboard Dialog */}
+      {showDashboardDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h2 className="text-lg font-semibold">Dashboard</h2>
+              <button
+                onClick={() => setShowDashboardDialog(false)}
+                className="p-2 hover:bg-accent rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <CompactDashboard allProjects={allProjects} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calendar Dialog */}
+      {showCalendarDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h2 className="text-lg font-semibold">Kalender</h2>
+              <button
+                onClick={() => setShowCalendarDialog(false)}
+                className="p-2 hover:bg-accent rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <CompactCalendar 
+                allProjects={allProjects}
+                onDateSelect={(date) => {
+                  console.log('Date selected:', date);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
