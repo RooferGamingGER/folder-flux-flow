@@ -15,13 +15,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "@/hooks/use-toast";
-import { exportProjectsToExcel, exportProjectToWord } from "@/lib/exportUtils";
+import { exportProjectsToExcel, exportProjectToWord, exportProjectAsZip } from "@/lib/exportUtils";
 import { PROJECT_STATUS_OPTIONS, STATUS_COLORS } from "@/lib/constants";
 import { format, isSameMonth, isSameDay } from "date-fns";
 import { de } from "date-fns/locale";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
-  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle 
+  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive 
 } from "lucide-react";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
@@ -2726,6 +2726,8 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
   const { notes } = useNotes(project.id);
   const { contacts } = useContacts(project.id);
   const { messages } = useMessages(project.id);
+  const { files, getFileUrl } = useProjectFiles(project.id);
+  const [isExporting, setIsExporting] = React.useState(false);
   
   const handleWordExport = async () => {
     await exportProjectToWord(
@@ -2744,6 +2746,32 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
     exportProjectsToExcel([{ ...project, created_at: project.created_at || new Date().toISOString() }], allDetails);
     onClose();
     toast({ title: 'Excel-Export erfolgreich' });
+  };
+
+  const handleZipExport = async () => {
+    setIsExporting(true);
+    try {
+      await exportProjectAsZip(
+        project,
+        details,
+        notes || [],
+        contacts || [],
+        messages || [],
+        files || [],
+        getFileUrl
+      );
+      toast({ title: 'ZIP-Export erfolgreich' });
+      onClose();
+    } catch (error) {
+      console.error('ZIP-Export Fehler:', error);
+      toast({ 
+        title: 'ZIP-Export fehlgeschlagen', 
+        description: 'Bitte versuche es erneut.',
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
   
   return (
@@ -2771,6 +2799,22 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
             <div>
               <div className="font-semibold">Excel-Export</div>
               <div className="text-xs text-muted-foreground">Alle Projekte als Tabelle exportieren</div>
+            </div>
+          </button>
+          <button
+            onClick={handleZipExport}
+            disabled={isExporting}
+            className="w-full px-6 py-4 rounded-lg border-2 border-border bg-card hover:bg-accent transition-colors text-left flex items-center gap-4 disabled:opacity-50 disabled:cursor-wait"
+          >
+            <Archive className="w-8 h-8 text-blue-500" />
+            <div className="flex-1">
+              <div className="font-semibold">
+                Komplettes Projekt (.zip)
+                {isExporting && <span className="ml-2 text-xs">(Wird erstellt...)</span>}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Word-Dokumentation + alle Dateien in Ordner-Struktur
+              </div>
             </div>
           </button>
         </div>
