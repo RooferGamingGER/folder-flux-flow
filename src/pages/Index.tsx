@@ -1226,22 +1226,36 @@ function ContactsSection({ projectId }: { projectId: string }) {
 }
 
 function DetailsSidebar({ project }: { project: Project }) {
-  const d: ProjectDetails = project.details;
+  const { details, isLoading: detailsLoading } = useProjectDetails(project.id);
+  const { notes, isLoading: notesLoading } = useNotes(project.id);
+  const { contacts, isLoading: contactsLoading } = useContacts(project.id);
+  
+  if (detailsLoading || notesLoading || contactsLoading) {
+    return (
+      <div className="w-full h-full overflow-auto p-6">
+        <Skeleton className="h-6 w-full mb-4" />
+        <Skeleton className="h-4 w-full mb-2" />
+        <Skeleton className="h-4 w-full mb-2" />
+      </div>
+    );
+  }
+  
   return (
     <div className="w-full h-full overflow-auto p-6 space-y-4 text-sm">
       <div className="font-bold text-base mb-4 pb-3 border-b border-border">📋 Projektdetails</div>
-      <InfoRow k="Projektname" v={d.projektname || "–"} />
-      <InfoRow k="Startdatum" v={d.startdatum || "–"} />
-      <InfoRow k="Enddatum" v={d.enddatum || "–"} />
-      <InfoRow k="Auftragsnummer" v={d.auftragsnummer || "–"} />
-      <InfoRow k="Projektstatus" v={d.projektstatus || "–"} />
+      <InfoRow k="Projektname" v={details?.projektname || "–"} />
+      <InfoRow k="Startdatum" v={details?.startdatum || "–"} />
+      <InfoRow k="Enddatum" v={details?.enddatum || "–"} />
+      <InfoRow k="Auftragsnummer" v={details?.auftragsnummer || "–"} />
+      <InfoRow k="Projektstatus" v={details?.projektstatus || "–"} />
+      
       <div className="pt-4">
         <div className="text-muted-foreground font-semibold mb-2">👥 Ansprechpartner</div>
-        {(d.contacts || []).length === 0 ? (
+        {contacts.length === 0 ? (
           <div className="text-muted-foreground">–</div>
         ) : (
           <div className="space-y-2">
-            {(d.contacts || []).map((c) => (
+            {contacts.map((c) => (
               <div key={c.id} className="p-2 bg-secondary rounded-md">
                 <div className="font-semibold">{c.name || "–"}</div>
                 <div className="text-xs text-muted-foreground">{c.email || "–"}</div>
@@ -1251,15 +1265,18 @@ function DetailsSidebar({ project }: { project: Project }) {
           </div>
         )}
       </div>
+      
       <div className="pt-4">
         <div className="text-muted-foreground font-semibold mb-2">📝 Notizen</div>
-        {(d.notes || []).length === 0 ? (
+        {notes.length === 0 ? (
           <div className="text-muted-foreground">–</div>
         ) : (
           <div className="space-y-2">
-            {(d.notes || []).map((n) => (
+            {notes.map((n) => (
               <div key={n.id} className="p-2 bg-secondary rounded-md">
-                <div className="text-xs text-muted-foreground font-mono mb-1">{new Date(n.ts).toLocaleString("de-DE")}</div>
+                <div className="text-xs text-muted-foreground font-mono mb-1">
+                  {new Date(n.created_at).toLocaleString("de-DE")}
+                </div>
                 <div className="whitespace-pre-wrap text-xs">{n.text}</div>
               </div>
             ))}
