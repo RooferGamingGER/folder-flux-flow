@@ -614,39 +614,46 @@ export default function Index() {
         </aside>
 
         <main className="relative overflow-hidden bg-background">
-          <div className="h-14 border-b border-border px-6 flex items-center justify-between bg-card shadow-sm">
-            <h2 className="font-semibold text-lg truncate">
-              {selectedProject ? selectedProject.title : selectedFolder ? selectedFolder.name : "–"}
-            </h2>
-            <div className="flex items-center gap-2">
-              {selectedProject && canManageProjects && (
-                <>
-                  <button
-                    onClick={() => setShowProjectMembers(true)}
-                    className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
-                    title="Projekt-Mitglieder anzeigen"
-                  >
-                    <Users className="w-3.5 h-3.5" />
-                    <span className="hidden md:inline">Mitglieder</span>
-                  </button>
-                  <button
-                    onClick={() => setShowExportDlg(true)}
-                    className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span className="hidden md:inline">Export</span>
-                  </button>
-                  <div className="hidden sm:flex items-center gap-2 text-sm">
-                    <HeaderBtn label="💬 Chat" active={view === "chat"} onClick={() => setView("chat")} />
-                    <HeaderBtn label="📁 Dateien" active={view === "files"} onClick={() => setView("files")} />
-                    <HeaderBtn label="📋 Details" active={view === "details"} onClick={() => setView("details")} />
-                  </div>
-                </>
-              )}
+          <div className="border-b border-border bg-card shadow-sm">
+            {/* Erste Zeile: Titel und Action-Buttons */}
+            <div className="h-14 px-6 flex items-center justify-between">
+              <h2 className="font-semibold text-lg truncate">
+                {selectedProject ? selectedProject.title : selectedFolder ? selectedFolder.name : "–"}
+              </h2>
+              <div className="flex items-center gap-2">
+                {selectedProject && canManageProjects && (
+                  <>
+                    <button
+                      onClick={() => setShowProjectMembers(true)}
+                      className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
+                      title="Projekt-Mitglieder anzeigen"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span className="hidden md:inline">Mitglieder</span>
+                    </button>
+                    <button
+                      onClick={() => setShowExportDlg(true)}
+                      className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span className="hidden md:inline">Export</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
+            
+            {/* Zweite Zeile: Tab-Navigation */}
+            {selectedProject && canManageProjects && (
+              <div className="px-6 pb-3 flex items-center gap-2">
+                <HeaderBtn label="💬 Chat" active={view === "chat"} onClick={() => setView("chat")} />
+                <HeaderBtn label="📁 Dateien" active={view === "files"} onClick={() => setView("files")} />
+                <HeaderBtn label="📋 Details" active={view === "details"} onClick={() => setView("details")} />
+              </div>
+            )}
           </div>
 
-          <div className="absolute inset-0 top-[56px] flex flex-col">
+          <div className="absolute inset-0 top-[106px] flex flex-col">
             {selectedProject ? (
               view === "chat" ? (
                 <ChatView project={selectedProject} />
