@@ -2156,22 +2156,36 @@ function VideoRecorder({ onRecordingComplete }: { onRecordingComplete: (blob: Bl
 
 const MessageBubble = memo(function MessageBubble({ msg, getFileUrl, onDelete }: { msg: any; getFileUrl?: any; onDelete?: (id: string) => void }) {
   const { user } = useAuth();
-  const { hasFullAccess, role } = useUserRole();
+  const { hasFullAccess, role, loading } = useUserRole();
   const sender = msg.profile ? `${msg.profile.first_name} ${msg.profile.last_name}` : msg.sender || "Du";
   const timestamp = msg.timestamp || new Date().toISOString();
   const [showPdfPreview, setShowPdfPreview] = useState(false);
   
-  // Prüfen ob Benutzer die Nachricht löschen darf
-  const canDelete = onDelete && (
-    hasFullAccess || // Admin/Bürokraft
-    (msg.user_id === user?.id && ['team_projektleiter', 'vorarbeiter'].includes(role || '')) || // Projektleiter/Vorarbeiter (eigene)
-    (msg.user_id === user?.id && ['mitarbeiter', 'azubi'].includes(role || '') && (() => {
+  // Verbesserte Logik: Warten bis Rolle geladen ist
+  const canDelete = useMemo(() => {
+    if (!onDelete || loading || !user) return false;
+    
+    const isOwnMessage = msg.user_id === user.id;
+    
+    // Admin/Bürokraft können ALLE Nachrichten löschen
+    if (hasFullAccess) return true;
+    
+    // Nicht eigene Nachrichten können nur Admins löschen
+    if (!isOwnMessage) return false;
+    
+    // Team-Projektleiter & Vorarbeiter können eigene Nachrichten immer löschen
+    if (['team_projektleiter', 'vorarbeiter'].includes(role || '')) return true;
+    
+    // Mitarbeiter & Azubis nur innerhalb 48 Stunden
+    if (['mitarbeiter', 'azubi'].includes(role || '')) {
       const msgDate = new Date(timestamp);
       const now = new Date();
       const hoursDiff = (now.getTime() - msgDate.getTime()) / (1000 * 60 * 60);
       return hoursDiff < 48;
-    })()) // Mitarbeiter/Azubi (eigene, <48h)
-  );
+    }
+    
+    return false;
+  }, [onDelete, loading, user, msg.user_id, hasFullAccess, role, timestamp]);
   
   return (
     <div className="max-w-2xl bg-card rounded-lg p-3 shadow-sm border border-border">
