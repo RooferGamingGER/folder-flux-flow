@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "@/hooks/use-toast";
-import { exportProjectsToExcel, exportProjectToPDF } from "@/lib/exportUtils";
+import { exportProjectsToExcel, exportProjectToPDF, exportProjectToWord } from "@/lib/exportUtils";
 import { PROJECT_STATUS_OPTIONS, STATUS_COLORS } from "@/lib/constants";
 import { format, isSameMonth, isSameDay } from "date-fns";
 import { de } from "date-fns/locale";
@@ -2336,6 +2336,18 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
   const { contacts } = useContacts(project.id);
   const { messages } = useMessages(project.id);
   
+  const handleWordExport = async () => {
+    await exportProjectToWord(
+      project,
+      details,
+      notes || [],
+      contacts || [],
+      messages || []
+    );
+    onClose();
+    toast({ title: 'Word-Export erfolgreich' });
+  };
+
   const handlePDFExport = async () => {
     await exportProjectToPDF(
       project,
@@ -2361,6 +2373,16 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
           Wählen Sie das gewünschte Export-Format für das Projekt "{project.title}".
         </div>
         <div className="flex flex-col gap-3">
+          <button
+            onClick={handleWordExport}
+            className="w-full px-6 py-4 rounded-lg border-2 border-border bg-card hover:bg-accent transition-colors text-left flex items-center gap-4"
+          >
+            <FileText className="w-8 h-8 text-primary" />
+            <div>
+              <div className="font-semibold">Word-Export (.docx)</div>
+              <div className="text-xs text-muted-foreground">Editierbare Dokumentation mit Logo, Details und Chat-Verlauf</div>
+            </div>
+          </button>
           <button
             onClick={handlePDFExport}
             className="w-full px-6 py-4 rounded-lg border-2 border-border bg-card hover:bg-accent transition-colors text-left flex items-center gap-4"
