@@ -460,35 +460,43 @@ export default function Index() {
         <div className="h-[calc(100vh-56px)] grid grid-cols-1 md:grid-cols-[320px_1fr] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
         <aside className="border-r border-border bg-sidebar relative overflow-hidden flex flex-col">
           {/* Navigation Tabs */}
-          <div className="flex border-b border-border bg-card overflow-x-auto">
+          <div className="flex border-b border-border bg-card items-center justify-start gap-1 px-2">
             {canAccessDashboard && (
               <>
                 <button 
                   onClick={() => { setView('dashboard'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-                  className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${view === 'dashboard' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                  className={`flex-shrink-0 px-3 py-2.5 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${view === 'dashboard' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                  title="Dashboard"
                 >
-                  📊 Dashboard
+                  <span className="text-lg">📊</span>
+                  <span className="hidden md:inline">Dashboard</span>
                 </button>
                 <button 
                   onClick={() => { setView('calendar'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-                  className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${view === 'calendar' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                  className={`flex-shrink-0 px-3 py-2.5 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${view === 'calendar' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                  title="Kalender"
                 >
-                  📅 Kalender
+                  <span className="text-lg">📅</span>
+                  <span className="hidden md:inline">Kalender</span>
                 </button>
               </>
             )}
             <button 
               onClick={() => { setView('chat'); setSelectedProjectId(null); }}
-              className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${view === 'trash' || view === 'dashboard' || view === 'calendar' ? 'border-transparent text-muted-foreground hover:text-foreground' : 'border-primary text-foreground'}`}
+              className={`flex-shrink-0 px-3 py-2.5 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${view === 'trash' || view === 'dashboard' || view === 'calendar' ? 'border-transparent text-muted-foreground hover:text-foreground' : 'border-primary text-foreground'}`}
+              title="Projekte"
             >
-              📁 Projekte
+              <span className="text-lg">📁</span>
+              <span className="hidden md:inline">Projekte</span>
             </button>
             <button 
               onClick={() => { setView('trash'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-              className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 flex items-center justify-center gap-2 whitespace-nowrap ${view === 'trash' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+              className={`flex-shrink-0 px-3 py-2.5 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${view === 'trash' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+              title="Papierkorb"
             >
               <Trash2 className="w-4 h-4" />
-              Papierkorb {deletedProjects.length > 0 && `(${deletedProjects.length})`}
+              <span className="hidden md:inline">Papierkorb</span>
+              {deletedProjects.length > 0 && <span className="hidden md:inline">({deletedProjects.length})</span>}
             </button>
           </div>
 
