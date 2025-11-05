@@ -6,6 +6,8 @@ import { useMessages } from "@/hooks/useMessages";
 import { useProjectFiles } from "@/hooks/useProjectFiles";
 import { useProjectDirectories } from "@/hooks/useProjectDirectories";
 import { useProjectDetails, ProjectDetailsData } from "@/hooks/useProjectDetails";
+import { useNotes } from "@/hooks/useNotes";
+import { useContacts } from "@/hooks/useContacts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 
@@ -1084,6 +1086,140 @@ function DetailsView({ project }: { project: Project }) {
         <Button onClick={save} disabled={isSaving}>
           {isSaving ? "Speichere..." : "💾 Speichern"}
         </Button>
+      </div>
+
+      {/* Notizen Sektion */}
+      <NotesSection projectId={project.id} />
+
+      {/* Kontakte Sektion */}
+      <ContactsSection projectId={project.id} />
+    </div>
+  );
+}
+
+function NotesSection({ projectId }: { projectId: string }) {
+  const [newNote, setNewNote] = useState("");
+  const { notes, addNote, deleteNote, isAdding } = useNotes(projectId);
+
+  const handleAddNote = () => {
+    const text = newNote.trim();
+    if (!text) return;
+    addNote(text);
+    setNewNote("");
+  };
+
+  return (
+    <div className="space-y-3 pt-6 border-t border-border">
+      <div className="text-sm font-semibold text-foreground">📝 Notizen</div>
+      <div className="flex gap-2 items-start">
+        <textarea 
+          className="flex-1 rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+          rows={3} 
+          value={newNote} 
+          onChange={(e) => setNewNote(e.target.value)} 
+          placeholder="Neue Notiz hinzufügen…"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+              handleAddNote();
+            }
+          }}
+        />
+        <Button onClick={handleAddNote} disabled={!newNote.trim() || isAdding}>
+          Hinzufügen
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {notes.length === 0 ? (
+          <div className="text-sm text-muted-foreground p-4 bg-secondary rounded-lg text-center">
+            Keine Notizen vorhanden
+          </div>
+        ) : (
+          notes.map((note) => (
+            <div key={note.id} className="flex items-start gap-3 border border-border rounded-lg p-3 bg-card">
+              <div className="text-xs text-muted-foreground min-w-[140px] font-mono">
+                {new Date(note.created_at).toLocaleString("de-DE")}
+              </div>
+              <div className="flex-1 text-sm whitespace-pre-wrap">{note.text}</div>
+              <button 
+                className="text-xs px-3 py-1.5 border border-border rounded-md hover:bg-accent transition-colors" 
+                onClick={() => deleteNote(note.id)}
+              >
+                🗑️
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ContactsSection({ projectId }: { projectId: string }) {
+  const [newContact, setNewContact] = useState({ name: "", email: "", phone: "" });
+  const { contacts, addContact, deleteContact, isAdding } = useContacts(projectId);
+
+  const handleAddContact = () => {
+    if (!newContact.name.trim() && !newContact.email.trim() && !newContact.phone.trim()) {
+      return;
+    }
+    addContact(newContact);
+    setNewContact({ name: "", email: "", phone: "" });
+  };
+
+  return (
+    <div className="space-y-3 pt-6 border-t border-border">
+      <div className="text-sm font-semibold text-foreground">👥 Ansprechpartner</div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+        <label className="flex flex-col gap-2 text-sm">
+          <span className="text-muted-foreground font-medium">Name</span>
+          <input 
+            className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+            value={newContact.name} 
+            onChange={(e) => setNewContact((s) => ({ ...s, name: e.target.value }))} 
+          />
+        </label>
+        <label className="flex flex-col gap-2 text-sm">
+          <span className="text-muted-foreground font-medium">E-Mail</span>
+          <input 
+            type="email"
+            className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+            value={newContact.email} 
+            onChange={(e) => setNewContact((s) => ({ ...s, email: e.target.value }))} 
+          />
+        </label>
+        <label className="flex flex-col gap-2 text-sm">
+          <span className="text-muted-foreground font-medium">Telefon</span>
+          <input 
+            type="tel"
+            className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+            value={newContact.phone} 
+            onChange={(e) => setNewContact((s) => ({ ...s, phone: e.target.value }))} 
+          />
+        </label>
+        <Button onClick={handleAddContact} disabled={isAdding}>
+          Hinzufügen
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {contacts.length === 0 ? (
+          <div className="text-sm text-muted-foreground p-4 bg-secondary rounded-lg text-center">
+            Keine Ansprechpartner
+          </div>
+        ) : (
+          contacts.map((contact) => (
+            <div key={contact.id} className="flex items-center gap-4 border border-border rounded-lg p-3 text-sm bg-card">
+              <div className="font-semibold">{contact.name || "–"}</div>
+              <div className="text-muted-foreground">{contact.email || "–"}</div>
+              <div className="text-muted-foreground">{contact.phone || "–"}</div>
+              <button 
+                className="ml-auto text-xs px-3 py-1.5 border border-border rounded-md hover:bg-accent transition-colors" 
+                onClick={() => deleteContact(contact.id)}
+              >
+                🗑️
+              </button>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

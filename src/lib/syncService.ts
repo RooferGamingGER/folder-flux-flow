@@ -214,6 +214,178 @@ export const syncService = {
     }
   },
   
+  async syncProjectDetails(details: any) {
+    console.log('🔄 Syncing project_details:', details.project_id);
+    
+    if (!this.isOnline) {
+      console.log('📴 Offline - adding to queue');
+      await offlineStorage.addToSyncQueue({
+        id: crypto.randomUUID(),
+        operation: 'upsert',
+        table: 'project_details',
+        data: details,
+      });
+      return { ...details, sync_status: 'pending', _queued: true };
+    }
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Keine aktive Sitzung - bitte neu anmelden');
+      }
+      
+      const { data, error } = await supabase
+        .from('project_details')
+        .upsert({ ...details, sync_status: 'synced' })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log('✅ Project details synced successfully');
+      return { ...data, _queued: false };
+    } catch (error: any) {
+      console.error('❌ Sync error:', error);
+      
+      await offlineStorage.addToSyncQueue({
+        id: crypto.randomUUID(),
+        operation: 'upsert',
+        table: 'project_details',
+        data: details,
+      });
+      return { ...details, sync_status: 'error', _queued: true, _error: error.message };
+    }
+  },
+  
+  async syncProjectDirectory(directory: any) {
+    console.log('🔄 Syncing project_directory:', directory.id);
+    
+    if (!this.isOnline) {
+      console.log('📴 Offline - adding to queue');
+      await offlineStorage.addToSyncQueue({
+        id: crypto.randomUUID(),
+        operation: 'upsert',
+        table: 'project_directories',
+        data: directory,
+      });
+      return { ...directory, sync_status: 'pending', _queued: true };
+    }
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Keine aktive Sitzung - bitte neu anmelden');
+      }
+      
+      const { data, error } = await supabase
+        .from('project_directories')
+        .upsert({ ...directory, sync_status: 'synced' })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log('✅ Project directory synced successfully');
+      return { ...data, _queued: false };
+    } catch (error: any) {
+      console.error('❌ Sync error:', error);
+      
+      await offlineStorage.addToSyncQueue({
+        id: crypto.randomUUID(),
+        operation: 'upsert',
+        table: 'project_directories',
+        data: directory,
+      });
+      return { ...directory, sync_status: 'error', _queued: true, _error: error.message };
+    }
+  },
+  
+  async syncNote(note: any) {
+    console.log('🔄 Syncing note:', note.id);
+    
+    if (!this.isOnline) {
+      console.log('📴 Offline - adding to queue');
+      await offlineStorage.addToSyncQueue({
+        id: crypto.randomUUID(),
+        operation: 'insert',
+        table: 'notes',
+        data: note,
+      });
+      return { ...note, sync_status: 'pending', _queued: true };
+    }
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Keine aktive Sitzung - bitte neu anmelden');
+      }
+      
+      const { data, error } = await supabase
+        .from('notes')
+        .insert({ ...note, sync_status: 'synced' })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log('✅ Note synced successfully');
+      return { ...data, _queued: false };
+    } catch (error: any) {
+      console.error('❌ Sync error:', error);
+      
+      await offlineStorage.addToSyncQueue({
+        id: crypto.randomUUID(),
+        operation: 'insert',
+        table: 'notes',
+        data: note,
+      });
+      return { ...note, sync_status: 'error', _queued: true, _error: error.message };
+    }
+  },
+  
+  async syncContact(contact: any) {
+    console.log('🔄 Syncing contact:', contact.id);
+    
+    if (!this.isOnline) {
+      console.log('📴 Offline - adding to queue');
+      await offlineStorage.addToSyncQueue({
+        id: crypto.randomUUID(),
+        operation: 'insert',
+        table: 'contacts',
+        data: contact,
+      });
+      return { ...contact, sync_status: 'pending', _queued: true };
+    }
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Keine aktive Sitzung - bitte neu anmelden');
+      }
+      
+      const { data, error } = await supabase
+        .from('contacts')
+        .insert({ ...contact, sync_status: 'synced' })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log('✅ Contact synced successfully');
+      return { ...data, _queued: false };
+    } catch (error: any) {
+      console.error('❌ Sync error:', error);
+      
+      await offlineStorage.addToSyncQueue({
+        id: crypto.randomUUID(),
+        operation: 'insert',
+        table: 'contacts',
+        data: contact,
+      });
+      return { ...contact, sync_status: 'error', _queued: true, _error: error.message };
+    }
+  },
+  
   async processSyncQueue() {
     if (!this.isOnline) return;
     
