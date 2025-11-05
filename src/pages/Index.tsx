@@ -2739,11 +2739,13 @@ const FileCard = memo(function FileCard({
   const isImage = ((file.isImage === true) || (file.mime || "").startsWith("image/") || isImgName(file.name));
   
   return (
-    <div className="border border-border rounded-lg overflow-hidden bg-card cursor-pointer group hover:shadow-md transition-all" draggable onDragStart={(e) => e.dataTransfer.setData("text/id", file.id)} onClick={onOpen} title={`${file.name}`}>
+    <div className="border border-border rounded-lg bg-card cursor-pointer group hover:shadow-md transition-all" draggable onDragStart={(e) => e.dataTransfer.setData("text/id", file.id)} onClick={onOpen} title={`${file.name}`}>
       {isImage ? (
-        <img src={file.thumbUrl || file.url} alt={file.name} className="w-full h-36 object-cover" />
+        <div className="overflow-hidden rounded-t-lg">
+          <img src={file.thumbUrl || file.url} alt={file.name} className="w-full h-36 object-cover" />
+        </div>
       ) : (
-        <div className="w-full h-36 flex flex-col items-center justify-center bg-secondary gap-2">
+        <div className="w-full h-36 flex flex-col items-center justify-center bg-secondary gap-2 rounded-t-lg">
           <IconComponent className="w-12 h-12 text-muted-foreground" />
           <div className="text-xs text-muted-foreground font-mono font-semibold">{(file.ext || "FILE").toUpperCase()}</div>
         </div>
