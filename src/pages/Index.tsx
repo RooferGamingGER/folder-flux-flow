@@ -1745,7 +1745,7 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected }: { p: P
 
 function ChatView({ project }: { project: Project }) {
   const [text, setText] = useState("");
-  const { messages, sendMessage } = useMessages(project.id);
+  const { messages, sendMessage, deleteMessage } = useMessages(project.id);
   const { uploadFile, isUploading, getFileUrl } = useProjectFiles(project.id);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1839,7 +1839,7 @@ function ChatView({ project }: { project: Project }) {
           </div>
         ) : (
           <>
-            {messages.map((m) => <MessageBubble key={m.id} msg={m} getFileUrl={getFileUrl} />)}
+            {messages.map((m) => <MessageBubble key={m.id} msg={m} getFileUrl={getFileUrl} onDelete={deleteMessage} />)}
             <div ref={messagesEndRef} />
           </>
         )}
@@ -2075,17 +2075,48 @@ function VideoRecorder({ onRecordingComplete }: { onRecordingComplete: (blob: Bl
   );
 }
 
-const MessageBubble = memo(function MessageBubble({ msg, getFileUrl }: { msg: any; getFileUrl?: any }) {
+const MessageBubble = memo(function MessageBubble({ msg, getFileUrl, onDelete }: { msg: any; getFileUrl?: any; onDelete?: (id: string) => void }) {
+  const { user } = useAuth();
+  const { hasFullAccess, role } = useUserRole();
   const sender = msg.profile ? `${msg.profile.first_name} ${msg.profile.last_name}` : msg.sender || "Du";
   const timestamp = msg.timestamp || new Date().toISOString();
   const [showPdfPreview, setShowPdfPreview] = useState(false);
   
+  // Prüfen ob Benutzer die Nachricht löschen darf
+  const canDelete = onDelete && (
+    hasFullAccess || // Admin/Bürokraft
+    (msg.user_id === user?.id && ['team_projektleiter', 'vorarbeiter'].includes(role || '')) || // Projektleiter/Vorarbeiter (eigene)
+    (msg.user_id === user?.id && role === 'mitarbeiter' && (() => {
+      const msgDate = new Date(timestamp);
+      const now = new Date();
+      const hoursDiff = (now.getTime() - msgDate.getTime()) / (1000 * 60 * 60);
+      return hoursDiff < 48;
+    })()) // Mitarbeiter (eigene, <48h)
+  );
+  
   return (
     <div className="max-w-2xl bg-card rounded-lg p-3 shadow-sm border border-border">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-        <span className="font-semibold text-foreground">{sender}</span>
-        <span>•</span>
-        <span>{new Date(timestamp).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">{sender}</span>
+          <span>•</span>
+          <span>{new Date(timestamp).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>
+        </div>
+        
+        {canDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm('Nachricht wirklich löschen?')) {
+                onDelete(msg.id);
+              }
+            }}
+            className="px-2 py-1 text-xs rounded-md hover:bg-destructive/10 text-destructive transition-colors"
+            title="Nachricht löschen"
+          >
+            🗑️
+          </button>
+        )}
       </div>
       
       {msg.type === "text" && <div className="text-sm text-foreground whitespace-pre-wrap">{msg.content?.text}</div>}
@@ -2187,6 +2218,8 @@ const MessageBubble = memo(function MessageBubble({ msg, getFileUrl }: { msg: an
 });
 
 function FilesView({ project }: { project: Project }) {
+  const { user } = useAuth();
+  const { hasFullAccess, role } = useUserRole();
   const uploadRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [currentDir, setCurrentDir] = useState("Bilder");
@@ -2198,6 +2231,28 @@ function FilesView({ project }: { project: Project }) {
   
   const { files: dbFiles, uploadFile, isUploading, getFileUrl, deleteFile, moveFile: dbMoveFile } = useProjectFiles(project.id);
   const { directories, createDirectory, renameDirectory, deleteDirectory } = useProjectDirectories(project.id);
+  
+  // Funktion um zu prüfen ob eine Datei gelöscht werden darf
+  const canDeleteFile = (file: any) => {
+    if (hasFullAccess) return true; // Admin/Bürokraft
+    
+    if (file.created_by !== user?.id) return false; // Nicht der Ersteller
+    
+    // Projektleiter/Vorarbeiter können eigene Dateien löschen
+    if (['team_projektleiter', 'vorarbeiter'].includes(role || '')) {
+      return true;
+    }
+    
+    // Mitarbeiter nur innerhalb 48h
+    if (role === 'mitarbeiter') {
+      const modifiedDate = new Date(file.modified);
+      const now = new Date();
+      const hoursDiff = (now.getTime() - modifiedDate.getTime()) / (1000 * 60 * 60);
+      return hoursDiff < 48;
+    }
+    
+    return false;
+  };
 
   // Standard-Ordner + Datenbank-Ordner kombinieren, Duplikate vermeiden
   const standardDirs = ["Bilder", "Dokumente", "Chat", "Sprachnachrichten", "Videos"];
@@ -2499,7 +2554,7 @@ function FilesView({ project }: { project: Project }) {
           <div className="text-sm text-muted-foreground text-center py-12">Keine Dateien im Verzeichnis vorhanden.</div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {filesInDir(currentDir).map((f) => (<FileCard key={f.id} file={f} dirs={listDirs} onMove={moveFile} onOpen={() => openPreview(f)} />))}
+            {filesInDir(currentDir).map((f) => (<FileCard key={f.id} file={f} dirs={listDirs} onMove={moveFile} onOpen={() => openPreview(f)} onDelete={deleteFile} canDelete={canDeleteFile(f)} />))}
           </div>
         )}
       </div>
@@ -2550,7 +2605,21 @@ function FilesView({ project }: { project: Project }) {
   );
 }
 
-const FileCard = memo(function FileCard({ file, dirs, onMove, onOpen }: { file: ProjectFile; dirs: string[]; onMove: (id: string, dir: string) => void; onOpen: () => void }) {
+const FileCard = memo(function FileCard({ 
+  file, 
+  dirs, 
+  onMove, 
+  onOpen,
+  onDelete,
+  canDelete
+}: { 
+  file: ProjectFile; 
+  dirs: string[]; 
+  onMove: (id: string, dir: string) => void; 
+  onOpen: () => void;
+  onDelete: (id: string) => void;
+  canDelete: boolean;
+}) {
   const [menu, setMenu] = useState(false);
   const IconComponent = getFileIcon(file.name, file.mime);
   const isImage = ((file.isImage === true) || (file.mime || "").startsWith("image/") || isImgName(file.name));
@@ -2576,6 +2645,23 @@ const FileCard = memo(function FileCard({ file, dirs, onMove, onOpen }: { file: 
                   📂 {d}
                 </button>
               ))}
+              
+              {canDelete && <div className="border-t border-border my-1" />}
+              
+              {canDelete && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenu(false);
+                    if (confirm(`Datei "${file.name}" wirklich löschen?`)) {
+                      onDelete(file.id);
+                    }
+                  }}
+                  className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive"
+                >
+                  🗑️ Löschen
+                </button>
+              )}
             </div>
           )}
         </div>

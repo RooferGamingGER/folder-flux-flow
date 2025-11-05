@@ -52,3 +52,13 @@ export function formatDate(timestamp: string | Date): string {
   const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
   return format(date, 'dd.MM.yyyy', { locale: de });
 }
+
+/**
+ * Prüft ob ein Zeitstempel innerhalb der letzten 48 Stunden liegt
+ */
+export function isWithin48Hours(timestamp: string): boolean {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const hoursDiff = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+  return hoursDiff < 48;
+}
