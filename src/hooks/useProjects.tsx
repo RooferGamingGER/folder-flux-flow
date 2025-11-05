@@ -79,9 +79,29 @@ export function useProjects(folderId?: string) {
       
       return syncedProject;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
-      toast({ title: 'Projekt erstellt' });
+      
+      if (data._queued) {
+        if (data.sync_status === 'error') {
+          // Error toast already shown in syncService
+        } else {
+          toast({ 
+            title: 'Offline gespeichert',
+            description: 'Das Projekt wird synchronisiert, sobald Sie online sind.',
+          });
+        }
+      } else {
+        toast({ title: 'Projekt erstellt' });
+      }
+    },
+    onError: (error: any) => {
+      console.error('❌ Create project mutation error:', error);
+      toast({
+        title: 'Fehler',
+        description: error.message || 'Das Projekt konnte nicht erstellt werden',
+        variant: 'destructive',
+      });
     },
   });
 

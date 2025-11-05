@@ -51,9 +51,29 @@ export function useFolders() {
 
       return await syncService.syncFolder(folder);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
-      toast({ title: 'Ordner erstellt' });
+      
+      if (data._queued) {
+        if (data.sync_status === 'error') {
+          // Error toast already shown in syncService
+        } else {
+          toast({ 
+            title: 'Offline gespeichert',
+            description: 'Der Ordner wird synchronisiert, sobald Sie online sind.',
+          });
+        }
+      } else {
+        toast({ title: 'Ordner erstellt' });
+      }
+    },
+    onError: (error: any) => {
+      console.error('❌ Create folder mutation error:', error);
+      toast({
+        title: 'Fehler',
+        description: error.message || 'Der Ordner konnte nicht erstellt werden',
+        variant: 'destructive',
+      });
     },
   });
 
