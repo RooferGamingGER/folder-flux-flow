@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { CompactDashboard } from "@/components/CompactDashboard";
+import { FullDashboard } from "@/components/FullDashboard";
 import { CompactCalendar } from "@/components/CompactCalendar";
 import { TrashDialog } from "@/components/TrashDialog";
 
@@ -154,6 +155,7 @@ type ProjectDetails = {
 type Project = {
   id: string;
   title: string;
+  user_id?: string;
   created_at?: string;
   auftragsnummer?: string;
   projektstatus?: string;
@@ -352,6 +354,7 @@ export default function Index() {
     if (!project) return;
     dbToggleProjectArchive({ id: projectId, archived: project.archived });
   };
+  
   const openMoveProject = (folderId: string, projectId: string) => {
     setMoveDlg({ folderId, projectId, targetId: folders.find((f) => f.id !== folderId && !f.archived)?.id || "" });
   };
@@ -763,7 +766,7 @@ export default function Index() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
-              <CompactDashboard allProjects={allProjects} />
+              <FullDashboard allProjects={allProjects} />
             </div>
           </div>
         </div>
@@ -1707,6 +1710,14 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
 
 function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected }: { p: Project; onOpen: () => void; onMove: () => void; onDelete: () => void; onArchive: () => void; selected: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { canManageProjects } = useUserRole();
+  const { user } = useAuth();
+  const { members, leaveProject } = useProjectMembers(p.id);
+  
+  const isMember = members?.some(m => m.user_id === user?.id);
+  const isOwner = p.user_id === user?.id;
+  const showMenu = canManageProjects || (isMember && !isOwner);
+  
   return (
     <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 px-4 py-3 cursor-pointer transition-colors ${selected ? "bg-accent" : "hover:bg-accent/50"}`}>
       <div className={`w-1.5 h-full ${p.archived ? "bg-muted-foreground" : "bg-success"} rounded-full`} />
@@ -1723,22 +1734,43 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected }: { p: P
           {p.projektstatus || "Bauprojekt"}
         </div>
       </div>
-      <div className="relative self-center">
-        <button className="px-2.5 py-1 rounded-md border border-border hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}>⋯</button>
-        {menuOpen && (
-          <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-10 text-sm min-w-[200px]">
-            <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onMove(); }}>
-              📂 In anderen Ordner
-            </button>
-            <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArchive(); }}>
-              {p.archived ? "📤 Aus Archiv holen" : "📥 Archivieren"}
-            </button>
-            <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(); }}>
-              🗑️ Projekt löschen
-            </button>
-          </div>
-        )}
-      </div>
+      {showMenu && (
+        <div className="relative self-center">
+          <button className="px-2.5 py-1 rounded-md border border-border hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}>⋯</button>
+          {menuOpen && (
+            <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-10 text-sm min-w-[200px]">
+              {canManageProjects && (
+                <>
+                  <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onMove(); }}>
+                    📂 In anderen Ordner
+                  </button>
+                  <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArchive(); }}>
+                    {p.archived ? "📤 Aus Archiv holen" : "📥 Archivieren"}
+                  </button>
+                  <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(); }}>
+                    🗑️ Projekt löschen
+                  </button>
+                  {isMember && !isOwner && <div className="border-t border-border my-1" />}
+                </>
+              )}
+              {isMember && !isOwner && (
+                <button 
+                  className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-orange-600 rounded-b-lg" 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setMenuOpen(false); 
+                    if (confirm(`Möchtest du das Projekt "${p.title}" wirklich verlassen?`)) {
+                      leaveProject();
+                    }
+                  }}
+                >
+                  🚪 Projekt verlassen
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </li>
   );
 }

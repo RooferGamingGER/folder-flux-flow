@@ -62,3 +62,15 @@ export function isWithin48Hours(timestamp: string): boolean {
   const hoursDiff = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
   return hoursDiff < 48;
 }
+
+/**
+ * Prüft ob ein Projekt überfällig ist (Enddatum in der Vergangenheit)
+ */
+export function isProjectOverdue(enddatum?: string): boolean {
+  if (!enddatum) return false;
+  const endDate = new Date(enddatum);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  endDate.setHours(0, 0, 0, 0);
+  return endDate < today;
+}
