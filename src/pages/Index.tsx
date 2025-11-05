@@ -536,19 +536,22 @@ function ChatView({ project }: { project: Project }) {
     
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      const isImage = file.type.startsWith('image/');
+      const targetFolder = isImage ? 'Bilder' : 'Dokumente';
       
-      // Upload zur Datenbank
-      uploadFile({ file, folder: 'Chat' }, {
+      // Upload in Zielordner (Bilder oder Dokumente)
+      uploadFile({ file, folder: targetFolder }, {
         onSuccess: (data) => {
-          // Chat-Nachricht mit Bild erstellen
+          // Chat-Nachricht mit Datei-Referenz erstellen
           const fileUrl = getFileUrl(data);
           sendMessage({
-            type: file.type.startsWith('image/') ? 'image' : 'file',
+            type: isImage ? 'image' : 'file',
             content: {
               url: fileUrl,
               name: file.name,
               ext: data.ext,
               size: file.size,
+              fileId: data.id, // Referenz zur Datei in project_files
             }
           });
         }
