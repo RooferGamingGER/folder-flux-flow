@@ -284,27 +284,11 @@ export default function Index() {
   }, [folders, selectedFolderId, selectedProjectId]);
 
   function openFolderDialog() {
-    if (!canManageProjects) {
-      toast({
-        title: "Keine Berechtigung",
-        description: "Sie haben keine Berechtigung, Ordner zu erstellen.",
-        variant: "destructive",
-      });
-      return;
-    }
     setFolderName("");
     setShowFolderDlg(true);
     setFabOpen(false);
   }
   function openProjectDialog() {
-    if (!canManageProjects) {
-      toast({
-        title: "Keine Berechtigung",
-        description: "Sie haben keine Berechtigung, Projekte zu erstellen.",
-        variant: "destructive",
-      });
-      return;
-    }
     const pre = selectedFolderId || (folders[0]?.id ?? "");
     setProjectFolderId(pre);
     setProjectTitle("");
@@ -575,45 +559,39 @@ export default function Index() {
             )}
           </div>
 
-          <div className="absolute right-4 bottom-4">
-            <div className="relative">
-              {fabOpen && (
-                <div className="absolute bottom-16 right-0 w-60 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1 z-20">
-                  {canManageProjects && (
-                    <>
-                      <button onClick={openFolderDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
-                        📁 Neuen Ordner erstellen
-                      </button>
-                      <button onClick={openProjectDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={folders.length === 0}>
-                        🏗️ Neues Projekt anlegen
-                      </button>
-                      {folders.length === 0 && (<div className="px-4 pb-1 text-xs text-muted-foreground">Erst einen Ordner anlegen</div>)}
-                    </>
-                  )}
-                  {canManageProjects && selectedProject && (
-                    <button onClick={() => { setShowProjectMembers(true); setFabOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors border-t border-border">
-                      <UserPlus className="w-4 h-4 inline mr-2" />
-                      Projekt-Mitglieder
+          {canManageProjects && (
+            <div className="absolute right-4 bottom-4">
+              <div className="relative">
+                {fabOpen && (
+                  <div className="absolute bottom-16 right-0 w-60 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1 z-20">
+                    <button onClick={openFolderDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
+                      📁 Neuen Ordner erstellen
                     </button>
-                  )}
-                  {canManageProjects && selectedFolder && (
-                    <button onClick={() => { setSelectedFolderForMembers(selectedFolderId); setShowFolderMembers(true); setFabOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
-                      <Users className="w-4 h-4 inline mr-2" />
-                      Ordner-Mitglieder
+                    <button onClick={openProjectDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={folders.length === 0}>
+                      🏗️ Neues Projekt anlegen
                     </button>
-                  )}
-                  {!canManageProjects && (
-                    <div className="px-4 py-3 text-xs text-muted-foreground text-center">
-                      Sie haben keine Berechtigung,<br/>Projekte oder Ordner zu erstellen.
-                    </div>
-                  )}
-                </div>
-              )}
-              <button onClick={() => setFabOpen((v) => !v)} className="w-14 h-14 rounded-full bg-primary hover:bg-primary-hover text-primary-foreground text-2xl shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95" title="Neu">
-                +
-              </button>
+                    {folders.length === 0 && (<div className="px-4 pb-1 text-xs text-muted-foreground">Erst einen Ordner anlegen</div>)}
+                    
+                    {selectedProject && (
+                      <button onClick={() => { setShowProjectMembers(true); setFabOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors border-t border-border">
+                        <UserPlus className="w-4 h-4 inline mr-2" />
+                        Projekt-Mitglieder
+                      </button>
+                    )}
+                    {selectedFolder && (
+                      <button onClick={() => { setSelectedFolderForMembers(selectedFolderId); setShowFolderMembers(true); setFabOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
+                        <Users className="w-4 h-4 inline mr-2" />
+                        Ordner-Mitglieder
+                      </button>
+                    )}
+                  </div>
+                )}
+                <button onClick={() => setFabOpen((v) => !v)} className="w-14 h-14 rounded-full bg-primary hover:bg-primary-hover text-primary-foreground text-2xl shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95" title="Neu">
+                  +
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </aside>
 
         <main className="relative overflow-hidden bg-background">
