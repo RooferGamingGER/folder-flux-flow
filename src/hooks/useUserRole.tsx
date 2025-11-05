@@ -38,18 +38,24 @@ export function useUserRole(): UserRoleData {
     }
 
     const fetchRole = async () => {
+      console.log('🔍 [useUserRole] Fetching role for user:', user.id);
+      
       const { data, error } = await supabase
         .from('user_roles')
         .select('role, organization_id')
         .eq('user_id', user.id)
         .maybeSingle();
 
+      console.log('📊 [useUserRole] Result:', { data, error });
+
       if (data && !error) {
         setRole(data.role as UserRole);
         setOrganizationId(data.organization_id);
+        console.log('✅ [useUserRole] Role set:', data.role);
       } else {
         setRole(null);
         setOrganizationId(null);
+        console.log('❌ [useUserRole] No role found or error');
       }
       setLoading(false);
     };

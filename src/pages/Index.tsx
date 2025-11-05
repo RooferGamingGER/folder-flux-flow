@@ -181,6 +181,17 @@ export default function Index() {
   const { projects: dbProjects, isLoading: projectsLoading, createProject: dbCreateProject, deleteProject: dbDeleteProject, toggleArchive: dbToggleProjectArchive } = useProjects();
   const { deletedProjects, restoreProject, permanentlyDeleteProject } = useDeletedProjects();
   const { allDetails, getDetailsForProject } = useAllProjectDetails();
+
+  // 🐛 DEBUG: Berechtigungen überwachen
+  useEffect(() => {
+    console.log('🎯 [Index] Current permissions:', {
+      role,
+      hasFullAccess,
+      canManageProjects,
+      roleLoading,
+      userId: user?.id
+    });
+  }, [role, hasFullAccess, canManageProjects, roleLoading, user]);
   
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
