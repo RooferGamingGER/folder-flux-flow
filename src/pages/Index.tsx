@@ -4,6 +4,8 @@ import { useFolders } from "@/hooks/useFolders";
 import { useProjects } from "@/hooks/useProjects";
 import { useMessages } from "@/hooks/useMessages";
 import { useProjectFiles } from "@/hooks/useProjectFiles";
+import { useProjectDirectories } from "@/hooks/useProjectDirectories";
+import { useProjectDetails, ProjectDetailsData } from "@/hooks/useProjectDetails";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 
@@ -630,12 +632,17 @@ function FilesView({ project }: { project: Project }) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const [currentDir, setCurrentDir] = useState("Bilder");
   const [showNewDir, setShowNewDir] = useState(false);
+  const [showRenameDir, setShowRenameDir] = useState<{ id: string; name: string } | null>(null);
   const [newDirName, setNewDirName] = useState("");
   const [preview, setPreview] = useState<{ url: string; mime: string; name: string; __temp: boolean } | null>(null);
   
   const { files: dbFiles, uploadFile, isUploading, getFileUrl, deleteFile, moveFile: dbMoveFile } = useProjectFiles(project.id);
+  const { directories, createDirectory, renameDirectory, deleteDirectory } = useProjectDirectories(project.id);
 
-  const listDirs = ["Bilder", "Dokumente", "Chat"];
+  // Standard-Ordner + Datenbank-Ordner kombinieren
+  const standardDirs = ["Bilder", "Dokumente", "Chat"];
+  const customDirs = directories.map(d => d.name);
+  const listDirs = [...standardDirs, ...customDirs];
 
   const addFiles = async (files: FileList | null, forceImage = false) => {
     if (!files || files.length === 0) return;
@@ -647,8 +654,60 @@ function FilesView({ project }: { project: Project }) {
   };
 
   const makeDir = () => {
-    console.log("Directory management not yet implemented");
+    const name = newDirName.trim();
+    if (!name) return;
+    
+    // Prüfe ob der Name bereits existiert
+    if (listDirs.includes(name)) {
+      toast({
+        title: 'Ordner existiert bereits',
+        description: `Ein Ordner mit dem Namen "${name}" existiert bereits`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    createDirectory(name);
+    setNewDirName("");
     setShowNewDir(false);
+  };
+
+  const handleRenameDir = () => {
+    if (!showRenameDir) return;
+    const name = newDirName.trim();
+    if (!name) return;
+    
+    // Prüfe ob der Name bereits existiert
+    if (listDirs.includes(name) && name !== showRenameDir.name) {
+      toast({
+        title: 'Ordner existiert bereits',
+        description: `Ein Ordner mit dem Namen "${name}" existiert bereits`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    renameDirectory({ id: showRenameDir.id, name });
+    setShowRenameDir(null);
+    setNewDirName("");
+  };
+
+  const handleDeleteDir = (dirName: string) => {
+    const dir = directories.find(d => d.name === dirName);
+    if (!dir) return;
+    
+    // Prüfe ob Dateien im Ordner sind
+    const filesInFolder = dbFiles.filter(f => f.folder === dirName);
+    if (filesInFolder.length > 0) {
+      toast({
+        title: 'Ordner nicht leer',
+        description: `Der Ordner "${dirName}" enthält noch ${filesInFolder.length} Datei(en). Bitte erst alle Dateien löschen oder verschieben.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    deleteDirectory(dir.id);
   };
 
   const moveFile = (fileId: string, newDir: string) => {
@@ -732,11 +791,51 @@ function FilesView({ project }: { project: Project }) {
       </div>
 
       <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-border bg-secondary/50">
-        {listDirs.map((d) => (
-          <button type="button" key={d} onClick={() => setCurrentDir(d)} onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDropToDir(e, d)} className={`px-4 py-2 rounded-full text-sm border transition-all ${d === currentDir ? "border-primary bg-primary/10 text-primary font-semibold shadow-sm" : "border-border bg-background text-foreground hover:bg-accent"}`} title={`Klicken zum Öffnen • Dateien hierher ziehen, um nach "${d}" zu verschieben`}>
-            📁 {d}
-          </button>
-        ))}
+        {listDirs.map((d) => {
+          const isCustom = directories.some(dir => dir.name === d);
+          return (
+            <div key={d} className="relative group">
+              <button 
+                type="button" 
+                onClick={() => setCurrentDir(d)} 
+                onDragOver={(e) => e.preventDefault()} 
+                onDrop={(e) => onDropToDir(e, d)} 
+                className={`px-4 py-2 rounded-full text-sm border transition-all ${d === currentDir ? "border-primary bg-primary/10 text-primary font-semibold shadow-sm" : "border-border bg-background text-foreground hover:bg-accent"}`} 
+                title={`Klicken zum Öffnen • Dateien hierher ziehen, um nach "${d}" zu verschieben`}
+              >
+                📁 {d}
+              </button>
+              {isCustom && (
+                <div className="absolute -top-1 -right-1 hidden group-hover:flex gap-1 bg-card border border-border rounded-md shadow-lg p-1 z-10">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const dir = directories.find(dir => dir.name === d);
+                      if (dir) {
+                        setShowRenameDir({ id: dir.id, name: dir.name });
+                        setNewDirName(dir.name);
+                      }
+                    }}
+                    className="px-2 py-1 text-xs hover:bg-accent rounded transition-colors"
+                    title="Umbenennen"
+                  >
+                    ✏️
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteDir(d);
+                    }}
+                    className="px-2 py-1 text-xs hover:bg-accent rounded transition-colors"
+                    title="Löschen"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <div className="flex-1 overflow-auto p-6">
@@ -751,13 +850,26 @@ function FilesView({ project }: { project: Project }) {
       </div>
 
       {showNewDir && (
-        <Modal title="Neues Verzeichnis" onClose={() => setShowNewDir(false)}>
+        <Modal title="Neues Verzeichnis" onClose={() => { setShowNewDir(false); setNewDirName(""); }}>
           <div className="space-y-4">
             <Label>Ordnername</Label>
             <input autoFocus className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" value={newDirName} onChange={(e) => setNewDirName(e.target.value)} placeholder="z. B. Pläne, Abnahmen, Lieferscheine" />
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" onClick={() => setShowNewDir(false)}>Abbrechen</Button>
+              <Button variant="ghost" onClick={() => { setShowNewDir(false); setNewDirName(""); }}>Abbrechen</Button>
               <Button onClick={makeDir} disabled={!newDirName.trim()}>Erstellen</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showRenameDir && (
+        <Modal title="Ordner umbenennen" onClose={() => { setShowRenameDir(null); setNewDirName(""); }}>
+          <div className="space-y-4">
+            <Label>Neuer Ordnername</Label>
+            <input autoFocus className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" value={newDirName} onChange={(e) => setNewDirName(e.target.value)} placeholder="z. B. Pläne, Abnahmen, Lieferscheine" />
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => { setShowRenameDir(null); setNewDirName(""); }}>Abbrechen</Button>
+              <Button onClick={handleRenameDir} disabled={!newDirName.trim()}>Umbenennen</Button>
             </div>
           </div>
         </Modal>
@@ -808,91 +920,170 @@ const FileCard = memo(function FileCard({ file, dirs, onMove, onOpen }: { file: 
 });
 
 function DetailsView({ project }: { project: Project }) {
-  const [form, setForm] = useState<ProjectDetails>(project.details);
-  const [newNote, setNewNote] = useState("");
-  const [newContact, setNewContact] = useState({ name: "", email: "", phone: "" });
-  useEffect(() => { setForm(project.details); }, [project.id, project.details]);
-  const update = (k: keyof ProjectDetails, v: any) => setForm((prev) => ({ ...prev, [k]: v }));
+  const { details, saveDetails, isSaving } = useProjectDetails(project.id);
+  
+  const [form, setForm] = useState<ProjectDetailsData>({
+    projektname: "",
+    auftragsnummer: "",
+    projektstatus: "",
+    ansprechpartner: "",
+    notiz: "",
+    startdatum: "",
+    enddatum: "",
+    strasse: "",
+    plz: "",
+    stadt: "",
+    land: "",
+  });
+
+  // Details aus DB laden
+  useEffect(() => {
+    if (details) {
+      setForm({
+        projektname: details.projektname || "",
+        auftragsnummer: details.auftragsnummer || "",
+        projektstatus: details.projektstatus || "",
+        ansprechpartner: details.ansprechpartner || "",
+        notiz: details.notiz || "",
+        startdatum: details.startdatum || "",
+        enddatum: details.enddatum || "",
+        strasse: details.strasse || "",
+        plz: details.plz || "",
+        stadt: details.stadt || "",
+        land: details.land || "",
+      });
+    }
+  }, [details]);
+
+  const update = (k: keyof ProjectDetailsData, v: string) => 
+    setForm((prev) => ({ ...prev, [k]: v }));
+
   const save = () => {
-    // Details save will be implemented later with DB
-    console.log("Details save not yet implemented for DB version");
+    saveDetails(form);
   };
-  const addNote = () => {
-    const t = newNote.trim();
-    if (!t) return;
-    const n: Note = { id: uid("n_"), text: t, ts: new Date().toISOString() };
-    update("notes", [n, ...(form.notes || [])]);
-    setNewNote("");
+
+  const reset = () => {
+    if (details) {
+      setForm({
+        projektname: details.projektname || "",
+        auftragsnummer: details.auftragsnummer || "",
+        projektstatus: details.projektstatus || "",
+        ansprechpartner: details.ansprechpartner || "",
+        notiz: details.notiz || "",
+        startdatum: details.startdatum || "",
+        enddatum: details.enddatum || "",
+        strasse: details.strasse || "",
+        plz: details.plz || "",
+        stadt: details.stadt || "",
+        land: details.land || "",
+      });
+    }
   };
-  const removeNote = (id: string) => update("notes", (form.notes || []).filter((x) => x.id !== id));
-  const addContact = () => {
-    const c = { ...newContact, id: uid("c_") };
-    if (!c.name.trim() && !c.email.trim() && !c.phone.trim()) return;
-    update("contacts", [c, ...(form.contacts || [])]);
-    setNewContact({ name: "", email: "", phone: "" });
-  };
-  const removeContact = (id: string) => update("contacts", (form.contacts || []).filter((x) => x.id !== id));
 
   return (
     <div className="p-6 space-y-6 overflow-auto">
-      <Field label="Projektname"><input className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" value={form.projektname || ""} onChange={(e) => update("projektname", e.target.value)} /></Field>
+      <Field label="Projektname">
+        <input 
+          className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+          value={form.projektname || ""} 
+          onChange={(e) => update("projektname", e.target.value)} 
+        />
+      </Field>
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="Startdatum"><input type="date" className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" value={form.startdatum || ""} onChange={(e) => update("startdatum", e.target.value)} /></Field>
-        <Field label="Enddatum"><input type="date" className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" value={form.enddatum || ""} onChange={(e) => update("enddatum", e.target.value)} /></Field>
+        <Field label="Startdatum">
+          <input 
+            type="date" 
+            className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+            value={form.startdatum || ""} 
+            onChange={(e) => update("startdatum", e.target.value)} 
+          />
+        </Field>
+        <Field label="Enddatum">
+          <input 
+            type="date" 
+            className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+            value={form.enddatum || ""} 
+            onChange={(e) => update("enddatum", e.target.value)} 
+          />
+        </Field>
       </div>
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="Auftragsnummer"><input className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" value={form.auftragsnummer || ""} onChange={(e) => update("auftragsnummer", e.target.value)} /></Field>
-        <Field label="Projektstatus"><input className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" value={form.projektstatus || ""} onChange={(e) => update("projektstatus", e.target.value)} /></Field>
+        <Field label="Auftragsnummer">
+          <input 
+            className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+            value={form.auftragsnummer || ""} 
+            onChange={(e) => update("auftragsnummer", e.target.value)} 
+          />
+        </Field>
+        <Field label="Projektstatus">
+          <input 
+            className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+            value={form.projektstatus || ""} 
+            onChange={(e) => update("projektstatus", e.target.value)} 
+          />
+        </Field>
       </div>
 
-      <div className="space-y-3 pt-4">
-        <div className="text-sm font-semibold text-foreground">📝 Notizen</div>
-        <div className="flex gap-2 items-start">
-          <textarea className="flex-1 rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" rows={3} value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Neue Notiz hinzufügen…" />
-          <Button onClick={addNote} disabled={!newNote.trim()}>Hinzufügen</Button>
-        </div>
-        <div className="space-y-2">
-          {(form.notes || []).length === 0 ? (
-            <div className="text-sm text-muted-foreground p-4 bg-secondary rounded-lg text-center">Keine Notizen vorhanden</div>
-          ) : (
-            (form.notes || []).map((n) => (
-              <div key={n.id} className="flex items-start gap-3 border border-border rounded-lg p-3 bg-card">
-                <div className="text-xs text-muted-foreground min-w-[140px] font-mono">{new Date(n.ts).toLocaleString("de-DE")}</div>
-                <div className="flex-1 text-sm whitespace-pre-wrap">{n.text}</div>
-                <button className="text-xs px-3 py-1.5 border border-border rounded-md hover:bg-accent transition-colors" onClick={() => removeNote(n.id)}>🗑️</button>
-              </div>
-            ))
-          )}
+      <Field label="Ansprechpartner">
+        <input 
+          className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+          value={form.ansprechpartner || ""} 
+          onChange={(e) => update("ansprechpartner", e.target.value)} 
+          placeholder="Name des Hauptansprechpartners"
+        />
+      </Field>
+
+      <div className="space-y-3">
+        <div className="text-sm font-semibold text-foreground">📍 Adresse</div>
+        <Field label="Straße">
+          <input 
+            className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+            value={form.strasse || ""} 
+            onChange={(e) => update("strasse", e.target.value)} 
+          />
+        </Field>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Field label="PLZ">
+            <input 
+              className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+              value={form.plz || ""} 
+              onChange={(e) => update("plz", e.target.value)} 
+            />
+          </Field>
+          <Field label="Stadt">
+            <input 
+              className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+              value={form.stadt || ""} 
+              onChange={(e) => update("stadt", e.target.value)} 
+            />
+          </Field>
+          <Field label="Land">
+            <input 
+              className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+              value={form.land || ""} 
+              onChange={(e) => update("land", e.target.value)} 
+            />
+          </Field>
         </div>
       </div>
 
-      <div className="space-y-3 pt-4">
-        <div className="text-sm font-semibold text-foreground">👥 Ansprechpartner</div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-          <label className="flex flex-col gap-2 text-sm"><span className="text-muted-foreground font-medium">Name</span><input className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" value={newContact.name} onChange={(e)=>setNewContact((s)=>({...s,name:e.target.value}))} /></label>
-          <label className="flex flex-col gap-2 text-sm"><span className="text-muted-foreground font-medium">E-Mail</span><input className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" value={newContact.email} onChange={(e)=>setNewContact((s)=>({...s,email:e.target.value}))} /></label>
-          <label className="flex flex-col gap-2 text-sm"><span className="text-muted-foreground font-medium">Telefon</span><input className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" value={newContact.phone} onChange={(e)=>setNewContact((s)=>({...s,phone:e.target.value}))} /></label>
-          <Button onClick={addContact}>Hinzufügen</Button>
-        </div>
-        <div className="space-y-2">
-          {(form.contacts || []).length === 0 ? (
-            <div className="text-sm text-muted-foreground p-4 bg-secondary rounded-lg text-center">Keine Ansprechpartner</div>
-          ) : (
-            (form.contacts || []).map((c) => (
-              <div key={c.id} className="flex items-center gap-4 border border-border rounded-lg p-3 text-sm bg-card">
-                <div className="font-semibold">{c.name || "–"}</div>
-                <div className="text-muted-foreground">{c.email || "–"}</div>
-                <div className="text-muted-foreground">{c.phone || "–"}</div>
-                <button className="ml-auto text-xs px-3 py-1.5 border border-border rounded-md hover:bg-accent transition-colors" onClick={() => removeContact(c.id)}>🗑️</button>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+      <Field label="Projektnotiz">
+        <textarea 
+          className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+          rows={5}
+          value={form.notiz || ""} 
+          onChange={(e) => update("notiz", e.target.value)}
+          placeholder="Allgemeine Notizen zum Projekt..."
+        />
+      </Field>
 
       <div className="flex justify-end gap-3 pt-6 border-t border-border">
-        <Button variant="ghost" onClick={() => setForm(project.details)}>Zurücksetzen</Button>
-        <Button onClick={save}>💾 Speichern</Button>
+        <Button variant="ghost" onClick={reset}>Zurücksetzen</Button>
+        <Button onClick={save} disabled={isSaving}>
+          {isSaving ? "Speichere..." : "💾 Speichern"}
+        </Button>
       </div>
     </div>
   );
