@@ -237,6 +237,7 @@ export type Database = {
           first_name: string
           id: string
           last_name: string
+          must_change_password: boolean | null
           organization_id: string | null
           updated_at: string | null
         }
@@ -246,6 +247,7 @@ export type Database = {
           first_name: string
           id: string
           last_name: string
+          must_change_password?: boolean | null
           organization_id?: string | null
           updated_at?: string | null
         }
@@ -255,6 +257,7 @@ export type Database = {
           first_name?: string
           id?: string
           last_name?: string
+          must_change_password?: boolean | null
           organization_id?: string | null
           updated_at?: string | null
         }

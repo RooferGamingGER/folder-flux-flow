@@ -1,16 +1,32 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { ForcePasswordChange } from './ForcePasswordChange';
 
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
     }
   }, [user, loading, navigate]);
+
+  useEffect(() => {
+    if (user) {
+      supabase
+        .from('profiles')
+        .select('must_change_password')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => {
+          setMustChangePassword(data?.must_change_password ?? false);
+        });
+    }
+  }, [user]);
 
   if (loading) {
     return (
@@ -27,5 +43,10 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     return null;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {mustChangePassword && <ForcePasswordChange open={true} />}
+      {children}
+    </>
+  );
 }

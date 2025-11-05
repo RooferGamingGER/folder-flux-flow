@@ -40,68 +40,106 @@ export function useOrganizationUsers() {
     enabled: !!user && !!organizationId && isAdmin,
   });
 
-  const inviteUser = useMutation({
-    mutationFn: async ({ email, role }: { email: string; role: string }) => {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', email)
-        .maybeSingle();
-
-      if (!profile) {
-        throw new Error('Benutzer nicht gefunden. Benutzer muss sich zuerst registrieren.');
-      }
-
-      const { error } = await supabase
-        .from('user_roles')
-        .insert([{
-          user_id: profile.id,
-          role: role as any,
-          organization_id: organizationId,
-          created_by: user?.id,
-        }]);
+  const createUser = useMutation({
+    mutationFn: async ({ 
+      firstName, 
+      lastName, 
+      email, 
+      role 
+    }: { 
+      firstName: string; 
+      lastName: string; 
+      email: string; 
+      role: string; 
+    }) => {
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          firstName,
+          lastName,
+          email,
+          role,
+          organizationId
+        }
+      });
 
       if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization-users'] });
-      toast({
-        title: 'Benutzer eingeladen',
-        description: 'Der Benutzer wurde erfolgreich zur Organisation hinzugefügt.',
-      });
     },
     onError: (error: any) => {
-      console.error('Fehler beim Einladen:', error);
+      console.error('Fehler beim Erstellen:', error);
       toast({
         title: 'Fehler',
-        description: error.message || 'Benutzer konnte nicht eingeladen werden.',
+        description: error.message || 'Benutzer konnte nicht erstellt werden.',
         variant: 'destructive',
       });
     },
   });
 
-  const removeUser = useMutation({
+  const updateUser = useMutation({
+    mutationFn: async ({
+      userId,
+      firstName,
+      lastName,
+      role
+    }: {
+      userId: string;
+      firstName?: string;
+      lastName?: string;
+      role?: string;
+    }) => {
+      const { data, error } = await supabase.functions.invoke('update-user', {
+        body: {
+          userId,
+          firstName,
+          lastName,
+          role,
+          organizationId
+        }
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organization-users'] });
+      toast({
+        title: 'Benutzer aktualisiert',
+        description: 'Die Änderungen wurden gespeichert.',
+      });
+    },
+    onError: (error: any) => {
+      console.error('Fehler beim Aktualisieren:', error);
+      toast({
+        title: 'Fehler',
+        description: error.message || 'Benutzer konnte nicht aktualisiert werden.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const deleteUser = useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', userId)
-        .eq('organization_id', organizationId);
+      const { error } = await supabase.functions.invoke('delete-user', {
+        body: { userId }
+      });
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization-users'] });
       toast({
-        title: 'Benutzer entfernt',
-        description: 'Der Benutzer wurde erfolgreich aus der Organisation entfernt.',
+        title: 'Benutzer gelöscht',
+        description: 'Der Benutzer wurde vollständig entfernt.',
       });
     },
     onError: (error: any) => {
-      console.error('Fehler beim Entfernen:', error);
+      console.error('Fehler beim Löschen:', error);
       toast({
         title: 'Fehler',
-        description: error.message || 'Benutzer konnte nicht entfernt werden.',
+        description: error.message || 'Benutzer konnte nicht gelöscht werden.',
         variant: 'destructive',
       });
     },
@@ -110,9 +148,11 @@ export function useOrganizationUsers() {
   return {
     users,
     isLoading,
-    inviteUser: inviteUser.mutate,
-    removeUser: removeUser.mutate,
-    isInviting: inviteUser.isPending,
-    isRemoving: removeUser.isPending,
+    createUser: createUser.mutateAsync,
+    updateUser: updateUser.mutate,
+    deleteUser: deleteUser.mutate,
+    isCreating: createUser.isPending,
+    isUpdating: updateUser.isPending,
+    isDeleting: deleteUser.isPending,
   };
 }
