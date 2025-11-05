@@ -2546,6 +2546,7 @@ function FilesView({ project }: { project: Project }) {
       folder: f.folder || '',
       modified: f.modified || '',
       takenAt: f.taken_at || '',
+      created_by: f.created_by,
     }));
     
   const openPreview = async (file: ProjectFile) => {
