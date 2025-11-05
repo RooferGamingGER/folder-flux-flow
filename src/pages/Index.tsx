@@ -28,7 +28,7 @@ import { FolderMembersDialog } from "@/components/FolderMembersDialog";
 import { UserRoleBadge } from "@/components/UserRoleBadge";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
-  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus
+  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut
 } from "lucide-react";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
@@ -168,7 +168,7 @@ type Folder = {
 };
 
 export default function Index() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { role, isAdmin, canManageProjects, hasFullAccess, canAccessDashboard, loading: roleLoading } = useUserRole();
   const { folders: dbFolders, isLoading: foldersLoading, createFolder: dbCreateFolder, deleteFolder: dbDeleteFolder, toggleArchive: dbToggleArchive } = useFolders();
   const { projects: dbProjects, isLoading: projectsLoading, createProject: dbCreateProject, deleteProject: dbDeleteProject, toggleArchive: dbToggleProjectArchive } = useProjects();
@@ -434,6 +434,18 @@ export default function Index() {
               {!isMobile && <span>Benutzer</span>}
             </button>
           )}
+          
+          <button
+            onClick={async () => {
+              await signOut();
+              toast({ title: "Abgemeldet", description: "Sie wurden erfolgreich abgemeldet." });
+            }}
+            className="px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors flex items-center gap-2 text-sm font-medium"
+            title="Abmelden"
+          >
+            <LogOut className="w-4 h-4" />
+            {!isMobile && <span>Abmelden</span>}
+          </button>
         </div>
       </header>
 
@@ -460,43 +472,39 @@ export default function Index() {
         <div className="h-[calc(100vh-56px)] grid grid-cols-1 md:grid-cols-[320px_1fr] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
         <aside className="border-r border-border bg-sidebar relative overflow-hidden flex flex-col">
           {/* Navigation Tabs */}
-          <div className="flex border-b border-border bg-card items-center justify-start gap-1 px-2">
+          <div className="flex flex-col border-b border-border bg-card">
             {canAccessDashboard && (
               <>
                 <button 
                   onClick={() => { setView('dashboard'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-                  className={`flex-shrink-0 px-3 py-2.5 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${view === 'dashboard' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-                  title="Dashboard"
+                  className={`px-4 py-3 text-sm font-medium transition-colors flex items-center gap-3 hover:bg-accent ${view === 'dashboard' ? 'bg-accent text-foreground border-l-2 border-primary' : 'text-muted-foreground'}`}
                 >
                   <span className="text-lg">📊</span>
-                  <span className="hidden md:inline">Dashboard</span>
+                  <span>Dashboard</span>
                 </button>
                 <button 
                   onClick={() => { setView('calendar'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-                  className={`flex-shrink-0 px-3 py-2.5 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${view === 'calendar' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-                  title="Kalender"
+                  className={`px-4 py-3 text-sm font-medium transition-colors flex items-center gap-3 hover:bg-accent ${view === 'calendar' ? 'bg-accent text-foreground border-l-2 border-primary' : 'text-muted-foreground'}`}
                 >
                   <span className="text-lg">📅</span>
-                  <span className="hidden md:inline">Kalender</span>
+                  <span>Kalender</span>
                 </button>
               </>
             )}
             <button 
               onClick={() => { setView('chat'); setSelectedProjectId(null); }}
-              className={`flex-shrink-0 px-3 py-2.5 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${view === 'trash' || view === 'dashboard' || view === 'calendar' ? 'border-transparent text-muted-foreground hover:text-foreground' : 'border-primary text-foreground'}`}
-              title="Projekte"
+              className={`px-4 py-3 text-sm font-medium transition-colors flex items-center gap-3 hover:bg-accent ${view === 'trash' || view === 'dashboard' || view === 'calendar' ? 'text-muted-foreground' : 'bg-accent text-foreground border-l-2 border-primary'}`}
             >
               <span className="text-lg">📁</span>
-              <span className="hidden md:inline">Projekte</span>
+              <span>Projekte</span>
             </button>
             <button 
               onClick={() => { setView('trash'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-              className={`flex-shrink-0 px-3 py-2.5 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${view === 'trash' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-              title="Papierkorb"
+              className={`px-4 py-3 text-sm font-medium transition-colors flex items-center gap-3 hover:bg-accent ${view === 'trash' ? 'bg-accent text-foreground border-l-2 border-primary' : 'text-muted-foreground'}`}
             >
               <Trash2 className="w-4 h-4" />
-              <span className="hidden md:inline">Papierkorb</span>
-              {deletedProjects.length > 0 && <span className="hidden md:inline">({deletedProjects.length})</span>}
+              <span>Papierkorb</span>
+              {deletedProjects.length > 0 && <span className="text-xs ml-auto">({deletedProjects.length})</span>}
             </button>
           </div>
 
