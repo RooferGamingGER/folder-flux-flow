@@ -961,7 +961,12 @@ function DetailsView({ project }: { project: Project }) {
     setForm((prev) => ({ ...prev, [k]: v }));
 
   const save = () => {
-    saveDetails(form);
+    const cleanedForm = {
+      ...form,
+      startdatum: form.startdatum?.trim() || null,
+      enddatum: form.enddatum?.trim() || null,
+    };
+    saveDetails(cleanedForm);
   };
 
   const reset = () => {
