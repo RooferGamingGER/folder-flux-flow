@@ -17,8 +17,12 @@ export interface UserRoleData {
   isAdmin: boolean;
   isOfficeStaff: boolean;
   isTeamLeader: boolean;
+  isForeman: boolean;
+  isWorker: boolean;
+  isApprentice: boolean;
   hasFullAccess: boolean;
   canManageProjects: boolean;
+  canViewProjectContent: boolean;
   canAccessDashboard: boolean;
   loading: boolean;
 }
@@ -66,8 +70,12 @@ export function useUserRole(): UserRoleData {
   const isAdmin = role === 'geschaeftsfuehrer';
   const isOfficeStaff = role === 'buerokraft';
   const isTeamLeader = role === 'team_projektleiter';
+  const isForeman = role === 'vorarbeiter';
+  const isWorker = role === 'mitarbeiter';
+  const isApprentice = role === 'azubi';
   const hasFullAccess = isAdmin || isOfficeStaff;
   const canManageProjects = hasFullAccess || isTeamLeader;
+  const canViewProjectContent = isAdmin || isOfficeStaff || isTeamLeader || isForeman || isWorker || isApprentice;
   const canAccessDashboard = isAdmin || isOfficeStaff || isTeamLeader;
 
   return {
@@ -76,8 +84,12 @@ export function useUserRole(): UserRoleData {
     isAdmin,
     isOfficeStaff,
     isTeamLeader,
+    isForeman,
+    isWorker,
+    isApprentice,
     hasFullAccess,
     canManageProjects,
+    canViewProjectContent,
     canAccessDashboard,
     loading,
   };

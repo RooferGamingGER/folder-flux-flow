@@ -176,7 +176,7 @@ type Folder = {
 
 export default function Index() {
   const { user, signOut } = useAuth();
-  const { role, isAdmin, canManageProjects, hasFullAccess, canAccessDashboard, loading: roleLoading } = useUserRole();
+  const { role, isAdmin, canManageProjects, canViewProjectContent, hasFullAccess, canAccessDashboard, loading: roleLoading } = useUserRole();
   const { folders: dbFolders, isLoading: foldersLoading, createFolder: dbCreateFolder, deleteFolder: dbDeleteFolder, toggleArchive: dbToggleArchive } = useFolders();
   const { projects: dbProjects, isLoading: projectsLoading, createProject: dbCreateProject, deleteProject: dbDeleteProject, toggleArchive: dbToggleProjectArchive } = useProjects();
   const { deletedProjects, restoreProject, permanentlyDeleteProject } = useDeletedProjects();
@@ -644,7 +644,7 @@ export default function Index() {
             </div>
             
               {/* Zweite Zeile: Tab-Navigation - immer sichtbar */}
-              {selectedProject && canManageProjects && (
+              {selectedProject && canViewProjectContent && (
                 <div className="flex px-6 pb-3 items-center gap-2">
                   <HeaderBtn label="💬 Chat" active={view === "chat"} onClick={() => setView("chat")} />
                   <HeaderBtn label="📁 Dateien" active={view === "files"} onClick={() => setView("files")} />
