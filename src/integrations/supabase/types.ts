@@ -91,6 +91,7 @@ export type Database = {
       messages: {
         Row: {
           content: Json | null
+          created_by: string | null
           deleted_at: string | null
           id: string
           project_id: string
@@ -102,6 +103,7 @@ export type Database = {
         }
         Insert: {
           content?: Json | null
+          created_by?: string | null
           deleted_at?: string | null
           id?: string
           project_id: string
@@ -113,6 +115,7 @@ export type Database = {
         }
         Update: {
           content?: Json | null
+          created_by?: string | null
           deleted_at?: string | null
           id?: string
           project_id?: string
@@ -174,6 +177,27 @@ export type Database = {
           },
         ]
       }
+      organizations: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -181,6 +205,7 @@ export type Database = {
           first_name: string
           id: string
           last_name: string
+          organization_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -189,6 +214,7 @@ export type Database = {
           first_name: string
           id: string
           last_name: string
+          organization_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -197,9 +223,18 @@ export type Database = {
           first_name?: string
           id?: string
           last_name?: string
+          organization_id?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       project_details: {
         Row: {
@@ -266,6 +301,7 @@ export type Database = {
       project_directories: {
         Row: {
           created_at: string | null
+          created_by: string | null
           deleted_at: string | null
           id: string
           name: string
@@ -275,6 +311,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          created_by?: string | null
           deleted_at?: string | null
           id?: string
           name: string
@@ -284,6 +321,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          created_by?: string | null
           deleted_at?: string | null
           id?: string
           name?: string
@@ -303,6 +341,7 @@ export type Database = {
       }
       project_files: {
         Row: {
+          created_by: string | null
           deleted_at: string | null
           ext: string | null
           folder: string | null
@@ -319,6 +358,7 @@ export type Database = {
           taken_at: string | null
         }
         Insert: {
+          created_by?: string | null
           deleted_at?: string | null
           ext?: string | null
           folder?: string | null
@@ -335,6 +375,7 @@ export type Database = {
           taken_at?: string | null
         }
         Update: {
+          created_by?: string | null
           deleted_at?: string | null
           ext?: string | null
           folder?: string | null
@@ -353,6 +394,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "project_files_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_members: {
+        Row: {
+          added_at: string | null
+          added_by: string | null
+          id: string
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string | null
+          added_by?: string | null
+          id?: string
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string | null
+          added_by?: string | null
+          id?: string
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_members_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
@@ -440,15 +513,88 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          organization_id: string | null
+          role: Database["public"]["Enums"]["user_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          organization_id?: string | null
+          role: Database["public"]["Enums"]["user_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          organization_id?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      can_access_project: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_delete_directory: {
+        Args: { _directory_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_delete_file: {
+        Args: { _file_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_delete_message: {
+        Args: { _message_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_manage_project_members: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_manage_projects: { Args: { _user_id: string }; Returns: boolean }
+      has_full_access: { Args: { _user_id: string }; Returns: boolean }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["user_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_office_staff: { Args: { _user_id: string }; Returns: boolean }
+      is_team_leader: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       sync_status: "synced" | "pending" | "error"
+      user_role:
+        | "geschaeftsfuehrer"
+        | "buerokraft"
+        | "team_projektleiter"
+        | "vorarbeiter"
+        | "mitarbeiter"
+        | "azubi"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -577,6 +723,14 @@ export const Constants = {
   public: {
     Enums: {
       sync_status: ["synced", "pending", "error"],
+      user_role: [
+        "geschaeftsfuehrer",
+        "buerokraft",
+        "team_projektleiter",
+        "vorarbeiter",
+        "mitarbeiter",
+        "azubi",
+      ],
     },
   },
 } as const
