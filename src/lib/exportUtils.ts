@@ -578,7 +578,9 @@ export async function exportProjectAsZip(
   contacts: any[],
   messages: any[],
   files: any[],
-  getFileUrl: (file: any) => string
+  getFileUrl: (file: any) => string,
+  selectedFolders?: string[],
+  onProgress?: (current: number, total: number, fileName: string) => void
 ) {
   const JSZip = (await import('jszip')).default;
   const zip = new JSZip();
@@ -588,11 +590,16 @@ export async function exportProjectAsZip(
   const folderName = `${projectName}_Export_${timestamp}`;
   
   // 1. Word-Dokument erstellen und zur ZIP hinzufügen
+  onProgress?.(0, 1, 'Projektdokumentation.docx');
   const docBlob = await createProjectWordDocument(project, details, notes, contacts, messages);
   zip.file(`${folderName}/Projektdokumentation.docx`, docBlob);
   
-  // 2. Dateien nach Ordner gruppieren
-  const filesByFolder = files.reduce((acc, file) => {
+  // 2. Dateien filtern und nach Ordner gruppieren
+  const filteredFiles = selectedFolders && selectedFolders.length > 0
+    ? files.filter(file => selectedFolders.includes(file.folder || 'Sonstige'))
+    : files;
+  
+  const filesByFolder = filteredFiles.reduce((acc, file) => {
     const folder = file.folder || 'Sonstige';
     if (!acc[folder]) acc[folder] = [];
     acc[folder].push(file);
@@ -600,9 +607,15 @@ export async function exportProjectAsZip(
   }, {} as Record<string, any[]>);
   
   // 3. Alle Dateien laden und zur ZIP hinzufügen
+  const totalFiles = filteredFiles.length;
+  let currentFileIndex = 0;
+  
   const entries = Object.entries(filesByFolder) as [string, any[]][];
   for (const [folder, folderFiles] of entries) {
     for (const file of folderFiles) {
+      currentFileIndex++;
+      onProgress?.(currentFileIndex, totalFiles, file.name);
+      
       try {
         const url = getFileUrl(file);
         const response = await fetch(url);
@@ -615,6 +628,7 @@ export async function exportProjectAsZip(
   }
   
   // 4. ZIP generieren und Download starten
+  onProgress?.(totalFiles, totalFiles, 'ZIP wird erstellt...');
   const zipBlob = await zip.generateAsync({ 
     type: 'blob',
     compression: 'DEFLATE',

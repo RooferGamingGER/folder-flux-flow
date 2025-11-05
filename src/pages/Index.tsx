@@ -2728,6 +2728,41 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
   const { messages } = useMessages(project.id);
   const { files, getFileUrl } = useProjectFiles(project.id);
   const [isExporting, setIsExporting] = React.useState(false);
+  const [exportProgress, setExportProgress] = React.useState({ current: 0, total: 0, fileName: '' });
+  const [showZipOptions, setShowZipOptions] = React.useState(false);
+  const [selectedFolders, setSelectedFolders] = React.useState<string[]>([]);
+  
+  // Verfügbare Ordner ermitteln
+  const availableFolders = React.useMemo(() => {
+    const folders = new Set<string>();
+    files?.forEach(file => {
+      folders.add(file.folder || 'Sonstige');
+    });
+    return Array.from(folders).sort();
+  }, [files]);
+
+  // Alle Ordner standardmäßig auswählen
+  React.useEffect(() => {
+    if (availableFolders.length > 0 && selectedFolders.length === 0) {
+      setSelectedFolders(availableFolders);
+    }
+  }, [availableFolders]);
+
+  const toggleFolder = (folder: string) => {
+    setSelectedFolders(prev => 
+      prev.includes(folder) 
+        ? prev.filter(f => f !== folder)
+        : [...prev, folder]
+    );
+  };
+
+  const toggleAllFolders = () => {
+    if (selectedFolders.length === availableFolders.length) {
+      setSelectedFolders([]);
+    } else {
+      setSelectedFolders(availableFolders);
+    }
+  };
   
   const handleWordExport = async () => {
     await exportProjectToWord(
@@ -2749,7 +2784,18 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
   };
 
   const handleZipExport = async () => {
+    if (selectedFolders.length === 0) {
+      toast({
+        title: 'Keine Ordner ausgewählt',
+        description: 'Bitte wähle mindestens einen Ordner aus.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setIsExporting(true);
+    setExportProgress({ current: 0, total: 0, fileName: '' });
+    
     try {
       await exportProjectAsZip(
         project,
@@ -2758,7 +2804,11 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
         contacts || [],
         messages || [],
         files || [],
-        getFileUrl
+        getFileUrl,
+        selectedFolders,
+        (current, total, fileName) => {
+          setExportProgress({ current, total, fileName });
+        }
       );
       toast({ title: 'ZIP-Export erfolgreich' });
       onClose();
@@ -2771,6 +2821,7 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
       });
     } finally {
       setIsExporting(false);
+      setExportProgress({ current: 0, total: 0, fileName: '' });
     }
   };
   
@@ -2801,22 +2852,92 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
               <div className="text-xs text-muted-foreground">Alle Projekte als Tabelle exportieren</div>
             </div>
           </button>
-          <button
-            onClick={handleZipExport}
-            disabled={isExporting}
-            className="w-full px-6 py-4 rounded-lg border-2 border-border bg-card hover:bg-accent transition-colors text-left flex items-center gap-4 disabled:opacity-50 disabled:cursor-wait"
-          >
-            <Archive className="w-8 h-8 text-blue-500" />
-            <div className="flex-1">
-              <div className="font-semibold">
-                Komplettes Projekt (.zip)
-                {isExporting && <span className="ml-2 text-xs">(Wird erstellt...)</span>}
+          
+          {/* ZIP Export mit erweiterten Optionen */}
+          <div className="border-2 border-border rounded-lg overflow-hidden">
+            <button
+              onClick={() => setShowZipOptions(!showZipOptions)}
+              className="w-full px-6 py-4 bg-card hover:bg-accent transition-colors text-left flex items-center gap-4"
+            >
+              <Archive className="w-8 h-8 text-blue-500" />
+              <div className="flex-1">
+                <div className="font-semibold">Komplettes Projekt (.zip)</div>
+                <div className="text-xs text-muted-foreground">
+                  Word-Dokumentation + Dateien in Ordner-Struktur
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground">
-                Word-Dokumentation + alle Dateien in Ordner-Struktur
+              <ChevronRight className={`w-5 h-5 transition-transform ${showZipOptions ? 'rotate-90' : ''}`} />
+            </button>
+
+            {showZipOptions && (
+              <div className="px-6 py-4 border-t border-border bg-secondary/30">
+                {/* Ordner-Auswahl */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">Ordner auswählen:</span>
+                    <button
+                      onClick={toggleAllFolders}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      {selectedFolders.length === availableFolders.length ? 'Keine' : 'Alle'} auswählen
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {availableFolders.map(folder => {
+                      const fileCount = files?.filter(f => (f.folder || 'Sonstige') === folder).length || 0;
+                      return (
+                        <label
+                          key={folder}
+                          className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedFolders.includes(folder)}
+                            onChange={() => toggleFolder(folder)}
+                            className="w-4 h-4"
+                          />
+                          <span className="text-sm flex-1">
+                            📁 {folder}
+                            <span className="text-xs text-muted-foreground ml-1">
+                              ({fileCount})
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Fortschrittsanzeige */}
+                {isExporting && (
+                  <div className="mb-4 p-3 rounded-md bg-card border border-border">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium">Exportiere...</span>
+                      <span className="text-xs text-muted-foreground">
+                        {exportProgress.current} / {exportProgress.total}
+                      </span>
+                    </div>
+                    <Progress 
+                      value={exportProgress.total > 0 ? (exportProgress.current / exportProgress.total) * 100 : 0} 
+                      className="mb-2"
+                    />
+                    <div className="text-xs text-muted-foreground truncate">
+                      {exportProgress.fileName}
+                    </div>
+                  </div>
+                )}
+
+                {/* Export Button */}
+                <button
+                  onClick={handleZipExport}
+                  disabled={isExporting || selectedFolders.length === 0}
+                  className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                >
+                  {isExporting ? 'Wird exportiert...' : 'ZIP-Export starten'}
+                </button>
               </div>
-            </div>
-          </button>
+            )}
+          </div>
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>Abbrechen</Button>
