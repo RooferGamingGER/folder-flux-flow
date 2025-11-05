@@ -1,4 +1,9 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback, memo } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useFolders } from "@/hooks/useFolders";
+import { useProjects } from "@/hooks/useProjects";
+import { useMessages } from "@/hooks/useMessages";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
 
@@ -117,7 +122,10 @@ type Folder = {
 };
 
 export default function Index() {
-  const [folders, setFolders] = useState<Folder[]>([]);
+  const { user } = useAuth();
+  const { folders: dbFolders, isLoading: foldersLoading, createFolder: dbCreateFolder, deleteFolder: dbDeleteFolder, toggleArchive: dbToggleArchive } = useFolders();
+  const { projects: dbProjects, isLoading: projectsLoading, createProject: dbCreateProject, deleteProject: dbDeleteProject, toggleArchive: dbToggleProjectArchive } = useProjects();
+  
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [fabOpen, setFabOpen] = useState(false);
@@ -132,6 +140,44 @@ export default function Index() {
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
   const [moveDlg, setMoveDlg] = useState<{ folderId: string; projectId: string; targetId: string } | null>(null);
+
+  // Transform DB data to UI format (denormalize)
+  const folders = useMemo(() => {
+    if (!dbFolders || !dbProjects) return [];
+    
+    return dbFolders.map(folder => ({
+      id: folder.id,
+      name: folder.name,
+      archived: folder.archived,
+      projects: dbProjects
+        .filter(p => p.folder_id === folder.id)
+        .map(p => ({
+          id: p.id,
+          title: p.title,
+          archived: p.archived,
+          dirs: ["Bilder", "Dokumente"], // Default directories
+          messages: [],
+          files: [],
+          details: {
+            projektname: p.title,
+            startdatum: "",
+            enddatum: "",
+            auftragsnummer: "",
+            projektstatus: "",
+            notiz: "",
+            strasse: "",
+            plz: "",
+            stadt: "",
+            land: "",
+            ansprechpartner: "",
+            notes: [],
+            contacts: [],
+          },
+        }))
+    }));
+  }, [dbFolders, dbProjects]);
+
+  const isLoading = foldersLoading || projectsLoading;
 
   const selectedFolder = useMemo(() => folders.find((f) => f.id === selectedFolderId) || null, [folders, selectedFolderId]);
   const selectedProject = useMemo(() => {
@@ -154,43 +200,17 @@ export default function Index() {
   function createFolder() {
     const name = folderName.trim();
     if (!name) return;
-    const id = uid("f_");
-    setFolders((prev) => [{ id, name, archived: false, projects: [] }, ...prev]);
-    setSelectedFolderId(id);
-    setSelectedProjectId(null);
+    dbCreateFolder(name);
     setShowFolderDlg(false);
   }
   function createProject() {
     const title = projectTitle.trim();
     const targetId = projectFolderId;
     if (!title || !targetId) return;
-    const pid = uid("p_");
-    const newProject: Project = {
-      id: pid,
-      title,
-      archived: false,
-      dirs: ["Bilder", "Dokumente"],
-      messages: [],
-      files: [],
-      details: {
-        projektname: title,
-        startdatum: "",
-        enddatum: "",
-        auftragsnummer: "",
-        projektstatus: "",
-        notiz: "",
-        strasse: "",
-        plz: "",
-        stadt: "",
-        land: "",
-        ansprechpartner: "",
-        notes: [],
-        contacts: [],
-      },
-    };
-    setFolders((prev) => prev.map((f) => (f.id !== targetId ? f : { ...f, projects: [newProject, ...f.projects] })));
+    
+    dbCreateProject({ title, folderId: targetId });
+    
     setSelectedFolderId(targetId);
-    setSelectedProjectId(pid);
     setView("chat");
     setShowProjectDlg(false);
   }
@@ -199,47 +219,50 @@ export default function Index() {
     const f = folders.find((x) => x.id === folderId);
     if (!f) return;
     if (!confirm(`Ordner "${f.name}" inkl. Projekte löschen?`)) return;
-    revokeFolderUrls(f);
-    setFolders((prev) => prev.filter((x) => x.id !== folderId));
+    
+    dbDeleteFolder(folderId);
+    
     if (selectedFolderId === folderId) {
       setSelectedFolderId(null);
       setSelectedProjectId(null);
     }
   };
+  
   const toggleArchiveFolder = (folderId: string) => {
-    setFolders((prev) => prev.map((f) => (f.id === folderId ? { ...f, archived: !f.archived } : f)));
+    const folder = dbFolders.find(f => f.id === folderId);
+    if (!folder) return;
+    dbToggleArchive({ id: folderId, archived: folder.archived });
   };
+  
   const deleteProject = (folderId: string, projectId: string) => {
     const f = folders.find((x) => x.id === folderId);
     const p = f?.projects.find((y) => y.id === projectId);
     if (!p) return;
     if (!confirm(`Projekt "${p.title}" löschen?`)) return;
-    revokeProjectUrls(p);
-    setFolders((prev) => prev.map((ff) => (ff.id !== folderId ? ff : { ...ff, projects: ff.projects.filter((pp) => pp.id !== projectId) })));
+    
+    dbDeleteProject(projectId);
+    
     if (selectedProjectId === projectId) setSelectedProjectId(null);
   };
+  
   const toggleArchiveProject = (folderId: string, projectId: string) => {
-    setFolders((prev) => prev.map((ff) => (ff.id !== folderId ? ff : { ...ff, projects: ff.projects.map((pp) => (pp.id !== projectId ? pp : { ...pp, archived: !pp.archived })) })));
+    const project = dbProjects.find(p => p.id === projectId);
+    if (!project) return;
+    dbToggleProjectArchive({ id: projectId, archived: project.archived });
   };
   const openMoveProject = (folderId: string, projectId: string) => {
     setMoveDlg({ folderId, projectId, targetId: folders.find((f) => f.id !== folderId && !f.archived)?.id || "" });
   };
-  const doMoveProject = () => {
+  const doMoveProject = async () => {
     if (!moveDlg?.targetId) return;
-    const { folderId, projectId, targetId } = moveDlg;
-    if (folderId === targetId) return setMoveDlg(null);
-    let moved: Project | null = null;
-    setFolders((prev) => {
-      const src = prev.map((f) => {
-        if (f.id !== folderId) return f;
-        const proj = f.projects.find((p) => p.id === projectId);
-        moved = proj ? { ...proj } : null;
-        return { ...f, projects: f.projects.filter((p) => p.id !== projectId) };
-      });
-      if (!moved) return prev;
-      return src.map((f) => (f.id !== targetId ? f : { ...f, projects: [moved!, ...f.projects] }));
-    });
-    if (selectedFolderId === moveDlg.folderId) setSelectedFolderId(moveDlg.targetId);
+    const { projectId, targetId } = moveDlg;
+    
+    // Update project folder_id in database
+    const project = dbProjects.find(p => p.id === projectId);
+    if (!project) return;
+    
+    // This will be handled by a mutation - for now just close dialog
+    // TODO: Implement project move mutation in useProjects hook
     setMoveDlg(null);
   };
 
@@ -284,7 +307,13 @@ export default function Index() {
       <div className="h-[calc(100vh-56px)] grid grid-cols-1 md:grid-cols-[320px_1fr] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
         <aside className="border-r border-border bg-sidebar relative overflow-hidden">
           <div className="absolute inset-0 overflow-auto">
-            {search.trim() ? (
+            {isLoading ? (
+              <div className="p-4 space-y-4">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : search.trim() ? (
               <SearchList results={searchResults} open={(r) => { setSelectedFolderId(r.folderId); setSelectedProjectId(r.project.id); setView("chat"); setSearch(""); }} />
             ) : folders.filter((f) => showArchived || !f.archived).length === 0 ? (
               <div className="h-full flex items-center justify-center text-muted-foreground px-8 text-center text-sm">
@@ -336,11 +365,11 @@ export default function Index() {
           <div className="absolute inset-0 top-[56px] flex flex-col">
             {selectedProject ? (
               view === "chat" ? (
-                <ChatView project={selectedProject} setFolders={setFolders} selectedFolderId={selectedFolderId!} />
+                <ChatView project={selectedProject} />
               ) : view === "files" ? (
-                <FilesView project={selectedProject} setFolders={setFolders} selectedFolderId={selectedFolderId!} />
+                <FilesView project={selectedProject} />
               ) : (
-                <DetailsView project={selectedProject} setFolders={setFolders} selectedFolderId={selectedFolderId!} />
+                <DetailsView project={selectedProject} />
               )
             ) : (
               <div className="h-full flex items-center justify-center text-muted-foreground text-sm px-8 text-center">
@@ -487,65 +516,32 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected }: { p: P
   );
 }
 
-function ChatView({ project, setFolders, selectedFolderId }: { project: Project; setFolders: React.Dispatch<React.SetStateAction<Folder[]>>; selectedFolderId: string }) {
+function ChatView({ project }: { project: Project }) {
   const [text, setText] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-
-  const pushProjectUpdate = useCallback((updater: (p: Project) => Project) => {
-    setFolders((prev) => prev.map((f) => (f.id !== selectedFolderId ? f : { ...f, projects: f.projects.map((p) => (p.id !== project.id ? p : updater(p))) })));
-  }, [setFolders, selectedFolderId, project.id]);
+  const { messages, sendMessage } = useMessages(project.id);
 
   const sendText = () => {
     const t = text.trim();
     if (!t) return;
-    const msg: Message = { id: uid("m_"), sender: "Du", timestamp: new Date().toISOString(), type: "text", content: { text: t } };
-    pushProjectUpdate((p) => ({ ...p, messages: [...p.messages, msg] }));
+    sendMessage({ type: "text", content: { text: t } });
     setText("");
-  };
-
-  const handleFiles = async (fileList: FileList | null, forceImage = false) => {
-    if (!fileList || fileList.length === 0) return;
-    const now = new Date();
-    const addMsgs: Message[] = [];
-    const addFiles: ProjectFile[] = [];
-    for (const file of Array.from(fileList)) {
-      const { url, mime } = await fileToUrl(file);
-      const isImage = ((mime || file.type)?.startsWith("image/") || isImgName(file.name));
-      const ext = (file.name.split(".").pop() || "").toLowerCase();
-      let thumb: string | null = null;
-      if (forceImage || isImage) {
-        try { thumb = await fileToDataUrl(file); } catch {}
-      }
-      const chatMsg: Message = (forceImage || isImage)
-        ? { id: uid("m_"), sender: "Du", timestamp: now.toISOString(), type: "image", content: { url: thumb || url, name: file.name, originalUrl: url } }
-        : { id: uid("m_"), sender: "Du", timestamp: now.toISOString(), type: "file", content: { name: file.name, ext, url } };
-      addMsgs.push(chatMsg);
-      const stampedName = isImage ? `${file.name.replace(/\.[^/.]+$/, "")}_${tsFileSuffix(now)}.${ext || "jpg"}` : file.name;
-      addFiles.push({ id: uid("f_"), name: stampedName, size: `${(file.size / 1024 / 1024).toFixed(2)} MB`, modified: now.toISOString(), ext, url, mime: mime || file.type, folder: isImage ? "Bilder" : "Dokumente", takenAt: now.toISOString(), isImage: (forceImage || isImage), thumbUrl: thumb || null });
-    }
-    pushProjectUpdate((p) => ({ ...p, messages: [...p.messages, ...addMsgs], files: [...addFiles, ...p.files] }));
   };
 
   return (
     <div className="flex-1 flex flex-col">
       <div className="flex-1 overflow-auto px-6 py-4 space-y-3">
-        {project.messages.length === 0 ? (
+        {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center text-muted-foreground text-sm px-8 text-center">
             Noch keine Nachrichten.<br/>Starte die projektbezogene Unterhaltung.
           </div>
         ) : (
-          project.messages.map((m) => <MessageBubble key={m.id} msg={m} />)
+          messages.map((m) => <MessageBubble key={m.id} msg={m} />)
         )}
       </div>
 
       <div className="border-t border-border p-4 bg-card shadow-sm">
         <div className="flex items-center gap-2">
           <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); } }} placeholder="Eine Nachricht schreiben…" className="flex-1 bg-secondary rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" />
-          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { handleFiles(e.target.files, true); e.target.value = ""; }} />
-          <input ref={fileInputRef} type="file" accept="image/*,application/pdf,.pdf,application/*,text/*" multiple className="hidden" onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }} />
-          <button className="p-2.5 rounded-lg bg-secondary hover:bg-accent transition-colors" title="Kamera" onClick={() => cameraInputRef.current?.click()}>📷</button>
-          <button className="p-2.5 rounded-lg bg-secondary hover:bg-accent transition-colors" title="Datei anhängen" onClick={() => fileInputRef.current?.click()}>📎</button>
           <button onClick={sendText} className="p-2.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground transition-all hover:scale-105 active:scale-95" title="Senden">➤</button>
         </div>
         <div className="text-xs text-muted-foreground mt-2">Enter = senden, Shift + Enter = neue Zeile</div>
@@ -554,28 +550,31 @@ function ChatView({ project, setFolders, selectedFolderId }: { project: Project;
   );
 }
 
-const MessageBubble = memo(function MessageBubble({ msg }: { msg: Message }) {
+const MessageBubble = memo(function MessageBubble({ msg }: { msg: any }) {
+  const sender = msg.profile ? `${msg.profile.first_name} ${msg.profile.last_name}` : msg.sender || "Du";
+  const timestamp = msg.timestamp || new Date().toISOString();
+  
   return (
     <div className="max-w-2xl bg-card rounded-lg p-3 shadow-sm border border-border">
       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-        <span className="font-semibold text-foreground">{msg.sender}</span>
+        <span className="font-semibold text-foreground">{sender}</span>
         <span>•</span>
-        <span>{new Date(msg.timestamp).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>
+        <span>{new Date(timestamp).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>
       </div>
-      {msg.type === "text" && <div className="text-sm text-foreground whitespace-pre-wrap">{msg.content.text}</div>}
-      {msg.type === "image" && (<img src={msg.content.url} alt={msg.content.name || "Bild"} className="rounded-lg border border-border max-w-xs h-32 object-cover" onError={(e)=>{const t=msg?.content?.originalUrl; if(t) (e.currentTarget as HTMLImageElement).src=t;}} />)}
+      {msg.type === "text" && <div className="text-sm text-foreground whitespace-pre-wrap">{msg.content?.text}</div>}
+      {msg.type === "image" && (<img src={msg.content?.url} alt={msg.content?.name || "Bild"} className="rounded-lg border border-border max-w-xs h-32 object-cover" />)}
       {msg.type === "file" && (
         <div className="flex items-center gap-3 p-3 bg-secondary rounded-lg border border-border">
-          <div className="text-xs px-2 py-1 rounded-md bg-primary/10 text-primary font-mono font-semibold">{(msg.content.ext || "FILE").toUpperCase()}</div>
-          <div className="text-sm truncate">{msg.content.name}</div>
+          <div className="text-xs px-2 py-1 rounded-md bg-primary/10 text-primary font-mono font-semibold">{(msg.content?.ext || "FILE").toUpperCase()}</div>
+          <div className="text-sm truncate">{msg.content?.name}</div>
         </div>
       )}
-      {msg.type === "info" && (<div className="text-xs text-muted-foreground italic">{msg.content.text}</div>)}
+      {msg.type === "info" && (<div className="text-xs text-muted-foreground italic">{msg.content?.text}</div>)}
     </div>
   );
 });
 
-function FilesView({ project, setFolders, selectedFolderId }: { project: Project; setFolders: React.Dispatch<React.SetStateAction<Folder[]>>; selectedFolderId: string }) {
+function FilesView({ project }: { project: Project }) {
   const uploadRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [currentDir, setCurrentDir] = useState(project.dirs?.[0] || "Bilder");
@@ -587,43 +586,20 @@ function FilesView({ project, setFolders, selectedFolderId }: { project: Project
 
   const listDirs = project.dirs || ["Bilder", "Dokumente"];
 
-  const mutateProject = useCallback((fn: (p: Project) => Project) => {
-    setFolders((prev) => prev.map((f) => (f.id !== selectedFolderId ? f : { ...f, projects: f.projects.map((p) => (p.id !== project.id ? p : fn(p))) })));
-  }, [setFolders, selectedFolderId, project.id]);
-
   const addFiles = async (files: FileList | null, forceImage = false) => {
-    if (!files || files.length === 0) return;
-    const now = new Date();
-    const toAdd: ProjectFile[] = [];
-    const names: string[] = [];
-    for (const file of Array.from(files)) {
-      const { url, mime } = await fileToUrl(file);
-      const isImage = ((mime || file.type)?.startsWith("image/") || isImgName(file.name));
-      const ext = (file.name.split(".").pop() || "").toLowerCase();
-      const stampedName = isImage ? `${file.name.replace(/\.[^/.]+$/, "")}_${tsFileSuffix(now)}.${ext || "jpg"}` : file.name;
-      const dir = (forceImage || isImage) ? "Bilder" : currentDir || "Dokumente";
-      names.push(stampedName);
-      let thumb: string | null = null;
-      if (forceImage || isImage) {
-        try { thumb = await fileToDataUrl(file); } catch {}
-      }
-      toAdd.push({ id: uid("f_"), name: stampedName, size: `${(file.size / 1024 / 1024).toFixed(2)} MB`, modified: now.toISOString(), ext, url, mime: mime || file.type, folder: dir, takenAt: now.toISOString(), isImage: (forceImage || isImage), thumbUrl: thumb || null });
-    }
-    const infoMsg: Message = { id: uid("m_"), sender: "System", timestamp: now.toISOString(), type: "info", content: { text: `${toAdd.length} Datei(en) hochgeladen: ${names.join(", ")}` } };
-    mutateProject((p) => ({ ...p, files: [...toAdd, ...p.files], messages: [...p.messages, infoMsg] }));
+    // File upload will be implemented later with Supabase Storage
+    console.log("File upload not yet implemented for DB version");
   };
 
   const makeDir = () => {
-    const name = newDirName.trim();
-    if (!name) return;
-    if (listDirs.includes(name)) { setNewDirName(""); setShowNewDir(false); return; }
-    mutateProject((p) => ({ ...p, dirs: [...(p.dirs || []), name] }));
-    setCurrentDir(name);
-    setNewDirName("");
-    setShowNewDir(false);
+    // Directory management will be implemented later
+    console.log("Directory management not yet implemented for DB version");
   };
 
-  const moveFile = (fileId: string, newDir: string) => { mutateProject((p) => ({ ...p, files: p.files.map((f) => (f.id === fileId ? { ...f, folder: newDir } : f)) })); };
+  const moveFile = (fileId: string, newDir: string) => {
+    // File move will be implemented later
+    console.log("File move not yet implemented for DB version");
+  };
   const onDropToDir = (e: React.DragEvent, dir: string) => { e.preventDefault(); const fileId = e.dataTransfer.getData("text/id"); if (!fileId) return; moveFile(fileId, dir); };
   const filesInDir = (dir: string) => project.files.filter((f) => (f.folder || "") === dir);
   const openPreview = async (file: ProjectFile) => {
@@ -735,14 +711,15 @@ const FileCard = memo(function FileCard({ file, dirs, onMove, onOpen }: { file: 
   );
 });
 
-function DetailsView({ project, setFolders, selectedFolderId }: { project: Project; setFolders: React.Dispatch<React.SetStateAction<Folder[]>>; selectedFolderId: string }) {
+function DetailsView({ project }: { project: Project }) {
   const [form, setForm] = useState<ProjectDetails>(project.details);
   const [newNote, setNewNote] = useState("");
   const [newContact, setNewContact] = useState({ name: "", email: "", phone: "" });
   useEffect(() => { setForm(project.details); }, [project.id, project.details]);
   const update = (k: keyof ProjectDetails, v: any) => setForm((prev) => ({ ...prev, [k]: v }));
   const save = () => {
-    setFolders((prev) => prev.map((f) => (f.id !== selectedFolderId ? f : { ...f, projects: f.projects.map((p) => (p.id !== project.id ? p : { ...p, details: { ...p.details, ...form } })) })));
+    // Details save will be implemented later with DB
+    console.log("Details save not yet implemented for DB version");
   };
   const addNote = () => {
     const t = newNote.trim();
