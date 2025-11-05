@@ -2757,22 +2757,22 @@ const FileCard = memo(function FileCard({
         )}
         <div className="px-3 py-2 text-xs text-muted-foreground truncate flex items-center justify-between border-t border-border">
           <span className="truncate font-medium text-foreground">{file.name}</span>
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {/* Verschieben-Button */}
-            <button 
-              onClick={(e) => { 
-                e.stopPropagation(); 
-                setSelectedTargetFolder(file.folder);
-                setMoveDialogOpen(true); 
-              }} 
-              className="p-1.5 rounded-md hover:bg-accent transition-colors" 
-              title="Verschieben"
-            >
-              <FolderInput className="w-4 h-4 text-muted-foreground" />
-            </button>
-            
-            {/* Löschen-Button (nur wenn erlaubt) */}
-            {canDelete && (
+          {canDelete && (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Verschieben-Button */}
+              <button 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  setSelectedTargetFolder(file.folder);
+                  setMoveDialogOpen(true); 
+                }} 
+                className="p-1.5 rounded-md hover:bg-accent transition-colors" 
+                title="Verschieben"
+              >
+                <FolderInput className="w-4 h-4 text-muted-foreground" />
+              </button>
+              
+              {/* Löschen-Button */}
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
@@ -2785,8 +2785,8 @@ const FileCard = memo(function FileCard({
               >
                 <Trash2 className="w-4 h-4 text-destructive" />
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
