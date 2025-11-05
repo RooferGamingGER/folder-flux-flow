@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback, memo } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useFolders } from "@/hooks/useFolders";
 import { useProjects } from "@/hooks/useProjects";
 import { useDeletedProjects } from "@/hooks/useDeletedProjects";
@@ -19,9 +20,12 @@ import { exportProjectsToExcel, exportProjectToWord, exportProjectAsZip } from "
 import { PROJECT_STATUS_OPTIONS, STATUS_COLORS } from "@/lib/constants";
 import { format, isSameMonth, isSameDay } from "date-fns";
 import { de } from "date-fns/locale";
+import { UserManagementDialog } from "@/components/UserManagementDialog";
+import { ProjectMembersDialog } from "@/components/ProjectMembersDialog";
+import { UserRoleBadge } from "@/components/UserRoleBadge";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
-  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive 
+  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus
 } from "lucide-react";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
@@ -162,6 +166,7 @@ type Folder = {
 
 export default function Index() {
   const { user } = useAuth();
+  const { role, isAdmin, canManageProjects, hasFullAccess, loading: roleLoading } = useUserRole();
   const { folders: dbFolders, isLoading: foldersLoading, createFolder: dbCreateFolder, deleteFolder: dbDeleteFolder, toggleArchive: dbToggleArchive } = useFolders();
   const { projects: dbProjects, isLoading: projectsLoading, createProject: dbCreateProject, deleteProject: dbDeleteProject, toggleArchive: dbToggleProjectArchive } = useProjects();
   const { deletedProjects, restoreProject, permanentlyDeleteProject } = useDeletedProjects();
@@ -171,6 +176,10 @@ export default function Index() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [fabOpen, setFabOpen] = useState(false);
   const [view, setView] = useState<"chat" | "files" | "details" | "trash" | "dashboard" | "calendar">("chat");
+  
+  // User management dialogs
+  const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showProjectMembers, setShowProjectMembers] = useState(false);
   
   // Mobile states
   const isMobile = useIsMobile();
@@ -264,11 +273,27 @@ export default function Index() {
   }, [folders, selectedFolderId, selectedProjectId]);
 
   function openFolderDialog() {
+    if (!canManageProjects) {
+      toast({
+        title: "Keine Berechtigung",
+        description: "Sie haben keine Berechtigung, Ordner zu erstellen.",
+        variant: "destructive",
+      });
+      return;
+    }
     setFolderName("");
     setShowFolderDlg(true);
     setFabOpen(false);
   }
   function openProjectDialog() {
+    if (!canManageProjects) {
+      toast({
+        title: "Keine Berechtigung",
+        description: "Sie haben keine Berechtigung, Projekte zu erstellen.",
+        variant: "destructive",
+      });
+      return;
+    }
     const pre = selectedFolderId || (folders[0]?.id ?? "");
     setProjectFolderId(pre);
     setProjectTitle("");
@@ -380,18 +405,29 @@ export default function Index() {
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">🏗️</div>
           <div className="text-base font-semibold">Aktuelle Baustellen</div>
         </div>
-        <div className="ml-auto flex items-center gap-4">
+        <div className="ml-auto flex items-center gap-3">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Projekte suchen…"
-            className="w-56 md:w-72 bg-secondary rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all"
+            className="w-40 md:w-56 lg:w-72 bg-secondary rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all"
           />
           {!isMobile && (
             <label className="text-sm flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="accent-primary" /> 
               <span className="text-muted-foreground">Archiv anzeigen</span>
             </label>
+          )}
+          <UserRoleBadge />
+          {isAdmin && (
+            <button
+              onClick={() => setShowUserManagement(true)}
+              className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center gap-2 text-sm font-medium"
+              title="Benutzerverwaltung"
+            >
+              <Users className="w-4 h-4" />
+              {!isMobile && <span>Benutzer</span>}
+            </button>
           )}
         </div>
       </header>
@@ -525,13 +561,28 @@ export default function Index() {
             <div className="relative">
               {fabOpen && (
                 <div className="absolute bottom-16 right-0 w-60 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1 z-20">
-                  <button onClick={openFolderDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
-                    📁 Neuen Ordner erstellen
-                  </button>
-                  <button onClick={openProjectDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={folders.length === 0}>
-                    🏗️ Neues Projekt anlegen
-                  </button>
-                  {folders.length === 0 && (<div className="px-4 pb-1 text-xs text-muted-foreground">Erst einen Ordner anlegen</div>)}
+                  {canManageProjects && (
+                    <>
+                      <button onClick={openFolderDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
+                        📁 Neuen Ordner erstellen
+                      </button>
+                      <button onClick={openProjectDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={folders.length === 0}>
+                        🏗️ Neues Projekt anlegen
+                      </button>
+                      {folders.length === 0 && (<div className="px-4 pb-1 text-xs text-muted-foreground">Erst einen Ordner anlegen</div>)}
+                    </>
+                  )}
+                  {canManageProjects && selectedProject && (
+                    <button onClick={() => { setShowProjectMembers(true); setFabOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors border-t border-border">
+                      <UserPlus className="w-4 h-4 inline mr-2" />
+                      Projekt-Mitglieder
+                    </button>
+                  )}
+                  {!canManageProjects && (
+                    <div className="px-4 py-3 text-xs text-muted-foreground text-center">
+                      Sie haben keine Berechtigung,<br/>Projekte oder Ordner zu erstellen.
+                    </div>
+                  )}
                 </div>
               )}
               <button onClick={() => setFabOpen((v) => !v)} className="w-14 h-14 rounded-full bg-primary hover:bg-primary-hover text-primary-foreground text-2xl shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95" title="Neu">
@@ -653,6 +704,19 @@ export default function Index() {
           project={selectedProject} 
           onClose={() => setShowExportDlg(false)}
           allDetails={allDetails}
+        />
+      )}
+
+      <UserManagementDialog 
+        open={showUserManagement}
+        onClose={() => setShowUserManagement(false)}
+      />
+
+      {selectedProject && (
+        <ProjectMembersDialog 
+          projectId={selectedProject.id}
+          open={showProjectMembers}
+          onClose={() => setShowProjectMembers(false)}
         />
       )}
     </div>
