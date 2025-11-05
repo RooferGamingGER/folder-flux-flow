@@ -131,13 +131,14 @@ async function imageUrlToBase64(url: string): Promise<string> {
   }
 }
 
-export async function exportProjectToWord(
+// Hilfsfunktion: Word-Dokument als Blob erstellen (ohne Download)
+async function createProjectWordDocument(
   project: any,
   details: any,
   notes: any[],
   contacts: any[],
   messages: any[]
-) {
+): Promise<Blob> {
   // Logo laden
   const logoResponse = await fetch(logoImage);
   const logoBlob = await logoResponse.blob();
@@ -547,12 +548,97 @@ export async function exportProjectToWord(
     ],
   });
 
-  // Download
-  const blob = await Packer.toBlob(doc);
+  return await Packer.toBlob(doc);
+}
+
+// Export-Funktion für Word (nutzt die Hilfsfunktion)
+export async function exportProjectToWord(
+  project: any,
+  details: any,
+  notes: any[],
+  contacts: any[],
+  messages: any[]
+) {
+  const blob = await createProjectWordDocument(project, details, notes, contacts, messages);
+  
+  // Download starten
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = `${project.title.replace(/[^a-zA-Z0-9]/g, '_')}_Dokumentation.docx`;
   link.click();
   window.URL.revokeObjectURL(url);
+}
+
+// ZIP-Export Funktion
+export async function exportProjectAsZip(
+  project: any,
+  details: any,
+  notes: any[],
+  contacts: any[],
+  messages: any[],
+  files: any[],
+  getFileUrl: (file: any) => string,
+  selectedFolders?: string[],
+  onProgress?: (current: number, total: number, fileName: string) => void
+) {
+  const JSZip = (await import('jszip')).default;
+  const zip = new JSZip();
+  
+  const projectName = project.title.replace(/[^a-z0-9]/gi, '_');
+  const timestamp = new Date().toISOString().split('T')[0];
+  const folderName = `${projectName}_Export_${timestamp}`;
+  
+  // 1. Word-Dokument erstellen und zur ZIP hinzufügen
+  onProgress?.(0, 1, 'Projektdokumentation.docx');
+  const docBlob = await createProjectWordDocument(project, details, notes, contacts, messages);
+  zip.file(`${folderName}/Projektdokumentation.docx`, docBlob);
+  
+  // 2. Dateien filtern und nach Ordner gruppieren
+  const filteredFiles = selectedFolders && selectedFolders.length > 0
+    ? files.filter(file => selectedFolders.includes(file.folder || 'Sonstige'))
+    : files;
+  
+  const filesByFolder = filteredFiles.reduce((acc, file) => {
+    const folder = file.folder || 'Sonstige';
+    if (!acc[folder]) acc[folder] = [];
+    acc[folder].push(file);
+    return acc;
+  }, {} as Record<string, any[]>);
+  
+  // 3. Alle Dateien laden und zur ZIP hinzufügen
+  const totalFiles = filteredFiles.length;
+  let currentFileIndex = 0;
+  
+  const entries = Object.entries(filesByFolder) as [string, any[]][];
+  for (const [folder, folderFiles] of entries) {
+    for (const file of folderFiles) {
+      currentFileIndex++;
+      onProgress?.(currentFileIndex, totalFiles, file.name);
+      
+      try {
+        const url = getFileUrl(file);
+        const response = await fetch(url);
+        const blob = await response.blob();
+        zip.file(`${folderName}/${folder}/${file.name}`, blob);
+      } catch (error) {
+        console.error(`Fehler beim Laden von ${file.name}:`, error);
+      }
+    }
+  }
+  
+  // 4. ZIP generieren und Download starten
+  onProgress?.(totalFiles, totalFiles, 'ZIP wird erstellt...');
+  const zipBlob = await zip.generateAsync({ 
+    type: 'blob',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 }
+  });
+  
+  // Download starten
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(zipBlob);
+  link.download = `${folderName}.zip`;
+  link.click();
+  URL.revokeObjectURL(link.href);
 }

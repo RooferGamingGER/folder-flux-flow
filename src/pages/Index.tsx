@@ -15,13 +15,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "@/hooks/use-toast";
-import { exportProjectsToExcel, exportProjectToWord } from "@/lib/exportUtils";
+import { exportProjectsToExcel, exportProjectToWord, exportProjectAsZip } from "@/lib/exportUtils";
 import { PROJECT_STATUS_OPTIONS, STATUS_COLORS } from "@/lib/constants";
 import { format, isSameMonth, isSameDay } from "date-fns";
 import { de } from "date-fns/locale";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
-  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle 
+  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive 
 } from "lucide-react";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
@@ -67,6 +67,9 @@ const revokeUrlSafe = (url: string) => {
     if (url && typeof url === "string" && url.startsWith("blob:")) URL.revokeObjectURL(url);
   } catch {}
 };
+
+// Standard-Ordner die nicht gelöscht/umbenannt werden können
+const PROTECTED_FOLDERS = ["Bilder", "Dokumente", "Chat", "Sprachnachrichten", "Videos"];
 
 const revokeProjectUrls = (project: Project) => {
   try {
@@ -1154,7 +1157,7 @@ function MobileLayout({
         </div>
         
         {/* View Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-auto">
           {view === "chat" ? (
             <ChatView project={selectedProject} />
           ) : view === "files" ? (
@@ -1931,6 +1934,16 @@ function FilesView({ project }: { project: Project }) {
     const name = newDirName.trim();
     if (!name) return;
     
+    // Prüfe ob der Name ein geschützter Standard-Ordner ist
+    if (PROTECTED_FOLDERS.includes(name)) {
+      toast({
+        title: 'Name reserviert',
+        description: `Der Name "${name}" ist für einen Standard-Ordner reserviert und kann nicht verwendet werden.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     // Prüfe ob der Name bereits existiert
     if (listDirs.includes(name)) {
       toast({
@@ -1948,6 +1961,19 @@ function FilesView({ project }: { project: Project }) {
 
   const handleRenameDir = () => {
     if (!showRenameDir) return;
+    
+    // Prüfe ob es ein geschützter Ordner ist
+    if (PROTECTED_FOLDERS.includes(showRenameDir.name)) {
+      toast({
+        title: 'Ordner geschützt',
+        description: `Der Ordner "${showRenameDir.name}" ist ein Standard-Ordner und kann nicht umbenannt werden.`,
+        variant: 'destructive',
+      });
+      setShowRenameDir(null);
+      setNewDirName("");
+      return;
+    }
+    
     const name = newDirName.trim();
     if (!name) return;
     
@@ -1967,8 +1993,25 @@ function FilesView({ project }: { project: Project }) {
   };
 
   const handleDeleteDir = (dirName: string) => {
+    // Prüfe ob es ein geschützter Ordner ist
+    if (PROTECTED_FOLDERS.includes(dirName)) {
+      toast({
+        title: 'Ordner geschützt',
+        description: `Der Ordner "${dirName}" ist ein Standard-Ordner und kann nicht gelöscht werden.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     const dir = directories.find(d => d.name === dirName);
-    if (!dir) return;
+    if (!dir) {
+      toast({
+        title: 'Ordner nicht gefunden',
+        description: `Der Ordner "${dirName}" wurde nicht in der Datenbank gefunden.`,
+        variant: 'destructive',
+      });
+      return;
+    }
     
     // Prüfe ob Dateien im Ordner sind
     const filesInFolder = dbFiles.filter(f => f.folder === dirName);
@@ -2083,7 +2126,9 @@ function FilesView({ project }: { project: Project }) {
 
       <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-border bg-secondary/50">
         {listDirs.map((d) => {
-          const isCustom = directories.some(dir => dir.name === d);
+          const isProtected = PROTECTED_FOLDERS.includes(d);
+          const isCustom = !isProtected;
+          
           return (
             <div key={d} className="relative group">
               <button 
@@ -2091,11 +2136,21 @@ function FilesView({ project }: { project: Project }) {
                 onClick={() => setCurrentDir(d)} 
                 onDragOver={(e) => e.preventDefault()} 
                 onDrop={(e) => onDropToDir(e, d)} 
-                className={`px-4 py-2 rounded-full text-sm border transition-all ${d === currentDir ? "border-primary bg-primary/10 text-primary font-semibold shadow-sm" : "border-border bg-background text-foreground hover:bg-accent"}`} 
-                title={`Klicken zum Öffnen • Dateien hierher ziehen, um nach "${d}" zu verschieben`}
+                className={`px-4 py-2 rounded-full text-sm border transition-all ${
+                  d === currentDir 
+                    ? "border-primary bg-primary/10 text-primary font-semibold shadow-sm" 
+                    : "border-border bg-background text-foreground hover:bg-accent"
+                }`} 
+                title={
+                  isProtected 
+                    ? `Klicken zum Öffnen • Dateien hierher ziehen • Geschützter Ordner` 
+                    : `Klicken zum Öffnen • Dateien hierher ziehen, um nach "${d}" zu verschieben`
+                }
               >
-                📁 {d}
+                📁 {d} {isProtected && "🔒"}
               </button>
+              
+              {/* Nur bei Custom-Ordnern: Umbenennen/Löschen Buttons anzeigen */}
               {isCustom && (
                 <div className="absolute -top-1 -right-1 hidden group-hover:flex gap-1 bg-card border border-border rounded-md shadow-lg p-1 z-10">
                   <button 
@@ -2118,7 +2173,7 @@ function FilesView({ project }: { project: Project }) {
                       handleDeleteDir(d);
                     }}
                     className="px-2 py-1 text-xs hover:bg-accent rounded transition-colors"
-                    title="Löschen"
+                    title="Löschen (nur wenn leer)"
                   >
                     🗑️
                   </button>
@@ -2671,6 +2726,43 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
   const { notes } = useNotes(project.id);
   const { contacts } = useContacts(project.id);
   const { messages } = useMessages(project.id);
+  const { files, getFileUrl } = useProjectFiles(project.id);
+  const [isExporting, setIsExporting] = React.useState(false);
+  const [exportProgress, setExportProgress] = React.useState({ current: 0, total: 0, fileName: '' });
+  const [showZipOptions, setShowZipOptions] = React.useState(false);
+  const [selectedFolders, setSelectedFolders] = React.useState<string[]>([]);
+  
+  // Verfügbare Ordner ermitteln
+  const availableFolders = React.useMemo(() => {
+    const folders = new Set<string>();
+    files?.forEach(file => {
+      folders.add(file.folder || 'Sonstige');
+    });
+    return Array.from(folders).sort();
+  }, [files]);
+
+  // Alle Ordner standardmäßig auswählen
+  React.useEffect(() => {
+    if (availableFolders.length > 0 && selectedFolders.length === 0) {
+      setSelectedFolders(availableFolders);
+    }
+  }, [availableFolders]);
+
+  const toggleFolder = (folder: string) => {
+    setSelectedFolders(prev => 
+      prev.includes(folder) 
+        ? prev.filter(f => f !== folder)
+        : [...prev, folder]
+    );
+  };
+
+  const toggleAllFolders = () => {
+    if (selectedFolders.length === availableFolders.length) {
+      setSelectedFolders([]);
+    } else {
+      setSelectedFolders(availableFolders);
+    }
+  };
   
   const handleWordExport = async () => {
     await exportProjectToWord(
@@ -2689,6 +2781,48 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
     exportProjectsToExcel([{ ...project, created_at: project.created_at || new Date().toISOString() }], allDetails);
     onClose();
     toast({ title: 'Excel-Export erfolgreich' });
+  };
+
+  const handleZipExport = async () => {
+    if (selectedFolders.length === 0) {
+      toast({
+        title: 'Keine Ordner ausgewählt',
+        description: 'Bitte wähle mindestens einen Ordner aus.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsExporting(true);
+    setExportProgress({ current: 0, total: 0, fileName: '' });
+    
+    try {
+      await exportProjectAsZip(
+        project,
+        details,
+        notes || [],
+        contacts || [],
+        messages || [],
+        files || [],
+        getFileUrl,
+        selectedFolders,
+        (current, total, fileName) => {
+          setExportProgress({ current, total, fileName });
+        }
+      );
+      toast({ title: 'ZIP-Export erfolgreich' });
+      onClose();
+    } catch (error) {
+      console.error('ZIP-Export Fehler:', error);
+      toast({ 
+        title: 'ZIP-Export fehlgeschlagen', 
+        description: 'Bitte versuche es erneut.',
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsExporting(false);
+      setExportProgress({ current: 0, total: 0, fileName: '' });
+    }
   };
   
   return (
@@ -2718,6 +2852,92 @@ function ExportDialog({ project, onClose, allDetails }: { project: Project; onCl
               <div className="text-xs text-muted-foreground">Alle Projekte als Tabelle exportieren</div>
             </div>
           </button>
+          
+          {/* ZIP Export mit erweiterten Optionen */}
+          <div className="border-2 border-border rounded-lg overflow-hidden">
+            <button
+              onClick={() => setShowZipOptions(!showZipOptions)}
+              className="w-full px-6 py-4 bg-card hover:bg-accent transition-colors text-left flex items-center gap-4"
+            >
+              <Archive className="w-8 h-8 text-blue-500" />
+              <div className="flex-1">
+                <div className="font-semibold">Komplettes Projekt (.zip)</div>
+                <div className="text-xs text-muted-foreground">
+                  Word-Dokumentation + Dateien in Ordner-Struktur
+                </div>
+              </div>
+              <ChevronRight className={`w-5 h-5 transition-transform ${showZipOptions ? 'rotate-90' : ''}`} />
+            </button>
+
+            {showZipOptions && (
+              <div className="px-6 py-4 border-t border-border bg-secondary/30">
+                {/* Ordner-Auswahl */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">Ordner auswählen:</span>
+                    <button
+                      onClick={toggleAllFolders}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      {selectedFolders.length === availableFolders.length ? 'Keine' : 'Alle'} auswählen
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {availableFolders.map(folder => {
+                      const fileCount = files?.filter(f => (f.folder || 'Sonstige') === folder).length || 0;
+                      return (
+                        <label
+                          key={folder}
+                          className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedFolders.includes(folder)}
+                            onChange={() => toggleFolder(folder)}
+                            className="w-4 h-4"
+                          />
+                          <span className="text-sm flex-1">
+                            📁 {folder}
+                            <span className="text-xs text-muted-foreground ml-1">
+                              ({fileCount})
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Fortschrittsanzeige */}
+                {isExporting && (
+                  <div className="mb-4 p-3 rounded-md bg-card border border-border">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium">Exportiere...</span>
+                      <span className="text-xs text-muted-foreground">
+                        {exportProgress.current} / {exportProgress.total}
+                      </span>
+                    </div>
+                    <Progress 
+                      value={exportProgress.total > 0 ? (exportProgress.current / exportProgress.total) * 100 : 0} 
+                      className="mb-2"
+                    />
+                    <div className="text-xs text-muted-foreground truncate">
+                      {exportProgress.fileName}
+                    </div>
+                  </div>
+                )}
+
+                {/* Export Button */}
+                <button
+                  onClick={handleZipExport}
+                  disabled={isExporting || selectedFolders.length === 0}
+                  className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                >
+                  {isExporting ? 'Wird exportiert...' : 'ZIP-Export starten'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>Abbrechen</Button>
