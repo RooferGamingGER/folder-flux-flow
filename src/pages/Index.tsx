@@ -2566,7 +2566,7 @@ function FilesView({ project }: { project: Project }) {
   };
 
   return (
-    <div className="flex-1 overflow-hidden flex flex-col">
+    <div className="flex-1 flex flex-col">
       <div className="flex items-center justify-between p-4 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3">
           <strong className="text-sm">Verzeichnis:</strong>
