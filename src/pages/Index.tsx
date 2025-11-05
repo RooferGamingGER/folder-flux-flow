@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useFolders } from "@/hooks/useFolders";
 import { useProjects } from "@/hooks/useProjects";
 import { useMessages } from "@/hooks/useMessages";
+import { useProjectFiles } from "@/hooks/useProjectFiles";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
@@ -519,12 +520,39 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected }: { p: P
 function ChatView({ project }: { project: Project }) {
   const [text, setText] = useState("");
   const { messages, sendMessage } = useMessages(project.id);
+  const { uploadFile, isUploading, getFileUrl } = useProjectFiles(project.id);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const sendText = () => {
     const t = text.trim();
     if (!t) return;
     sendMessage({ type: "text", content: { text: t } });
     setText("");
+  };
+
+  const handleImageUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      
+      // Upload zur Datenbank
+      uploadFile({ file, folder: 'Chat' }, {
+        onSuccess: (data) => {
+          // Chat-Nachricht mit Bild erstellen
+          const fileUrl = getFileUrl(data);
+          sendMessage({
+            type: file.type.startsWith('image/') ? 'image' : 'file',
+            content: {
+              url: fileUrl,
+              name: file.name,
+              ext: data.ext,
+              size: file.size,
+            }
+          });
+        }
+      });
+    }
   };
 
   return (
@@ -541,6 +569,25 @@ function ChatView({ project }: { project: Project }) {
 
       <div className="border-t border-border p-4 bg-card shadow-sm">
         <div className="flex items-center gap-2">
+          <input 
+            ref={imageInputRef}
+            type="file" 
+            accept="image/*,application/pdf,.pdf" 
+            multiple 
+            className="hidden" 
+            onChange={(e) => { 
+              handleImageUpload(e.target.files); 
+              e.target.value = ""; 
+            }} 
+          />
+          <button 
+            onClick={() => imageInputRef.current?.click()} 
+            className="p-2.5 rounded-lg border border-border bg-background hover:bg-accent transition-colors" 
+            title="Datei anhängen"
+            disabled={isUploading}
+          >
+            📎
+          </button>
           <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); } }} placeholder="Eine Nachricht schreiben…" className="flex-1 bg-secondary rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" />
           <button onClick={sendText} className="p-2.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground transition-all hover:scale-105 active:scale-95" title="Senden">➤</button>
         </div>
@@ -577,31 +624,56 @@ const MessageBubble = memo(function MessageBubble({ msg }: { msg: any }) {
 function FilesView({ project }: { project: Project }) {
   const uploadRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
-  const [currentDir, setCurrentDir] = useState(project.dirs?.[0] || "Bilder");
+  const [currentDir, setCurrentDir] = useState("Bilder");
   const [showNewDir, setShowNewDir] = useState(false);
   const [newDirName, setNewDirName] = useState("");
   const [preview, setPreview] = useState<{ url: string; mime: string; name: string; __temp: boolean } | null>(null);
+  
+  const { files: dbFiles, uploadFile, isUploading, getFileUrl, deleteFile } = useProjectFiles(project.id);
 
-  useEffect(() => { setCurrentDir(project.dirs?.[0] || "Bilder"); }, [project.id, project.dirs]);
-
-  const listDirs = project.dirs || ["Bilder", "Dokumente"];
+  const listDirs = ["Bilder", "Dokumente", "Chat"];
 
   const addFiles = async (files: FileList | null, forceImage = false) => {
-    // File upload will be implemented later with Supabase Storage
-    console.log("File upload not yet implemented for DB version");
+    if (!files || files.length === 0) return;
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      uploadFile({ file, folder: currentDir });
+    }
   };
 
   const makeDir = () => {
-    // Directory management will be implemented later
-    console.log("Directory management not yet implemented for DB version");
+    console.log("Directory management not yet implemented");
+    setShowNewDir(false);
   };
 
   const moveFile = (fileId: string, newDir: string) => {
-    // File move will be implemented later
-    console.log("File move not yet implemented for DB version");
+    console.log("File move not yet implemented");
   };
-  const onDropToDir = (e: React.DragEvent, dir: string) => { e.preventDefault(); const fileId = e.dataTransfer.getData("text/id"); if (!fileId) return; moveFile(fileId, dir); };
-  const filesInDir = (dir: string) => project.files.filter((f) => (f.folder || "") === dir);
+  
+  const onDropToDir = (e: React.DragEvent, dir: string) => { 
+    e.preventDefault(); 
+    const fileId = e.dataTransfer.getData("text/id"); 
+    if (!fileId) return; 
+    moveFile(fileId, dir); 
+  };
+  
+  const filesInDir = (dir: string) => dbFiles
+    .filter((f) => (f.folder || "") === dir)
+    .map((f) => ({
+      id: f.id,
+      name: f.name,
+      url: getFileUrl(f),
+      thumbUrl: getFileUrl(f),
+      isImage: f.is_image,
+      mime: f.mime || '',
+      ext: f.ext || '',
+      size: f.size || '',
+      folder: f.folder || '',
+      modified: f.modified || '',
+      takenAt: f.taken_at || '',
+    }));
+    
   const openPreview = async (file: ProjectFile) => {
     try {
       const res = await fetch(file.url);
@@ -612,6 +684,7 @@ function FilesView({ project }: { project: Project }) {
       setPreview({ url: file.url, mime: file.mime, name: file.name, __temp: false });
     }
   };
+  
   const closePreview = () => {
     if (preview?.__temp) revokeUrlSafe(preview.url);
     setPreview(null);

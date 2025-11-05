@@ -1,0 +1,133 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './useAuth';
+import { toast } from '@/hooks/use-toast';
+
+export function useProjectFiles(projectId?: string) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: files = [], isLoading } = useQuery({
+    queryKey: ['project_files', projectId],
+    queryFn: async () => {
+      if (!projectId) return [];
+      
+      const { data, error } = await supabase
+        .from('project_files')
+        .select('*')
+        .eq('project_id', projectId)
+        .is('deleted_at', null)
+        .order('modified', { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!projectId && !!user,
+  });
+
+  const uploadFile = useMutation({
+    mutationFn: async ({ file, folder }: { file: File; folder: string }) => {
+      if (!user || !projectId) throw new Error('Not authenticated or no project');
+      
+      const fileId = crypto.randomUUID();
+      const ext = file.name.split('.').pop() || '';
+      const isImage = file.type.startsWith('image/');
+      
+      // 1. Upload zu Storage
+      const bucket = isImage ? 'project-images' : 'project-files';
+      const filePath = `${projectId}/${fileId}.${ext}`;
+      
+      console.log('📤 Uploading file to storage:', { bucket, filePath, type: file.type });
+      
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file, {
+          contentType: file.type,
+          upsert: false,
+        });
+      
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        throw uploadError;
+      }
+      
+      // 2. Eintrag in project_files erstellen
+      const { data, error: dbError } = await supabase
+        .from('project_files')
+        .insert({
+          id: fileId,
+          project_id: projectId,
+          name: file.name,
+          storage_path: filePath,
+          folder,
+          is_image: isImage,
+          size: file.size.toString(),
+          ext,
+          mime: file.type,
+          modified: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      
+      if (dbError) {
+        console.error('Database insert error:', dbError);
+        // Rollback: Storage-Datei löschen bei DB-Fehler
+        await supabase.storage.from(bucket).remove([filePath]);
+        throw dbError;
+      }
+      
+      console.log('✅ File uploaded successfully:', data.id);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project_files', projectId] });
+      toast({ title: 'Datei hochgeladen' });
+    },
+    onError: (error: any) => {
+      console.error('Upload failed:', error);
+      toast({
+        title: 'Upload fehlgeschlagen',
+        description: error.message || 'Die Datei konnte nicht hochgeladen werden',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const deleteFile = useMutation({
+    mutationFn: async (fileId: string) => {
+      const { error } = await supabase
+        .from('project_files')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', fileId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project_files', projectId] });
+      toast({ title: 'Datei gelöscht' });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Löschen fehlgeschlagen',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const getFileUrl = (file: any) => {
+    if (!file.storage_path) return '';
+    const bucket = file.is_image ? 'project-images' : 'project-files';
+    const { data } = supabase.storage.from(bucket).getPublicUrl(file.storage_path);
+    return data.publicUrl;
+  };
+
+  return {
+    files,
+    isLoading,
+    uploadFile: uploadFile.mutate,
+    isUploading: uploadFile.isPending,
+    deleteFile: deleteFile.mutate,
+    getFileUrl,
+  };
+}

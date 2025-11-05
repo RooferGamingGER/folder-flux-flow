@@ -138,34 +138,79 @@ export const syncService = {
   },
   
   async syncMessage(message: any) {
+    console.log('🔄 Syncing message:', message.id, 'project_id:', message.project_id);
+    
     if (!this.isOnline) {
+      console.log('📴 Offline - adding to queue');
       await offlineStorage.addToSyncQueue({
         id: crypto.randomUUID(),
         operation: 'insert',
         table: 'messages',
         data: message,
       });
-      return { ...message, sync_status: 'pending' };
+      return { ...message, sync_status: 'pending', _queued: true };
     }
     
     try {
+      // Session prüfen
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('👤 Current auth.uid():', session?.user?.id);
+      console.log('📋 Message user_id:', message.user_id);
+      
+      if (!session) {
+        throw new Error('Keine aktive Sitzung - bitte neu anmelden');
+      }
+      
+      if (message.user_id !== session.user.id) {
+        console.warn('⚠️ user_id mismatch!', { message_user_id: message.user_id, session_user_id: session.user.id });
+      }
+      
       const { data, error } = await supabase
         .from('messages')
-        .insert({ ...message, sync_status: 'synced' })
-        .select()
+        .insert({ 
+          ...message, 
+          sync_status: 'synced',
+          sender: 'user' // Für UI-Kompatibilität
+        })
+        .select(`
+          *,
+          profile:profiles!user_id(
+            id,
+            first_name,
+            last_name,
+            email
+          )
+        `)
         .single();
       
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Sync error:', error);
+      if (error) {
+        console.error('❌ Database error:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw error;
+      }
+      
+      console.log('✅ Message synced successfully:', data.id);
+      return { ...data, _queued: false };
+    } catch (error: any) {
+      console.error('❌ Sync error:', error);
+      
+      toast({
+        title: 'Fehler beim Senden',
+        description: error.message || 'Die Nachricht konnte nicht gesendet werden',
+        variant: 'destructive',
+      });
+      
       await offlineStorage.addToSyncQueue({
         id: crypto.randomUUID(),
         operation: 'insert',
         table: 'messages',
         data: message,
       });
-      return { ...message, sync_status: 'error' };
+      return { ...message, sync_status: 'error', _queued: true, _error: error.message };
     }
   },
   

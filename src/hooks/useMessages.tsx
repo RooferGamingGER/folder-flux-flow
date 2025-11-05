@@ -84,8 +84,13 @@ export function useMessages(projectId?: string) {
 
       return await syncService.syncMessage(message);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['messages', projectId] });
+    onSuccess: (data) => {
+      if (!data._queued) {
+        queryClient.invalidateQueries({ queryKey: ['messages', projectId] });
+      }
+    },
+    onError: (error: any) => {
+      console.error('Message send error:', error);
     },
   });
 
