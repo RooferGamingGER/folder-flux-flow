@@ -113,10 +113,16 @@ export function useProjectMembers(projectId?: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-members'] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
       toast({
         title: 'Projekt verlassen',
         description: 'Du hast das Projekt verlassen.',
       });
+      
+      // Seite neu laden nach 1,5 Sekunden damit Projekt verschwindet
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     },
     onError: (error: any) => {
       console.error('Fehler beim Verlassen:', error);

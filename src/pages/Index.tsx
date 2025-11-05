@@ -31,9 +31,8 @@ import {
   Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { CompactDashboard } from "@/components/CompactDashboard";
 import { FullDashboard } from "@/components/FullDashboard";
-import { CompactCalendar } from "@/components/CompactCalendar";
+import { FullCalendar } from "@/components/FullCalendar";
 import { TrashDialog } from "@/components/TrashDialog";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
@@ -196,6 +195,7 @@ export default function Index() {
   // Dashboard & Calendar Dialog states
   const [showDashboardDialog, setShowDashboardDialog] = useState(false);
   const [showCalendarDialog, setShowCalendarDialog] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   
   // Mobile states
   const isMobile = useIsMobile();
@@ -558,7 +558,7 @@ export default function Index() {
             ) : (
               <div className="pb-20">
                 {folders.filter((f) => showArchived || !f.archived).map((f) => (
-                  <FolderBlock key={f.id} f={f} selectedFolderId={selectedFolderId} selectedProjectId={selectedProjectId} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} showArchived={showArchived} onDelete={deleteFolder} onArchiveToggle={toggleArchiveFolder} onMoveProject={openMoveProject} onDeleteProject={deleteProject} onArchiveProject={toggleArchiveProject} />
+                  <FolderBlock key={f.id} f={f} selectedFolderId={selectedFolderId} selectedProjectId={selectedProjectId} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} showArchived={showArchived} onDelete={deleteFolder} onArchiveToggle={toggleArchiveFolder} onMoveProject={openMoveProject} onDeleteProject={deleteProject} onArchiveProject={toggleArchiveProject} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
                 ))}
               </div>
             )}
@@ -786,10 +786,17 @@ export default function Index() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
-              <CompactCalendar 
+              <FullCalendar 
                 allProjects={allProjects}
-                onDateSelect={(date) => {
-                  console.log('Date selected:', date);
+                onProjectClick={(projectId) => {
+                  setShowCalendarDialog(false);
+                  setSelectedProjectId(projectId);
+                  
+                  // Finde den Ordner des Projekts
+                  const projectData = allProjects.find(({ project }) => project.id === projectId);
+                  if (projectData) {
+                    setSelectedFolderId(projectData.folderId);
+                  }
                 }}
               />
             </div>
@@ -1654,8 +1661,9 @@ function HeaderBtn({ label, onClick, active }: { label: string; onClick: () => v
   );
 }
 
-function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolderId, setSelectedProjectId, showArchived, onDelete, onArchiveToggle, onMoveProject, onDeleteProject, onArchiveProject }: { f: Folder; selectedFolderId: string | null; selectedProjectId: string | null; setSelectedFolderId: (id: string) => void; setSelectedProjectId: (id: string | null) => void; showArchived: boolean; onDelete: (id: string) => void; onArchiveToggle: (id: string) => void; onMoveProject: (fid: string, pid: string) => void; onDeleteProject: (fid: string, pid: string) => void; onArchiveProject: (fid: string, pid: string) => void }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolderId, setSelectedProjectId, showArchived, onDelete, onArchiveToggle, onMoveProject, onDeleteProject, onArchiveProject, openMenuId, setOpenMenuId }: { f: Folder; selectedFolderId: string | null; selectedProjectId: string | null; setSelectedFolderId: (id: string) => void; setSelectedProjectId: (id: string | null) => void; showArchived: boolean; onDelete: (id: string) => void; onArchiveToggle: (id: string) => void; onMoveProject: (fid: string, pid: string) => void; onDeleteProject: (fid: string, pid: string) => void; onArchiveProject: (fid: string, pid: string) => void; openMenuId: string | null; setOpenMenuId: (id: string | null) => void }) {
+  const menuId = `folder-${f.id}`;
+  const isMenuOpen = openMenuId === menuId;
   const [showFolderMembersDialog, setShowFolderMembersDialog] = useState(false);
   const { canManageProjects } = useUserRole();
   
@@ -1675,13 +1683,13 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
           </button>
         )}
         <div className="ml-auto relative">
-          <button className="px-2.5 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors" onClick={() => setMenuOpen((v) => !v)}>⋯</button>
-          {menuOpen && (
-            <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-10 text-sm min-w-[180px]">
-              <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={() => { setMenuOpen(false); onArchiveToggle(f.id); }}>
+          <button className="px-2.5 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors" onClick={() => setOpenMenuId(isMenuOpen ? null : menuId)}>⋯</button>
+          {isMenuOpen && (
+            <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 text-sm min-w-[180px]">
+              <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={() => { setOpenMenuId(null); onArchiveToggle(f.id); }}>
                 {f.archived ? "📤 Aus Archiv holen" : "📥 In Archiv"}
               </button>
-              <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" onClick={() => { setMenuOpen(false); onDelete(f.id); }}>
+              <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" onClick={() => { setOpenMenuId(null); onDelete(f.id); }}>
                 🗑️ Ordner löschen
               </button>
             </div>
@@ -1699,7 +1707,7 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
             <li className="px-4 py-4 text-sm text-muted-foreground">Keine Projekte vorhanden</li>
           ) : (
             f.projects.filter((p) => (showArchived || !p.archived)).map((p) => (
-              <ProjectRow key={p.id} p={p} onOpen={() => { setSelectedProjectId(p.id); }} onMove={() => onMoveProject(f.id, p.id)} onDelete={() => onDeleteProject(f.id, p.id)} onArchive={() => onArchiveProject(f.id, p.id)} selected={!!selectedProjectId && p.id === selectedProjectId} />
+              <ProjectRow key={p.id} p={p} onOpen={() => { setSelectedProjectId(p.id); }} onMove={() => onMoveProject(f.id, p.id)} onDelete={() => onDeleteProject(f.id, p.id)} onArchive={() => onArchiveProject(f.id, p.id)} selected={!!selectedProjectId && p.id === selectedProjectId} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} onLeave={() => setSelectedProjectId(null)} />
             ))
           )}
         </ul>
@@ -1708,8 +1716,9 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
   );
 }
 
-function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected }: { p: Project; onOpen: () => void; onMove: () => void; onDelete: () => void; onArchive: () => void; selected: boolean }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenuId, setOpenMenuId, onLeave }: { p: Project; onOpen: () => void; onMove: () => void; onDelete: () => void; onArchive: () => void; selected: boolean; openMenuId: string | null; setOpenMenuId: (id: string | null) => void; onLeave: () => void }) {
+  const menuId = `project-${p.id}`;
+  const isMenuOpen = openMenuId === menuId;
   const { canManageProjects } = useUserRole();
   const { user } = useAuth();
   const { members, leaveProject } = useProjectMembers(p.id);
@@ -1736,18 +1745,18 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected }: { p: P
       </div>
       {showMenu && (
         <div className="relative self-center">
-          <button className="px-2.5 py-1 rounded-md border border-border hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}>⋯</button>
-          {menuOpen && (
-            <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-10 text-sm min-w-[200px]">
+          <button className="px-2.5 py-1 rounded-md border border-border hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setOpenMenuId(isMenuOpen ? null : menuId); }}>⋯</button>
+          {isMenuOpen && (
+            <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 text-sm min-w-[200px]">
               {canManageProjects && (
                 <>
-                  <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onMove(); }}>
+                  <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); onMove(); }}>
                     📂 In anderen Ordner
                   </button>
-                  <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArchive(); }}>
+                  <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); onArchive(); }}>
                     {p.archived ? "📤 Aus Archiv holen" : "📥 Archivieren"}
                   </button>
-                  <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(); }}>
+                  <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); onDelete(); }}>
                     🗑️ Projekt löschen
                   </button>
                   {isMember && !isOwner && <div className="border-t border-border my-1" />}
@@ -1758,9 +1767,10 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected }: { p: P
                   className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-orange-600 rounded-b-lg" 
                   onClick={(e) => { 
                     e.stopPropagation(); 
-                    setMenuOpen(false); 
+                    setOpenMenuId(null); 
                     if (confirm(`Möchtest du das Projekt "${p.title}" wirklich verlassen?`)) {
                       leaveProject();
+                      onLeave();
                     }
                   }}
                 >
