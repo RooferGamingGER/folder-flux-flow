@@ -68,6 +68,9 @@ const revokeUrlSafe = (url: string) => {
   } catch {}
 };
 
+// Standard-Ordner die nicht gelöscht/umbenannt werden können
+const PROTECTED_FOLDERS = ["Bilder", "Dokumente", "Chat", "Sprachnachrichten", "Videos"];
+
 const revokeProjectUrls = (project: Project) => {
   try {
     for (const m of project.messages || []) {
@@ -1154,7 +1157,7 @@ function MobileLayout({
         </div>
         
         {/* View Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-auto">
           {view === "chat" ? (
             <ChatView project={selectedProject} />
           ) : view === "files" ? (
@@ -1931,6 +1934,16 @@ function FilesView({ project }: { project: Project }) {
     const name = newDirName.trim();
     if (!name) return;
     
+    // Prüfe ob der Name ein geschützter Standard-Ordner ist
+    if (PROTECTED_FOLDERS.includes(name)) {
+      toast({
+        title: 'Name reserviert',
+        description: `Der Name "${name}" ist für einen Standard-Ordner reserviert und kann nicht verwendet werden.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     // Prüfe ob der Name bereits existiert
     if (listDirs.includes(name)) {
       toast({
@@ -1948,6 +1961,19 @@ function FilesView({ project }: { project: Project }) {
 
   const handleRenameDir = () => {
     if (!showRenameDir) return;
+    
+    // Prüfe ob es ein geschützter Ordner ist
+    if (PROTECTED_FOLDERS.includes(showRenameDir.name)) {
+      toast({
+        title: 'Ordner geschützt',
+        description: `Der Ordner "${showRenameDir.name}" ist ein Standard-Ordner und kann nicht umbenannt werden.`,
+        variant: 'destructive',
+      });
+      setShowRenameDir(null);
+      setNewDirName("");
+      return;
+    }
+    
     const name = newDirName.trim();
     if (!name) return;
     
@@ -1967,8 +1993,25 @@ function FilesView({ project }: { project: Project }) {
   };
 
   const handleDeleteDir = (dirName: string) => {
+    // Prüfe ob es ein geschützter Ordner ist
+    if (PROTECTED_FOLDERS.includes(dirName)) {
+      toast({
+        title: 'Ordner geschützt',
+        description: `Der Ordner "${dirName}" ist ein Standard-Ordner und kann nicht gelöscht werden.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     const dir = directories.find(d => d.name === dirName);
-    if (!dir) return;
+    if (!dir) {
+      toast({
+        title: 'Ordner nicht gefunden',
+        description: `Der Ordner "${dirName}" wurde nicht in der Datenbank gefunden.`,
+        variant: 'destructive',
+      });
+      return;
+    }
     
     // Prüfe ob Dateien im Ordner sind
     const filesInFolder = dbFiles.filter(f => f.folder === dirName);
@@ -2083,7 +2126,9 @@ function FilesView({ project }: { project: Project }) {
 
       <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-border bg-secondary/50">
         {listDirs.map((d) => {
-          const isCustom = directories.some(dir => dir.name === d);
+          const isProtected = PROTECTED_FOLDERS.includes(d);
+          const isCustom = !isProtected;
+          
           return (
             <div key={d} className="relative group">
               <button 
@@ -2091,11 +2136,21 @@ function FilesView({ project }: { project: Project }) {
                 onClick={() => setCurrentDir(d)} 
                 onDragOver={(e) => e.preventDefault()} 
                 onDrop={(e) => onDropToDir(e, d)} 
-                className={`px-4 py-2 rounded-full text-sm border transition-all ${d === currentDir ? "border-primary bg-primary/10 text-primary font-semibold shadow-sm" : "border-border bg-background text-foreground hover:bg-accent"}`} 
-                title={`Klicken zum Öffnen • Dateien hierher ziehen, um nach "${d}" zu verschieben`}
+                className={`px-4 py-2 rounded-full text-sm border transition-all ${
+                  d === currentDir 
+                    ? "border-primary bg-primary/10 text-primary font-semibold shadow-sm" 
+                    : "border-border bg-background text-foreground hover:bg-accent"
+                }`} 
+                title={
+                  isProtected 
+                    ? `Klicken zum Öffnen • Dateien hierher ziehen • Geschützter Ordner` 
+                    : `Klicken zum Öffnen • Dateien hierher ziehen, um nach "${d}" zu verschieben`
+                }
               >
-                📁 {d}
+                📁 {d} {isProtected && "🔒"}
               </button>
+              
+              {/* Nur bei Custom-Ordnern: Umbenennen/Löschen Buttons anzeigen */}
               {isCustom && (
                 <div className="absolute -top-1 -right-1 hidden group-hover:flex gap-1 bg-card border border-border rounded-md shadow-lg p-1 z-10">
                   <button 
@@ -2118,7 +2173,7 @@ function FilesView({ project }: { project: Project }) {
                       handleDeleteDir(d);
                     }}
                     className="px-2 py-1 text-xs hover:bg-accent rounded transition-colors"
-                    title="Löschen"
+                    title="Löschen (nur wenn leer)"
                   >
                     🗑️
                   </button>
