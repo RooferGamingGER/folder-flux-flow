@@ -22,7 +22,7 @@ export function useAllProjectDetails() {
       
       const { data, error } = await supabase
         .from('project_details')
-        .select('project_id, projektname, auftragsnummer, projektstatus, ansprechpartner, strasse, plz, stadt')
+        .select('project_id, projektname, auftragsnummer, projektstatus, ansprechpartner, strasse, plz, stadt, startdatum, enddatum')
         .in('project_id', projectIds);
       
       if (error) throw error;

@@ -10,14 +10,18 @@ import { useProjectDetails, ProjectDetailsData } from "@/hooks/useProjectDetails
 import { useAllProjectDetails } from "@/hooks/useAllProjectDetails";
 import { useNotes } from "@/hooks/useNotes";
 import { useContacts } from "@/hooks/useContacts";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { Calendar } from "@/components/ui/calendar";
 import { toast } from "@/hooks/use-toast";
 import { exportProjectsToExcel, exportProjectToPDF } from "@/lib/exportUtils";
 import { PROJECT_STATUS_OPTIONS, STATUS_COLORS } from "@/lib/constants";
+import { format, isSameMonth, isSameDay } from "date-fns";
+import { de } from "date-fns/locale";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
-  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X 
+  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle 
 } from "lucide-react";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
@@ -163,7 +167,11 @@ export default function Index() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [fabOpen, setFabOpen] = useState(false);
-  const [view, setView] = useState<"chat" | "files" | "details" | "trash" | "dashboard">("chat");
+  const [view, setView] = useState<"chat" | "files" | "details" | "trash" | "dashboard" | "calendar">("chat");
+  
+  // Mobile states
+  const isMobile = useIsMobile();
+  const [mobileLevel, setMobileLevel] = useState<'folders' | 'projects' | 'project'>('folders');
 
   const [showFolderDlg, setShowFolderDlg] = useState(false);
   const [showProjectDlg, setShowProjectDlg] = useState(false);
@@ -202,8 +210,8 @@ export default function Index() {
             files: [],
             details: {
               projektname: details?.projektname || p.title,
-              startdatum: "",
-              enddatum: "",
+              startdatum: details?.startdatum || "",
+              enddatum: details?.enddatum || "",
               auftragsnummer: details?.auftragsnummer || '',
               projektstatus: details?.projektstatus || '',
               notiz: "",
@@ -376,32 +384,60 @@ export default function Index() {
             placeholder="Projekte suchen…"
             className="w-56 md:w-72 bg-secondary rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all"
           />
-          <label className="text-sm flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="accent-primary" /> 
-            <span className="text-muted-foreground">Archiv anzeigen</span>
-          </label>
+          {!isMobile && (
+            <label className="text-sm flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="accent-primary" /> 
+              <span className="text-muted-foreground">Archiv anzeigen</span>
+            </label>
+          )}
         </div>
       </header>
 
-      <div className="h-[calc(100vh-56px)] grid grid-cols-1 md:grid-cols-[320px_1fr] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
+      {isMobile ? (
+        <div className="h-[calc(100vh-56px)]">
+          <MobileLayout
+            mobileLevel={mobileLevel}
+            setMobileLevel={setMobileLevel}
+            folders={folders}
+            selectedFolder={selectedFolder}
+            selectedProject={selectedProject}
+            setSelectedFolderId={setSelectedFolderId}
+            setSelectedProjectId={setSelectedProjectId}
+            view={view}
+            setView={setView}
+            showArchived={showArchived}
+            isLoading={isLoading}
+            search={search}
+            searchResults={searchResults}
+            setSearch={setSearch}
+          />
+        </div>
+      ) : (
+        <div className="h-[calc(100vh-56px)] grid grid-cols-1 md:grid-cols-[320px_1fr] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
         <aside className="border-r border-border bg-sidebar relative overflow-hidden flex flex-col">
           {/* Navigation Tabs */}
-          <div className="flex border-b border-border bg-card">
+          <div className="flex border-b border-border bg-card overflow-x-auto">
             <button 
               onClick={() => { setView('dashboard'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${view === 'dashboard' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+              className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${view === 'dashboard' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
               📊 Dashboard
             </button>
             <button 
+              onClick={() => { setView('calendar'); setSelectedProjectId(null); setSelectedFolderId(null); }}
+              className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${view === 'calendar' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              📅 Kalender
+            </button>
+            <button 
               onClick={() => { setView('chat'); setSelectedProjectId(null); }}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${view === 'trash' || view === 'dashboard' ? 'border-transparent text-muted-foreground hover:text-foreground' : 'border-primary text-foreground'}`}
+              className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${view === 'trash' || view === 'dashboard' || view === 'calendar' ? 'border-transparent text-muted-foreground hover:text-foreground' : 'border-primary text-foreground'}`}
             >
               📁 Projekte
             </button>
             <button 
               onClick={() => { setView('trash'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors border-b-2 flex items-center justify-center gap-2 ${view === 'trash' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+              className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 flex items-center justify-center gap-2 whitespace-nowrap ${view === 'trash' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
               <Trash2 className="w-4 h-4" />
               Papierkorb {deletedProjects.length > 0 && `(${deletedProjects.length})`}
@@ -409,7 +445,7 @@ export default function Index() {
           </div>
 
           {/* Sort/Filter Bar (nur bei Projekten) */}
-          {view !== 'trash' && view !== 'dashboard' && (
+          {view !== 'trash' && view !== 'dashboard' && view !== 'calendar' && (
             <div className="px-3 py-2 border-b border-border bg-card space-y-2">
               <div className="flex gap-2">
                 <select 
@@ -529,7 +565,9 @@ export default function Index() {
 
           <div className="absolute inset-0 top-[56px] flex flex-col">
             {view === "dashboard" ? (
-              <DashboardView allProjects={allProjects} />
+              <DashboardView allProjects={allProjects} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} setView={setView} />
+            ) : view === "calendar" ? (
+              <CalendarView allProjects={allProjects} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} setView={setView} />
             ) : selectedProject ? (
               view === "chat" ? (
                 <ChatView project={selectedProject} />
@@ -553,7 +591,8 @@ export default function Index() {
             <div className="h-full items-center justify-center text-muted-foreground flex text-sm">Keine Details ausgewählt</div>
           )}
         </aside>
-      </div>
+        </div>
+      )}
 
       {showFolderDlg && (
         <Modal title="Neuen Ordner erstellen" onClose={() => setShowFolderDlg(false)}>
@@ -617,7 +656,568 @@ export default function Index() {
   );
 }
 
-function DashboardView({ allProjects }: { allProjects: { folderId: string; folder: Folder; project: Project }[] }) {
+function DeadlineNotifications({ 
+  allProjects,
+  setSelectedFolderId,
+  setSelectedProjectId,
+  setView
+}: { 
+  allProjects: { folderId: string; folder: Folder; project: Project }[];
+  setSelectedFolderId: (id: string) => void;
+  setSelectedProjectId: (id: string) => void;
+  setView: (view: "chat" | "files" | "details" | "trash" | "dashboard" | "calendar") => void;
+}) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const notifications = useMemo(() => {
+    const result: {
+      type: 'warning' | 'danger';
+      project: Project;
+      folder: Folder;
+      folderId: string;
+      message: string;
+      daysUntil: number;
+    }[] = [];
+    
+    allProjects.forEach(({ project, folder, folderId }) => {
+      if (project.archived || !project.details?.enddatum) return;
+      
+      const endDate = new Date(project.details.enddatum);
+      endDate.setHours(0, 0, 0, 0);
+      
+      const diffTime = endDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      // Überfällig
+      if (diffDays < 0 && project.projektstatus !== 'Abgeschlossen') {
+        result.push({
+          type: 'danger',
+          project,
+          folder,
+          folderId,
+          message: `Überfällig seit ${Math.abs(diffDays)} Tag${Math.abs(diffDays) > 1 ? 'en' : ''}`,
+          daysUntil: diffDays,
+        });
+      }
+      // Endet heute
+      else if (diffDays === 0 && project.projektstatus !== 'Abgeschlossen') {
+        result.push({
+          type: 'danger',
+          project,
+          folder,
+          folderId,
+          message: 'Endet heute',
+          daysUntil: 0,
+        });
+      }
+      // Endet in den nächsten 7 Tagen
+      else if (diffDays > 0 && diffDays <= 7 && project.projektstatus !== 'Abgeschlossen') {
+        result.push({
+          type: 'warning',
+          project,
+          folder,
+          folderId,
+          message: `Endet in ${diffDays} Tag${diffDays > 1 ? 'en' : ''}`,
+          daysUntil: diffDays,
+        });
+      }
+    });
+    
+    // Sortiere: überfällig zuerst, dann nach Tagen
+    return result.sort((a, b) => a.daysUntil - b.daysUntil);
+  }, [allProjects]);
+  
+  if (notifications.length === 0) return null;
+  
+  return (
+    <div className="bg-card border-l-4 border-yellow-500 rounded-lg p-4 mb-6">
+      <div className="flex items-start gap-3">
+        <Bell className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-foreground mb-2">
+            Anstehende Fristen ({notifications.length})
+          </h3>
+          <div className="space-y-2">
+            {notifications.slice(0, 5).map(({ type, project, folder, folderId, message }) => (
+              <div 
+                key={project.id}
+                className={`flex items-center gap-2 p-2 rounded-md ${
+                  type === 'danger' 
+                    ? 'bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800' 
+                    : 'bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800'
+                }`}
+              >
+                {type === 'danger' && <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-foreground truncate">
+                    {project.title}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    📁 {folder.name} • {message}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedFolderId(folderId);
+                    setSelectedProjectId(project.id);
+                    setView('details');
+                  }}
+                  className="text-xs px-2 py-1 bg-background hover:bg-accent rounded border border-border transition-colors"
+                >
+                  Öffnen
+                </button>
+              </div>
+            ))}
+          </div>
+          {notifications.length > 5 && (
+            <div className="text-xs text-muted-foreground mt-2">
+              + {notifications.length - 5} weitere Fristen
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CalendarView({ 
+  allProjects,
+  setSelectedFolderId,
+  setSelectedProjectId,
+  setView
+}: { 
+  allProjects: { folderId: string; folder: Folder; project: Project }[];
+  setSelectedFolderId: (id: string) => void;
+  setSelectedProjectId: (id: string) => void;
+  setView: (view: "chat" | "files" | "details" | "trash" | "dashboard" | "calendar") => void;
+}) {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  
+  // Projekte mit Datum extrahieren
+  const projectsWithDates = useMemo(() => {
+    return allProjects
+      .filter(({ project }) => !project.archived && project.details?.startdatum)
+      .map(({ project, folder, folderId }) => ({
+        project,
+        folder,
+        folderId,
+        startDate: new Date(project.details.startdatum!),
+        endDate: project.details.enddatum ? new Date(project.details.enddatum) : null,
+      }));
+  }, [allProjects]);
+  
+  // Projekte für ausgewähltes Datum
+  const projectsOnDate = useMemo(() => {
+    if (!selectedDate) return [];
+    return projectsWithDates.filter(({ startDate, endDate }) => {
+      const isStartDate = isSameDay(startDate, selectedDate);
+      const isEndDate = endDate && isSameDay(endDate, selectedDate);
+      const isInRange = endDate 
+        ? selectedDate >= startDate && selectedDate <= endDate
+        : isSameDay(startDate, selectedDate);
+      return isStartDate || isEndDate || isInRange;
+    });
+  }, [selectedDate, projectsWithDates]);
+  
+  // Custom Modifiers für den Kalender
+  const modifiers = useMemo(() => {
+    const hasStartDate: Date[] = [];
+    const hasEndDate: Date[] = [];
+    const isActive: Date[] = [];
+    
+    projectsWithDates.forEach(({ startDate, endDate }) => {
+      hasStartDate.push(startDate);
+      if (endDate) {
+        hasEndDate.push(endDate);
+        // Alle Tage zwischen Start und Ende markieren
+        const current = new Date(startDate);
+        while (current <= endDate) {
+          isActive.push(new Date(current));
+          current.setDate(current.getDate() + 1);
+        }
+      }
+    });
+    
+    return { hasStartDate, hasEndDate, isActive };
+  }, [projectsWithDates]);
+
+  return (
+    <div className="flex-1 overflow-auto p-6">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <h2 className="text-2xl font-bold text-foreground">📅 Kalenderansicht</h2>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Kalender */}
+          <div className="bg-card border border-border rounded-xl p-6">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={setSelectedDate}
+              month={currentDate}
+              onMonthChange={setCurrentDate}
+              locale={de}
+              className="pointer-events-auto"
+              modifiers={modifiers}
+              modifiersClassNames={{
+                hasStartDate: "bg-blue-500 text-white font-bold rounded-l-md",
+                hasEndDate: "bg-green-500 text-white font-bold rounded-r-md",
+                isActive: "bg-yellow-100 dark:bg-yellow-900",
+              }}
+            />
+            
+            {/* Legende */}
+            <div className="mt-4 space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-blue-500 rounded" />
+                <span>Projektstart</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-green-500 rounded" />
+                <span>Projektende</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-yellow-100 dark:bg-yellow-900 border border-border rounded" />
+                <span>Laufendes Projekt</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Projektliste für ausgewähltes Datum */}
+          <div className="bg-card border border-border rounded-xl p-6">
+            <h3 className="text-lg font-semibold mb-4">
+              {selectedDate 
+                ? `Projekte am ${format(selectedDate, 'dd.MM.yyyy', { locale: de })}`
+                : "Wähle ein Datum"}
+            </h3>
+            
+            <div className="space-y-2 max-h-96 overflow-auto">
+              {projectsOnDate.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-8">
+                  {selectedDate ? "Keine Projekte an diesem Tag" : "Klicke auf ein Datum im Kalender"}
+                </div>
+              ) : (
+                projectsOnDate.map(({ project, folder, folderId, startDate, endDate }) => (
+                  <div 
+                    key={project.id}
+                    className="p-3 rounded-lg border border-border hover:bg-accent transition-colors cursor-pointer"
+                    onClick={() => {
+                      setSelectedFolderId(folderId);
+                      setSelectedProjectId(project.id);
+                      setView('chat');
+                    }}
+                  >
+                    <div className="text-sm font-medium text-foreground truncate">
+                      {project.title}
+                      {project.auftragsnummer && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          ({project.auftragsnummer})
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      📁 {folder.name} • {project.projektstatus || "Kein Status"}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {format(startDate, 'dd.MM.yyyy')} 
+                      {endDate && ` → ${format(endDate, 'dd.MM.yyyy')}`}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+        
+        {/* Monatsübersicht aller Projekte */}
+        <div className="bg-card border border-border rounded-xl p-6">
+          <h3 className="text-lg font-semibold mb-4">
+            Projekte im {format(currentDate, 'MMMM yyyy', { locale: de })}
+          </h3>
+          <div className="space-y-2">
+            {projectsWithDates
+              .filter(({ startDate, endDate }) => 
+                isSameMonth(startDate, currentDate) || 
+                (endDate && isSameMonth(endDate, currentDate))
+              )
+              .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+              .map(({ project, folder, folderId, startDate, endDate }) => (
+                <div 
+                  key={project.id}
+                  className="flex items-center gap-4 p-3 rounded-lg border border-border hover:bg-accent transition-colors cursor-pointer"
+                  onClick={() => {
+                    setSelectedFolderId(folderId);
+                    setSelectedProjectId(project.id);
+                    setView('chat');
+                  }}
+                >
+                  <div className={`w-2 h-2 rounded-full ${STATUS_COLORS[project.projektstatus || ""] || "bg-muted"}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-foreground truncate">
+                      {project.title}
+                      {project.auftragsnummer && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          ({project.auftragsnummer})
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      📁 {folder.name}
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground shrink-0">
+                    {format(startDate, 'dd.MM.')}
+                    {endDate && ` - ${format(endDate, 'dd.MM.')}`}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MobileLayout({
+  mobileLevel,
+  setMobileLevel,
+  folders,
+  selectedFolder,
+  selectedProject,
+  setSelectedFolderId,
+  setSelectedProjectId,
+  view,
+  setView,
+  showArchived,
+  isLoading,
+  search,
+  searchResults,
+  setSearch,
+}: {
+  mobileLevel: 'folders' | 'projects' | 'project';
+  setMobileLevel: (level: 'folders' | 'projects' | 'project') => void;
+  folders: Folder[];
+  selectedFolder: Folder | null;
+  selectedProject: Project | null;
+  setSelectedFolderId: (id: string | null) => void;
+  setSelectedProjectId: (id: string | null) => void;
+  view: string;
+  setView: (view: any) => void;
+  showArchived: boolean;
+  isLoading: boolean;
+  search: string;
+  searchResults: any[];
+  setSearch: (search: string) => void;
+}) {
+  // Level 1: Ordner-Liste
+  if (mobileLevel === 'folders') {
+    return (
+      <div className="h-full flex flex-col bg-background">
+        {search.trim() ? (
+          <div className="flex-1 overflow-auto">
+            <SearchList 
+              results={searchResults} 
+              open={(r) => { 
+                setSelectedFolderId(r.folderId); 
+                setSelectedProjectId(r.project.id); 
+                setMobileLevel('project');
+                setView("chat"); 
+                setSearch(""); 
+              }} 
+            />
+          </div>
+        ) : (
+          <div className="flex-1 overflow-auto p-4">
+            <h2 className="text-xl font-bold mb-4">Ordner</h2>
+            {isLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            ) : folders.filter(f => showArchived || !f.archived).length === 0 ? (
+              <div className="text-center text-muted-foreground py-12">
+                Noch keine Ordner vorhanden
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {folders.filter(f => showArchived || !f.archived).map(folder => (
+                  <button
+                    key={folder.id}
+                    onClick={() => {
+                      setSelectedFolderId(folder.id);
+                      setMobileLevel('projects');
+                    }}
+                    className="w-full p-4 bg-card border border-border rounded-lg text-left hover:bg-accent transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">
+                          📁 {folder.name}
+                          {folder.archived && <span className="text-xs text-muted-foreground ml-2">(Archiv)</span>}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {folder.projects.filter(p => showArchived || !p.archived).length} Projekt{folder.projects.filter(p => showArchived || !p.archived).length !== 1 ? 'e' : ''}
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  // Level 2: Projekt-Liste
+  if (mobileLevel === 'projects' && selectedFolder) {
+    const projects = selectedFolder.projects.filter(p => showArchived || !p.archived);
+    
+    return (
+      <div className="h-full flex flex-col bg-background">
+        {/* Header mit Zurück-Button */}
+        <div className="h-14 border-b border-border px-4 flex items-center gap-3 bg-card">
+          <button 
+            onClick={() => {
+              setMobileLevel('folders');
+              setSelectedFolderId(null);
+            }}
+            className="p-2 hover:bg-accent rounded-lg transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <h2 className="font-semibold text-lg truncate">{selectedFolder.name}</h2>
+        </div>
+        
+        <div className="flex-1 overflow-auto p-4">
+          {projects.length === 0 ? (
+            <div className="text-center text-muted-foreground py-12">
+              Keine Projekte in diesem Ordner
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {projects.map(project => (
+                <button
+                  key={project.id}
+                  onClick={() => {
+                    setSelectedProjectId(project.id);
+                    setView('chat');
+                    setMobileLevel('project');
+                  }}
+                  className="w-full p-4 bg-card border border-border rounded-lg text-left hover:bg-accent transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-8 rounded-full ${project.archived ? "bg-muted-foreground" : "bg-success"}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">
+                        {project.title}
+                        {project.auftragsnummer && (
+                          <span className="text-xs text-muted-foreground ml-2">
+                            ({project.auftragsnummer})
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {project.projektstatus || "Kein Status"}
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+  
+  // Level 3: Projekt-Ansicht mit Tabs
+  if (mobileLevel === 'project' && selectedProject) {
+    return (
+      <div className="h-full flex flex-col bg-background">
+        {/* Header mit Zurück-Button */}
+        <div className="h-14 border-b border-border px-4 flex items-center gap-3 bg-card">
+          <button 
+            onClick={() => {
+              setMobileLevel('projects');
+              setSelectedProjectId(null);
+            }}
+            className="p-2 hover:bg-accent rounded-lg transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <h2 className="font-semibold text-base truncate">{selectedProject.title}</h2>
+        </div>
+        
+        {/* View Content */}
+        <div className="flex-1 overflow-hidden">
+          {view === "chat" ? (
+            <ChatView project={selectedProject} />
+          ) : view === "files" ? (
+            <FilesView project={selectedProject} />
+          ) : (
+            <DetailsView project={selectedProject} />
+          )}
+        </div>
+        
+        {/* Bottom Tab Bar */}
+        <div className="h-16 border-t border-border bg-card flex items-center justify-around px-4">
+          <button
+            onClick={() => setView('chat')}
+            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${
+              view === 'chat' 
+                ? 'bg-primary/10 text-primary' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <span className="text-xl">💬</span>
+            <span className="text-xs font-medium">Chat</span>
+          </button>
+          <button
+            onClick={() => setView('files')}
+            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${
+              view === 'files' 
+                ? 'bg-primary/10 text-primary' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <span className="text-xl">📁</span>
+            <span className="text-xs font-medium">Dateien</span>
+          </button>
+          <button
+            onClick={() => setView('details')}
+            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${
+              view === 'details' 
+                ? 'bg-primary/10 text-primary' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <span className="text-xl">📋</span>
+            <span className="text-xs font-medium">Details</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  return null;
+}
+
+function DashboardView({ 
+  allProjects,
+  setSelectedFolderId,
+  setSelectedProjectId,
+  setView
+}: { 
+  allProjects: { folderId: string; folder: Folder; project: Project }[];
+  setSelectedFolderId: (id: string) => void;
+  setSelectedProjectId: (id: string) => void;
+  setView: (view: "chat" | "files" | "details" | "trash" | "dashboard" | "calendar") => void;
+}) {
   const activeProjects = allProjects.filter(({ project }) => !project.archived);
   
   // Statistiken berechnen
@@ -643,6 +1243,14 @@ function DashboardView({ allProjects }: { allProjects: { folderId: string; folde
       <div className="flex items-center gap-3">
         <h2 className="text-2xl font-bold text-foreground">📊 Dashboard</h2>
       </div>
+
+      {/* Deadline Benachrichtigungen */}
+      <DeadlineNotifications 
+        allProjects={allProjects} 
+        setSelectedFolderId={setSelectedFolderId}
+        setSelectedProjectId={setSelectedProjectId}
+        setView={setView}
+      />
 
       {/* Statistik-Karten */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
