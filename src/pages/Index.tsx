@@ -605,7 +605,7 @@ export default function Index() {
               {selectedProject ? selectedProject.title : selectedFolder ? selectedFolder.name : "–"}
             </h2>
             <div className="flex items-center gap-2">
-              {selectedProject && (
+              {selectedProject && canManageProjects && (
                 <>
                   <button
                     onClick={() => setShowProjectMembers(true)}
@@ -1680,19 +1680,21 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
             <Users className="w-3.5 h-3.5" />
           </button>
         )}
-        <div className="ml-auto relative">
-          <button className="px-2.5 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors" onClick={() => setOpenMenuId(isMenuOpen ? null : menuId)}>⋯</button>
-          {isMenuOpen && (
-            <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 text-sm min-w-[180px]">
-              <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={() => { setOpenMenuId(null); onArchiveToggle(f.id); }}>
-                {f.archived ? "📤 Aus Archiv holen" : "📥 In Archiv"}
-              </button>
-              <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" onClick={() => { setOpenMenuId(null); onDelete(f.id); }}>
-                🗑️ Ordner löschen
-              </button>
-            </div>
-          )}
-        </div>
+        {canManageProjects && (
+          <div className="ml-auto relative">
+            <button className="px-2.5 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors" onClick={() => setOpenMenuId(isMenuOpen ? null : menuId)}>⋯</button>
+            {isMenuOpen && (
+              <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 text-sm min-w-[180px]">
+                <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={() => { setOpenMenuId(null); onArchiveToggle(f.id); }}>
+                  {f.archived ? "📤 Aus Archiv holen" : "📥 In Archiv"}
+                </button>
+                <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" onClick={() => { setOpenMenuId(null); onDelete(f.id); }}>
+                  🗑️ Ordner löschen
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <FolderMembersDialog 
         folderId={f.id}
@@ -1724,6 +1726,22 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenu
   const isMember = members?.some(m => m.user_id === user?.id);
   const isOwner = p.user_id === user?.id;
   const showMenu = canManageProjects || (isMember && !isOwner);
+  
+  // Debug-Logging für "Projekt verlassen" Funktion
+  useEffect(() => {
+    if (selected) {
+      console.log('ProjectRow Debug:', {
+        projectId: p.id,
+        projectTitle: p.title,
+        userId: user?.id,
+        members: members?.map(m => ({ user_id: m.user_id, email: m.profiles?.email })),
+        isMember,
+        isOwner,
+        showMenu,
+        canManageProjects,
+      });
+    }
+  }, [selected, p.id, p.title, user?.id, members, isMember, isOwner, showMenu, canManageProjects]);
   
   return (
     <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 px-4 py-3 cursor-pointer transition-colors ${selected ? "bg-accent" : "hover:bg-accent/50"}`}>
@@ -2795,17 +2813,19 @@ function DetailsView({ project }: { project: Project }) {
         >
           📋 Projektdetails
         </button>
-        <button
-          onClick={() => setActiveTab('members')}
-          className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'members' 
-              ? 'border-primary text-primary' 
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Users className="w-4 h-4 inline mr-1.5" />
-          Mitglieder
-        </button>
+        {canManageProjects && (
+          <button
+            onClick={() => setActiveTab('members')}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'members' 
+                ? 'border-primary text-primary' 
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Users className="w-4 h-4 inline mr-1.5" />
+            Mitglieder
+          </button>
+        )}
       </div>
 
       {/* Tab Content */}
