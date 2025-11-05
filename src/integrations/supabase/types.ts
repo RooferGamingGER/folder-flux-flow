@@ -14,7 +14,395 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      contacts: {
+        Row: {
+          created_at: string | null
+          deleted_at: string | null
+          email: string | null
+          id: string
+          name: string | null
+          phone: string | null
+          project_id: string
+          sync_status: Database["public"]["Enums"]["sync_status"] | null
+        }
+        Insert: {
+          created_at?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          id?: string
+          name?: string | null
+          phone?: string | null
+          project_id: string
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+        }
+        Update: {
+          created_at?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          id?: string
+          name?: string | null
+          phone?: string | null
+          project_id?: string
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      folders: {
+        Row: {
+          archived: boolean | null
+          created_at: string | null
+          deleted_at: string | null
+          id: string
+          name: string
+          sync_status: Database["public"]["Enums"]["sync_status"] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean | null
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          name: string
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          archived?: boolean | null
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          name?: string
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          content: Json | null
+          deleted_at: string | null
+          id: string
+          project_id: string
+          sender: string
+          sync_status: Database["public"]["Enums"]["sync_status"] | null
+          timestamp: string | null
+          type: string
+        }
+        Insert: {
+          content?: Json | null
+          deleted_at?: string | null
+          id?: string
+          project_id: string
+          sender: string
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+          timestamp?: string | null
+          type: string
+        }
+        Update: {
+          content?: Json | null
+          deleted_at?: string | null
+          id?: string
+          project_id?: string
+          sender?: string
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+          timestamp?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notes: {
+        Row: {
+          created_at: string | null
+          deleted_at: string | null
+          id: string
+          project_id: string
+          sync_status: Database["public"]["Enums"]["sync_status"] | null
+          text: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          project_id: string
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+          text?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          project_id?: string
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+          text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_details: {
+        Row: {
+          ansprechpartner: string | null
+          auftragsnummer: string | null
+          enddatum: string | null
+          id: string
+          land: string | null
+          notiz: string | null
+          plz: string | null
+          project_id: string
+          projektname: string | null
+          projektstatus: string | null
+          stadt: string | null
+          startdatum: string | null
+          strasse: string | null
+          sync_status: Database["public"]["Enums"]["sync_status"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          ansprechpartner?: string | null
+          auftragsnummer?: string | null
+          enddatum?: string | null
+          id?: string
+          land?: string | null
+          notiz?: string | null
+          plz?: string | null
+          project_id: string
+          projektname?: string | null
+          projektstatus?: string | null
+          stadt?: string | null
+          startdatum?: string | null
+          strasse?: string | null
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          ansprechpartner?: string | null
+          auftragsnummer?: string | null
+          enddatum?: string | null
+          id?: string
+          land?: string | null
+          notiz?: string | null
+          plz?: string | null
+          project_id?: string
+          projektname?: string | null
+          projektstatus?: string | null
+          stadt?: string | null
+          startdatum?: string | null
+          strasse?: string | null
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_details_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_directories: {
+        Row: {
+          created_at: string | null
+          deleted_at: string | null
+          id: string
+          name: string
+          order_index: number | null
+          project_id: string
+          sync_status: Database["public"]["Enums"]["sync_status"] | null
+        }
+        Insert: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          name: string
+          order_index?: number | null
+          project_id: string
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+        }
+        Update: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          name?: string
+          order_index?: number | null
+          project_id?: string
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_directories_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_files: {
+        Row: {
+          deleted_at: string | null
+          ext: string | null
+          folder: string | null
+          id: string
+          is_image: boolean | null
+          local_blob_url: string | null
+          mime: string | null
+          modified: string | null
+          name: string
+          project_id: string
+          size: string | null
+          storage_path: string | null
+          sync_status: Database["public"]["Enums"]["sync_status"] | null
+          taken_at: string | null
+        }
+        Insert: {
+          deleted_at?: string | null
+          ext?: string | null
+          folder?: string | null
+          id?: string
+          is_image?: boolean | null
+          local_blob_url?: string | null
+          mime?: string | null
+          modified?: string | null
+          name: string
+          project_id: string
+          size?: string | null
+          storage_path?: string | null
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+          taken_at?: string | null
+        }
+        Update: {
+          deleted_at?: string | null
+          ext?: string | null
+          folder?: string | null
+          id?: string
+          is_image?: boolean | null
+          local_blob_url?: string | null
+          mime?: string | null
+          modified?: string | null
+          name?: string
+          project_id?: string
+          size?: string | null
+          storage_path?: string | null
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+          taken_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_files_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          archived: boolean | null
+          created_at: string | null
+          deleted_at: string | null
+          folder_id: string | null
+          id: string
+          sync_status: Database["public"]["Enums"]["sync_status"] | null
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean | null
+          created_at?: string | null
+          deleted_at?: string | null
+          folder_id?: string | null
+          id?: string
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+          title: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          archived?: boolean | null
+          created_at?: string | null
+          deleted_at?: string | null
+          folder_id?: string | null
+          id?: string
+          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sync_queue: {
+        Row: {
+          created_at: string | null
+          data: Json | null
+          error_message: string | null
+          id: string
+          operation: string
+          record_id: string
+          retry_count: number | null
+          table_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          data?: Json | null
+          error_message?: string | null
+          id?: string
+          operation: string
+          record_id: string
+          retry_count?: number | null
+          table_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          data?: Json | null
+          error_message?: string | null
+          id?: string
+          operation?: string
+          record_id?: string
+          retry_count?: number | null
+          table_name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +411,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      sync_status: "synced" | "pending" | "error"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +538,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      sync_status: ["synced", "pending", "error"],
+    },
   },
 } as const
