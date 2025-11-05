@@ -19,7 +19,6 @@ export function useProjects(folderId?: string) {
         let query = supabase
           .from('projects')
           .select('*')
-          .eq('user_id', user.id)
           .is('deleted_at', null);
         
         if (folderId) {
