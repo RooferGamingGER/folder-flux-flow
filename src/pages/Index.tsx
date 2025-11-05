@@ -29,9 +29,11 @@ import { FolderMembersDialog } from "@/components/FolderMembersDialog";
 import { UserRoleBadge } from "@/components/UserRoleBadge";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
-  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu
+  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, ChevronDown
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Button as UIButton } from "@/components/ui/button";
 import { FullDashboard } from "@/components/FullDashboard";
 import { FullCalendar } from "@/components/FullCalendar";
 import { TrashDialog } from "@/components/TrashDialog";
@@ -645,11 +647,39 @@ export default function Index() {
             
             {/* Zweite Zeile: Tab-Navigation */}
             {selectedProject && canManageProjects && (
-              <div className="px-6 pb-3 flex items-center gap-2">
-                <HeaderBtn label="💬 Chat" active={view === "chat"} onClick={() => setView("chat")} />
-                <HeaderBtn label="📁 Dateien" active={view === "files"} onClick={() => setView("files")} />
-                <HeaderBtn label="📋 Details" active={view === "details"} onClick={() => setView("details")} />
-              </div>
+              <>
+                {/* Desktop: Tabs nebeneinander (ab md Bildschirmen) */}
+                <div className="hidden md:flex px-6 pb-3 items-center gap-2">
+                  <HeaderBtn label="💬 Chat" active={view === "chat"} onClick={() => setView("chat")} />
+                  <HeaderBtn label="📁 Dateien" active={view === "files"} onClick={() => setView("files")} />
+                  <HeaderBtn label="📋 Details" active={view === "details"} onClick={() => setView("details")} />
+                </div>
+                
+                {/* Mobile: Dropdown (bis md Bildschirme) */}
+                <div className="md:hidden px-6 pb-3">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <UIButton variant="outline" size="sm" className="w-full justify-between">
+                        <span>
+                          {view === "chat" ? "💬 Chat" : view === "files" ? "📁 Dateien" : "📋 Details"}
+                        </span>
+                        <ChevronDown className="w-4 h-4 ml-2" />
+                      </UIButton>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-[calc(100vw-3rem)] bg-background" align="start">
+                      <DropdownMenuItem onClick={() => setView("chat")} className={view === "chat" ? "bg-accent" : ""}>
+                        💬 Chat
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setView("files")} className={view === "files" ? "bg-accent" : ""}>
+                        📁 Dateien
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setView("details")} className={view === "details" ? "bg-accent" : ""}>
+                        📋 Details
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </>
             )}
           </div>
 
@@ -2342,14 +2372,6 @@ function FilesView({ project }: { project: Project }) {
   
   const { files: dbFiles, uploadFile, isUploading, getFileUrl, deleteFile, moveFile: dbMoveFile } = useProjectFiles(project.id);
   const { directories, createDirectory, renameDirectory, deleteDirectory } = useProjectDirectories(project.id);
-  
-  // 🐛 DEBUG: FilesView state überwachen
-  console.log('📁 [FilesView] Files state:', {
-    projectId: project.id,
-    filesCount: dbFiles.length,
-    files: dbFiles,
-    currentDir
-  });
   
   // Funktion um zu prüfen ob eine Datei gelöscht werden darf
   const canDeleteFile = (file: any) => {

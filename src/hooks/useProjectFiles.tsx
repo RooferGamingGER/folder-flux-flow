@@ -10,12 +10,7 @@ export function useProjectFiles(projectId?: string) {
   const { data: files = [], isLoading } = useQuery({
     queryKey: ['project_files', projectId],
     queryFn: async () => {
-      console.log('📂 [useProjectFiles] Fetching files for project:', projectId);
-      
-      if (!projectId) {
-        console.log('❌ [useProjectFiles] No projectId provided');
-        return [];
-      }
+      if (!projectId) return [];
       
       const { data, error } = await supabase
         .from('project_files')
@@ -23,13 +18,6 @@ export function useProjectFiles(projectId?: string) {
         .eq('project_id', projectId)
         .is('deleted_at', null)
         .order('modified', { ascending: false });
-      
-      console.log('📊 [useProjectFiles] Query result:', {
-        projectId,
-        fileCount: data?.length || 0,
-        files: data,
-        error
-      });
       
       if (error) {
         console.error('❌ [useProjectFiles] Query error:', error);
@@ -39,15 +27,6 @@ export function useProjectFiles(projectId?: string) {
       return data;
     },
     enabled: !!projectId && !!user,
-  });
-
-  // 🐛 DEBUG: Hook-Status überwachen
-  console.log('🎯 [useProjectFiles] Hook state:', {
-    projectId,
-    userId: user?.id,
-    filesCount: files.length,
-    isLoading,
-    enabled: !!projectId && !!user
   });
 
   const uploadFile = useMutation({
