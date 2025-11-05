@@ -607,16 +607,14 @@ export default function Index() {
             <div className="flex items-center gap-2">
               {selectedProject && (
                 <>
-                  {canManageProjects && (
-                    <button
-                      onClick={() => setShowProjectMembers(true)}
-                      className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
-                      title="Projekt-Mitglieder verwalten"
-                    >
-                      <Users className="w-3.5 h-3.5" />
-                      <span className="hidden md:inline">Mitglieder</span>
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setShowProjectMembers(true)}
+                    className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
+                    title="Projekt-Mitglieder anzeigen"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Mitglieder</span>
+                  </button>
                   <button
                     onClick={() => setShowExportDlg(true)}
                     className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
@@ -1740,7 +1738,7 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenu
           )}
         </div>
         <div className="text-xs text-muted-foreground truncate">
-          {p.projektstatus || "Bauprojekt"}
+          {p.projektstatus || `Erstellt: ${new Date(p.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}`}
         </div>
       </div>
       {showMenu && (
@@ -2128,12 +2126,12 @@ const MessageBubble = memo(function MessageBubble({ msg, getFileUrl, onDelete }:
   const canDelete = onDelete && (
     hasFullAccess || // Admin/Bürokraft
     (msg.user_id === user?.id && ['team_projektleiter', 'vorarbeiter'].includes(role || '')) || // Projektleiter/Vorarbeiter (eigene)
-    (msg.user_id === user?.id && role === 'mitarbeiter' && (() => {
+    (msg.user_id === user?.id && ['mitarbeiter', 'azubi'].includes(role || '') && (() => {
       const msgDate = new Date(timestamp);
       const now = new Date();
       const hoursDiff = (now.getTime() - msgDate.getTime()) / (1000 * 60 * 60);
       return hoursDiff < 48;
-    })()) // Mitarbeiter (eigene, <48h)
+    })()) // Mitarbeiter/Azubi (eigene, <48h)
   );
   
   return (
@@ -2261,7 +2259,7 @@ const MessageBubble = memo(function MessageBubble({ msg, getFileUrl, onDelete }:
 
 function FilesView({ project }: { project: Project }) {
   const { user } = useAuth();
-  const { hasFullAccess, role } = useUserRole();
+  const { hasFullAccess, role, canManageProjects } = useUserRole();
   const uploadRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [currentDir, setCurrentDir] = useState("Bilder");
@@ -2285,8 +2283,8 @@ function FilesView({ project }: { project: Project }) {
       return true;
     }
     
-    // Mitarbeiter nur innerhalb 48h
-    if (role === 'mitarbeiter') {
+    // Mitarbeiter/Azubi nur innerhalb 48h
+    if (['mitarbeiter', 'azubi'].includes(role || '')) {
       const modifiedDate = new Date(file.modified);
       const now = new Date();
       const hoursDiff = (now.getTime() - modifiedDate.getTime()) / (1000 * 60 * 60);
@@ -2503,7 +2501,9 @@ function FilesView({ project }: { project: Project }) {
           <select className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" value={currentDir} onChange={(e) => setCurrentDir(e.target.value)}>
             {listDirs.map((d) => (<option key={d} value={d}>{d}</option>))}
           </select>
-          <button className="ml-2 px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors" onClick={() => setShowNewDir(true)}>+ Neuer Ordner</button>
+          {canManageProjects && (
+            <button className="ml-2 px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors" onClick={() => setShowNewDir(true)}>+ Neuer Ordner</button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { addFiles(e.target.files, true); e.target.value = ""; }} />
@@ -2557,7 +2557,7 @@ function FilesView({ project }: { project: Project }) {
               </button>
               
               {/* Nur bei Custom-Ordnern: Umbenennen/Löschen Buttons anzeigen */}
-              {isCustom && (
+              {isCustom && canManageProjects && (
                 <div className="absolute -top-1 -right-1 hidden group-hover:flex gap-1 bg-card border border-border rounded-md shadow-lg p-1 z-10">
                   <button 
                     onClick={(e) => {
@@ -2811,11 +2811,18 @@ function DetailsView({ project }: { project: Project }) {
       <div className="flex-1 overflow-auto">
         {activeTab === 'details' ? (
           <div className="p-6 space-y-6">
+            {isReadOnly && (
+              <div className="mb-4 p-3 bg-secondary rounded-lg border border-border text-sm text-muted-foreground">
+                ℹ️ Du hast nur Lesezugriff auf diese Projektdetails
+              </div>
+            )}
             <Field label="Projektname">
         <input 
           className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
           value={form.projektname || ""} 
-          onChange={(e) => update("projektname", e.target.value)} 
+          onChange={(e) => update("projektname", e.target.value)}
+          disabled={isReadOnly}
+          readOnly={isReadOnly}
         />
       </Field>
       
@@ -2825,7 +2832,9 @@ function DetailsView({ project }: { project: Project }) {
             type="date" 
             className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
             value={form.startdatum || ""} 
-            onChange={(e) => update("startdatum", e.target.value)} 
+            onChange={(e) => update("startdatum", e.target.value)}
+            disabled={isReadOnly}
+            readOnly={isReadOnly}
           />
         </Field>
         <Field label="Enddatum">
@@ -2833,7 +2842,9 @@ function DetailsView({ project }: { project: Project }) {
             type="date" 
             className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
             value={form.enddatum || ""} 
-            onChange={(e) => update("enddatum", e.target.value)} 
+            onChange={(e) => update("enddatum", e.target.value)}
+            disabled={isReadOnly}
+            readOnly={isReadOnly}
           />
         </Field>
       </div>
@@ -2843,7 +2854,9 @@ function DetailsView({ project }: { project: Project }) {
           <input 
             className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
             value={form.auftragsnummer || ""} 
-            onChange={(e) => update("auftragsnummer", e.target.value)} 
+            onChange={(e) => update("auftragsnummer", e.target.value)}
+            disabled={isReadOnly}
+            readOnly={isReadOnly}
           />
         </Field>
         <Field label="Projektstatus">
@@ -2851,6 +2864,7 @@ function DetailsView({ project }: { project: Project }) {
             className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all cursor-pointer"
             value={form.projektstatus || ""} 
             onChange={(e) => update("projektstatus", e.target.value)}
+            disabled={isReadOnly}
           >
             <option value="">-- Status wählen --</option>
             {PROJECT_STATUS_OPTIONS.map(status => (
@@ -2866,6 +2880,8 @@ function DetailsView({ project }: { project: Project }) {
           value={form.ansprechpartner || ""} 
           onChange={(e) => update("ansprechpartner", e.target.value)} 
           placeholder="Name des Hauptansprechpartners"
+          disabled={isReadOnly}
+          readOnly={isReadOnly}
         />
       </Field>
 
@@ -2875,7 +2891,9 @@ function DetailsView({ project }: { project: Project }) {
           <input 
             className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
             value={form.strasse || ""} 
-            onChange={(e) => update("strasse", e.target.value)} 
+            onChange={(e) => update("strasse", e.target.value)}
+            disabled={isReadOnly}
+            readOnly={isReadOnly}
           />
         </Field>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2883,21 +2901,27 @@ function DetailsView({ project }: { project: Project }) {
             <input 
               className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
               value={form.plz || ""} 
-              onChange={(e) => update("plz", e.target.value)} 
+              onChange={(e) => update("plz", e.target.value)}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
             />
           </Field>
           <Field label="Stadt">
             <input 
               className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
               value={form.stadt || ""} 
-              onChange={(e) => update("stadt", e.target.value)} 
+              onChange={(e) => update("stadt", e.target.value)}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
             />
           </Field>
           <Field label="Land">
             <input 
               className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
               value={form.land || ""} 
-              onChange={(e) => update("land", e.target.value)} 
+              onChange={(e) => update("land", e.target.value)}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
             />
           </Field>
         </div>
@@ -2910,15 +2934,19 @@ function DetailsView({ project }: { project: Project }) {
           value={form.notiz || ""} 
           onChange={(e) => update("notiz", e.target.value)}
           placeholder="Allgemeine Notizen zum Projekt..."
+          disabled={isReadOnly}
+          readOnly={isReadOnly}
         />
       </Field>
 
-      <div className="flex justify-end gap-3 pt-6 border-t border-border">
-        <Button variant="ghost" onClick={reset}>Zurücksetzen</Button>
-        <Button onClick={save} disabled={isSaving}>
-          {isSaving ? "Speichere..." : "💾 Speichern"}
-        </Button>
-      </div>
+      {!isReadOnly && (
+        <div className="flex justify-end gap-3 pt-6 border-t border-border">
+          <Button variant="ghost" onClick={reset}>Zurücksetzen</Button>
+          <Button onClick={save} disabled={isSaving}>
+            {isSaving ? "Speichere..." : "💾 Speichern"}
+          </Button>
+        </div>
+      )}
 
       {/* Notizen Sektion */}
       <NotesSection projectId={project.id} />
