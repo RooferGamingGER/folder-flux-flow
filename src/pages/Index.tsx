@@ -29,9 +29,12 @@ import { FolderMembersDialog } from "@/components/FolderMembersDialog";
 import { UserRoleBadge } from "@/components/UserRoleBadge";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
-  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu
+  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button as ShadcnButton } from "@/components/ui/button";
 import { FullDashboard } from "@/components/FullDashboard";
 import { FullCalendar } from "@/components/FullCalendar";
 import { TrashDialog } from "@/components/TrashDialog";
@@ -2734,55 +2737,103 @@ const FileCard = memo(function FileCard({
   onDelete: (id: string) => void;
   canDelete: boolean;
 }) {
-  const [menu, setMenu] = useState(false);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [selectedTargetFolder, setSelectedTargetFolder] = useState(file.folder);
   const IconComponent = getFileIcon(file.name, file.mime);
   const isImage = ((file.isImage === true) || (file.mime || "").startsWith("image/") || isImgName(file.name));
   
   return (
-    <div className="border border-border rounded-lg bg-card cursor-pointer group hover:shadow-md transition-all" draggable onDragStart={(e) => e.dataTransfer.setData("text/id", file.id)} onClick={onOpen} title={`${file.name}`}>
-      {isImage ? (
-        <div className="overflow-hidden rounded-t-lg">
-          <img src={file.thumbUrl || file.url} alt={file.name} className="w-full h-36 object-cover" />
-        </div>
-      ) : (
-        <div className="w-full h-36 flex flex-col items-center justify-center bg-secondary gap-2 rounded-t-lg">
-          <IconComponent className="w-12 h-12 text-muted-foreground" />
-          <div className="text-xs text-muted-foreground font-mono font-semibold">{(file.ext || "FILE").toUpperCase()}</div>
-        </div>
-      )}
-      <div className="px-3 py-2 text-xs text-muted-foreground truncate flex items-center justify-between border-t border-border">
-        <span className="truncate font-medium text-foreground">{file.name}</span>
-        <div className="relative">
-          <button onClick={(e) => { e.stopPropagation(); setMenu((v) => !v); }} className="px-2 py-1 rounded-md border border-border hover:bg-accent transition-colors" title="Aktionen">⋯</button>
-          {menu && (
-            <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 text-sm min-w-[160px]">
-              {dirs.map((d) => (
-                <button key={d} onClick={(e) => { e.stopPropagation(); setMenu(false); if (d !== file.folder) onMove(file.id, d); }} className={`block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors ${d === file.folder ? "text-primary font-semibold" : "text-foreground"}`}>
-                  📂 {d}
-                </button>
-              ))}
-              
-              {canDelete && <div className="border-t border-border my-1" />}
-              
-              {canDelete && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMenu(false);
-                    if (confirm(`Datei "${file.name}" wirklich löschen?`)) {
-                      onDelete(file.id);
-                    }
-                  }}
-                  className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive"
-                >
-                  🗑️ Löschen
-                </button>
-              )}
-            </div>
-          )}
+    <>
+      <div className="border border-border rounded-lg bg-card cursor-pointer group hover:shadow-md transition-all" draggable onDragStart={(e) => e.dataTransfer.setData("text/id", file.id)} onClick={onOpen} title={`${file.name}`}>
+        {isImage ? (
+          <div className="overflow-hidden rounded-t-lg">
+            <img src={file.thumbUrl || file.url} alt={file.name} className="w-full h-36 object-cover" />
+          </div>
+        ) : (
+          <div className="w-full h-36 flex flex-col items-center justify-center bg-secondary gap-2 rounded-t-lg">
+            <IconComponent className="w-12 h-12 text-muted-foreground" />
+            <div className="text-xs text-muted-foreground font-mono font-semibold">{(file.ext || "FILE").toUpperCase()}</div>
+          </div>
+        )}
+        <div className="px-3 py-2 text-xs text-muted-foreground truncate flex items-center justify-between border-t border-border">
+          <span className="truncate font-medium text-foreground">{file.name}</span>
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* Verschieben-Button */}
+            <button 
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                setSelectedTargetFolder(file.folder);
+                setMoveDialogOpen(true); 
+              }} 
+              className="p-1.5 rounded-md hover:bg-accent transition-colors" 
+              title="Verschieben"
+            >
+              <FolderInput className="w-4 h-4 text-muted-foreground" />
+            </button>
+            
+            {/* Löschen-Button (nur wenn erlaubt) */}
+            {canDelete && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm(`Datei "${file.name}" wirklich löschen?`)) {
+                    onDelete(file.id);
+                  }
+                }}
+                className="p-1.5 rounded-md hover:bg-accent transition-colors" 
+                title="Löschen"
+              >
+                <Trash2 className="w-4 h-4 text-destructive" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Move Dialog */}
+      <Dialog open={moveDialogOpen} onOpenChange={setMoveDialogOpen}>
+        <DialogContent onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Datei verschieben</DialogTitle>
+            <DialogDescription>
+              Wähle den Zielordner für "{file.name}"
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Select value={selectedTargetFolder} onValueChange={setSelectedTargetFolder}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {dirs.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    <div className="flex items-center gap-2">
+                      <Folder className="w-4 h-4" />
+                      {d}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <ShadcnButton variant="outline" onClick={() => setMoveDialogOpen(false)}>
+              Abbrechen
+            </ShadcnButton>
+            <ShadcnButton 
+              onClick={() => {
+                if (selectedTargetFolder !== file.folder) {
+                  onMove(file.id, selectedTargetFolder);
+                }
+                setMoveDialogOpen(false);
+              }}
+            >
+              Verschieben
+            </ShadcnButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 });
 
