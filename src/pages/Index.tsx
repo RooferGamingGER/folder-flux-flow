@@ -6,9 +6,11 @@ import { useMessages } from "@/hooks/useMessages";
 import { useProjectFiles } from "@/hooks/useProjectFiles";
 import { useProjectDirectories } from "@/hooks/useProjectDirectories";
 import { useProjectDetails, ProjectDetailsData } from "@/hooks/useProjectDetails";
+import { useAllProjectDetails } from "@/hooks/useAllProjectDetails";
 import { useNotes } from "@/hooks/useNotes";
 import { useContacts } from "@/hooks/useContacts";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "@/hooks/use-toast";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
@@ -113,6 +115,8 @@ type ProjectDetails = {
 type Project = {
   id: string;
   title: string;
+  auftragsnummer?: string;
+  projektstatus?: string;
   archived: boolean;
   dirs: string[];
   messages: Message[];
@@ -131,6 +135,7 @@ export default function Index() {
   const { user } = useAuth();
   const { folders: dbFolders, isLoading: foldersLoading, createFolder: dbCreateFolder, deleteFolder: dbDeleteFolder, toggleArchive: dbToggleArchive } = useFolders();
   const { projects: dbProjects, isLoading: projectsLoading, createProject: dbCreateProject, deleteProject: dbDeleteProject, toggleArchive: dbToggleProjectArchive } = useProjects();
+  const { allDetails, getDetailsForProject } = useAllProjectDetails();
   
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -157,31 +162,36 @@ export default function Index() {
       archived: folder.archived,
       projects: dbProjects
         .filter(p => p.folder_id === folder.id)
-        .map(p => ({
-          id: p.id,
-          title: p.title,
-          archived: p.archived,
-          dirs: ["Bilder", "Dokumente"], // Default directories
-          messages: [],
-          files: [],
-          details: {
-            projektname: p.title,
-            startdatum: "",
-            enddatum: "",
-            auftragsnummer: "",
-            projektstatus: "",
-            notiz: "",
-            strasse: "",
-            plz: "",
-            stadt: "",
-            land: "",
-            ansprechpartner: "",
-            notes: [],
-            contacts: [],
-          },
-        }))
+        .map(p => {
+          const details = getDetailsForProject(p.id);
+          return {
+            id: p.id,
+            title: p.title,
+            archived: p.archived,
+            auftragsnummer: details?.auftragsnummer || '',
+            projektstatus: details?.projektstatus || '',
+            dirs: ["Bilder", "Dokumente"],
+            messages: [],
+            files: [],
+            details: {
+              projektname: details?.projektname || p.title,
+              startdatum: "",
+              enddatum: "",
+              auftragsnummer: details?.auftragsnummer || '',
+              projektstatus: details?.projektstatus || '',
+              notiz: "",
+              strasse: details?.strasse || '',
+              plz: details?.plz || '',
+              stadt: details?.stadt || '',
+              land: "",
+              ansprechpartner: details?.ansprechpartner || '',
+              notes: [],
+              contacts: [],
+            },
+          };
+        })
     }));
-  }, [dbFolders, dbProjects]);
+  }, [dbFolders, dbProjects, getDetailsForProject]);
 
   const isLoading = foldersLoading || projectsLoading;
 
@@ -285,7 +295,19 @@ export default function Index() {
     if (!q) return [];
     return allProjects.filter(({ folder, project }) => {
       if (!showArchived && (folder.archived || project.archived)) return false;
-      return project.title.toLowerCase().includes(q);
+      
+      // Suche in mehreren Feldern
+      const searchableText = [
+        project.title,
+        project.auftragsnummer,
+        project.projektstatus,
+        project.details.ansprechpartner,
+        project.details.strasse,
+        project.details.stadt,
+        project.details.plz,
+      ].filter(Boolean).join(' ').toLowerCase();
+      
+      return searchableText.includes(q);
     });
   }, [search, allProjects, showArchived]);
 
@@ -499,8 +521,17 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected }: { p: P
     <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 px-4 py-3 cursor-pointer transition-colors ${selected ? "bg-accent" : "hover:bg-accent/50"}`}>
       <div className={`w-1.5 h-full ${p.archived ? "bg-muted-foreground" : "bg-success"} rounded-full`} />
       <div className="min-w-0">
-        <div className="text-sm font-medium text-foreground truncate">{p.title}</div>
-        <div className="text-xs text-muted-foreground truncate">Bauprojekt</div>
+        <div className="text-sm font-medium text-foreground truncate">
+          {p.title}
+          {p.auftragsnummer && (
+            <span className="text-xs text-muted-foreground ml-2">
+              ({p.auftragsnummer})
+            </span>
+          )}
+        </div>
+        <div className="text-xs text-muted-foreground truncate">
+          {p.projektstatus || "Bauprojekt"}
+        </div>
       </div>
       <div className="relative self-center">
         <button className="px-2.5 py-1 rounded-md border border-border hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}>⋯</button>
@@ -637,6 +668,7 @@ function FilesView({ project }: { project: Project }) {
   const [showRenameDir, setShowRenameDir] = useState<{ id: string; name: string } | null>(null);
   const [newDirName, setNewDirName] = useState("");
   const [preview, setPreview] = useState<{ url: string; mime: string; name: string; __temp: boolean } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   
   const { files: dbFiles, uploadFile, isUploading, getFileUrl, deleteFile, moveFile: dbMoveFile } = useProjectFiles(project.id);
   const { directories, createDirectory, renameDirectory, deleteDirectory } = useProjectDirectories(project.id);
@@ -651,10 +683,34 @@ function FilesView({ project }: { project: Project }) {
   const addFiles = async (files: FileList | null, forceImage = false) => {
     if (!files || files.length === 0) return;
     
-    for (let i = 0; i < files.length; i++) {
+    const totalFiles = files.length;
+    setUploadProgress({ current: 0, total: totalFiles });
+    
+    // Sequenziell hochladen für korrekten Fortschritt
+    for (let i = 0; i < totalFiles; i++) {
       const file = files[i];
-      uploadFile({ file, folder: currentDir });
+      
+      try {
+        await new Promise((resolve, reject) => {
+          uploadFile({ file, folder: currentDir }, {
+            onSuccess: () => {
+              setUploadProgress({ current: i + 1, total: totalFiles });
+              resolve(true);
+            },
+            onError: (error: any) => {
+              console.error('Upload error:', error);
+              setUploadProgress({ current: i + 1, total: totalFiles });
+              resolve(true); // Fortfahren trotz Fehler
+            }
+          });
+        });
+      } catch (error) {
+        console.error('Failed to upload file:', file.name, error);
+      }
     }
+    
+    // Nach 2 Sekunden Progress ausblenden
+    setTimeout(() => setUploadProgress(null), 2000);
   };
 
   const makeDir = () => {
@@ -793,6 +849,23 @@ function FilesView({ project }: { project: Project }) {
           <button onClick={() => uploadRef.current?.click()} className="px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground transition-all">📤 Dateien hochladen</button>
         </div>
       </div>
+
+      {uploadProgress && (
+        <div className="px-6 py-3 bg-card border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                <span>Dateien werden hochgeladen...</span>
+                <span>{uploadProgress.current} / {uploadProgress.total}</span>
+              </div>
+              <Progress 
+                value={(uploadProgress.current / uploadProgress.total) * 100} 
+                className="h-2"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-border bg-secondary/50">
         {listDirs.map((d) => {
@@ -1302,8 +1375,20 @@ function SearchList({ results, open }: { results: { folderId: string; folder: Fo
       ) : (
         results.map((r) => (
           <button key={r.project.id} onClick={() => open(r)} className="w-full text-left px-4 py-3 rounded-lg border border-border bg-card hover:bg-accent transition-colors shadow-sm">
-            <div className="text-sm font-semibold text-foreground">{r.project.title}</div>
-            <div className="text-xs text-muted-foreground mt-1">📁 {r.folder.name}{r.folder.archived ? " (Archiv)" : ""}</div>
+            <div className="text-sm font-semibold text-foreground">
+              {r.project.title}
+              {r.project.auftragsnummer && (
+                <span className="text-xs text-muted-foreground ml-2">
+                  ({r.project.auftragsnummer})
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              📁 {r.folder.name}{r.folder.archived ? " (Archiv)" : ""}
+              {r.project.projektstatus && (
+                <span className="ml-2">• {r.project.projektstatus}</span>
+              )}
+            </div>
           </button>
         ))
       )}
