@@ -12,6 +12,7 @@ import { useAllProjectDetails } from "@/hooks/useAllProjectDetails";
 import { useNotes } from "@/hooks/useNotes";
 import { useContacts } from "@/hooks/useContacts";
 import { useProjectMembers } from "@/hooks/useProjectMembers";
+import { useFolderMembers } from "@/hooks/useFolderMembers";
 import { useOrganizationUsers } from "@/hooks/useOrganizationUsers";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -168,6 +169,7 @@ type Project = {
 type Folder = {
   id: string;
   name: string;
+  user_id: string;
   archived: boolean;
   projects: Project[];
 };
@@ -275,6 +277,7 @@ export default function Index() {
       return {
         id: folder.id,
         name: folder.name,
+        user_id: folder.user_id,
         archived: folder.archived,
         projects: projectsList,
       };
@@ -1664,6 +1667,12 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
   const isMenuOpen = openMenuId === menuId;
   const [showFolderMembersDialog, setShowFolderMembersDialog] = useState(false);
   const { canManageProjects } = useUserRole();
+  const { user } = useAuth();
+  const { leaveFolder } = useFolderMembers(f.id);
+  
+  const isOwner = f.user_id === user?.id;
+  const canLeave = !canManageProjects && !isOwner;
+  const showMenu = canManageProjects || canLeave;
   
   return (
     <div>
@@ -1680,17 +1689,34 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
             <Users className="w-3.5 h-3.5" />
           </button>
         )}
-        {canManageProjects && (
+        {showMenu && (
           <div className="ml-auto relative">
             <button className="px-2.5 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors" onClick={() => setOpenMenuId(isMenuOpen ? null : menuId)}>⋯</button>
             {isMenuOpen && (
               <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 text-sm min-w-[180px]">
-                <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={() => { setOpenMenuId(null); onArchiveToggle(f.id); }}>
-                  {f.archived ? "📤 Aus Archiv holen" : "📥 In Archiv"}
-                </button>
-                <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" onClick={() => { setOpenMenuId(null); onDelete(f.id); }}>
-                  🗑️ Ordner löschen
-                </button>
+                {canManageProjects && (
+                  <>
+                    <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={() => { setOpenMenuId(null); onArchiveToggle(f.id); }}>
+                      {f.archived ? "📤 Aus Archiv holen" : "📥 In Archiv"}
+                    </button>
+                    <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" onClick={() => { setOpenMenuId(null); onDelete(f.id); }}>
+                      🗑️ Ordner löschen
+                    </button>
+                  </>
+                )}
+                {canLeave && (
+                  <button
+                    className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-orange-600 rounded-b-lg"
+                    onClick={() => {
+                      setOpenMenuId(null);
+                      if (confirm(`Möchtest du den Ordner "${f.name}" wirklich verlassen? Du verlierst den Zugriff auf alle Projekte in diesem Ordner (außer du bist direkt Projekt-Mitglied).`)) {
+                        leaveFolder();
+                      }
+                    }}
+                  >
+                    🚪 Ordner verlassen
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1721,27 +1747,11 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenu
   const isMenuOpen = openMenuId === menuId;
   const { canManageProjects } = useUserRole();
   const { user } = useAuth();
-  const { members, leaveProject } = useProjectMembers(p.id);
+  const { leaveProject } = useProjectMembers(p.id);
   
-  const isMember = members?.some(m => m.user_id === user?.id);
   const isOwner = p.user_id === user?.id;
-  const showMenu = canManageProjects || (isMember && !isOwner);
-  
-  // Debug-Logging für "Projekt verlassen" Funktion
-  useEffect(() => {
-    if (selected) {
-      console.log('ProjectRow Debug:', {
-        projectId: p.id,
-        projectTitle: p.title,
-        userId: user?.id,
-        members: members?.map(m => ({ user_id: m.user_id, email: m.profiles?.email })),
-        isMember,
-        isOwner,
-        showMenu,
-        canManageProjects,
-      });
-    }
-  }, [selected, p.id, p.title, user?.id, members, isMember, isOwner, showMenu, canManageProjects]);
+  const canLeave = !canManageProjects && !isOwner;
+  const showMenu = canManageProjects || !isOwner;
   
   return (
     <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 px-4 py-3 cursor-pointer transition-colors ${selected ? "bg-accent" : "hover:bg-accent/50"}`}>
@@ -1775,10 +1785,10 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenu
                   <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); onDelete(); }}>
                     🗑️ Projekt löschen
                   </button>
-                  {isMember && !isOwner && <div className="border-t border-border my-1" />}
+                  {canLeave && <div className="border-t border-border my-1" />}
                 </>
               )}
-              {isMember && !isOwner && (
+              {canLeave && (
                 <button 
                   className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-orange-600 rounded-b-lg" 
                   onClick={(e) => { 
