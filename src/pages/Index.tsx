@@ -2336,6 +2336,14 @@ function FilesView({ project }: { project: Project }) {
   const { files: dbFiles, uploadFile, isUploading, getFileUrl, deleteFile, moveFile: dbMoveFile } = useProjectFiles(project.id);
   const { directories, createDirectory, renameDirectory, deleteDirectory } = useProjectDirectories(project.id);
   
+  // 🐛 DEBUG: FilesView state überwachen
+  console.log('📁 [FilesView] Files state:', {
+    projectId: project.id,
+    filesCount: dbFiles.length,
+    files: dbFiles,
+    currentDir
+  });
+  
   // Funktion um zu prüfen ob eine Datei gelöscht werden darf
   const canDeleteFile = (file: any) => {
     if (hasFullAccess) return true; // Admin/Bürokraft
