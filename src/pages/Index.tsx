@@ -1321,6 +1321,18 @@ function MobileLayout({
   setSearch,
   onDashboardClick,
   onCalendarClick,
+  showFolderDlg,
+  setShowFolderDlg,
+  folderName,
+  setFolderName,
+  showProjectDlg,
+  setShowProjectDlg,
+  projectTitle,
+  setProjectTitle,
+  projectFolderId,
+  setProjectFolderId,
+  createFolder,
+  createProject,
 }: {
   mobileLevel: 'folders' | 'projects' | 'project';
   setMobileLevel: (level: 'folders' | 'projects' | 'project') => void;
