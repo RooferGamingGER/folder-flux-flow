@@ -43,7 +43,7 @@ export function AppSidebar({ onDashboardClick, onCalendarClick, canAccessDashboa
               className="flex flex-col items-center justify-center h-20 gap-2 px-2 hover:bg-accent active:bg-accent/70 transition-colors touch-manipulation"
             >
               <a 
-                href="https://eu.jotform.com/app/build/240792512672357/publish" 
+                href="https://eu.jotform.com/app/240792512672357" 
                 target="_blank" 
                 rel="noopener noreferrer"
               >

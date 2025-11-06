@@ -1368,7 +1368,7 @@ function MobileLayout({
                   </>
                 )}
                 <a
-                  href="https://eu.jotform.com/app/build/240792512672357/publish"
+                  href="https://eu.jotform.com/app/240792512672357"
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => setMenuOpen(false)}
