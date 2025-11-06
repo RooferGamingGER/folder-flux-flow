@@ -209,12 +209,14 @@ export default function Index() {
   useEffect(() => {
     console.log('🎯 [Index] Current permissions:', {
       role,
+      isAdmin,
       hasFullAccess,
       canManageProjects,
+      canAccessDashboard,
       roleLoading,
       userId: user?.id
     });
-  }, [role, hasFullAccess, canManageProjects, roleLoading, user]);
+  }, [role, isAdmin, hasFullAccess, canManageProjects, canAccessDashboard, roleLoading, user]);
   
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -548,7 +550,7 @@ export default function Index() {
                 : "grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)]"
             )}>
               {/* Folder Sidebar (280px) */}
-              <aside className="border-r border-border bg-card relative overflow-hidden flex flex-col">
+              <aside className="border-r border-border bg-card relative flex flex-col">
               <div className="flex-1 overflow-auto">
                 {isLoading ? (
                   <div className="p-4 space-y-4">
@@ -592,7 +594,7 @@ export default function Index() {
               </div>
 
               {canManageProjects && (
-                <div className="absolute right-4 bottom-4">
+                <div className="absolute right-4 bottom-4 z-50">
                   <div className="relative">
                     {fabOpen && (
                       <div className="absolute bottom-16 right-0 w-60 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1 z-20">
