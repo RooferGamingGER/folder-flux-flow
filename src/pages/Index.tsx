@@ -30,10 +30,13 @@ import { FolderMembersDialog } from "@/components/FolderMembersDialog";
 import { UserRoleBadge } from "@/components/UserRoleBadge";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
-  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder
+  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder, Search
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/AppSidebar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -232,6 +235,9 @@ export default function Index() {
   const isMobile = useIsMobile();
   const [mobileLevel, setMobileLevel] = useState<'folders' | 'projects' | 'project'>('folders');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Details sidebar toggle
+  const [showDetailsSidebar, setShowDetailsSidebar] = useState(true);
 
   const [showFolderDlg, setShowFolderDlg] = useState(false);
   const [showProjectDlg, setShowProjectDlg] = useState(false);
@@ -433,25 +439,121 @@ export default function Index() {
   }, [search, allProjects, showArchived]);
 
   return (
-    <div className="h-screen w-full bg-background text-foreground">
-      <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-3 shadow-sm">
-        <div className="flex items-center gap-3 min-w-[180px]">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">🏗️</div>
-          <div className="text-base font-semibold">Aktuelle Baustellen</div>
-        </div>
-        <div className="ml-auto flex items-center gap-3">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Projekte suchen…"
-            className="w-40 md:w-56 lg:w-72 bg-secondary rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all"
-          />
-          {!isMobile && hasFullAccess && (
-            <label className="text-sm flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="accent-primary" /> 
-              <span className="text-muted-foreground">Archiv anzeigen</span>
-            </label>
-          )}
+    <SidebarProvider>
+      <div className="h-screen w-full bg-background text-foreground flex">
+        {!isMobile && <AppSidebar onDashboardClick={() => setShowDashboardDialog(true)} onCalendarClick={() => setShowCalendarDialog(true)} canAccessDashboard={canAccessDashboard} />}
+        
+        <div className="flex-1 flex flex-col min-w-0">
+          <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-3 shadow-sm">
+            {!isMobile && <SidebarTrigger className="mr-2" />}
+            
+            <div className="flex items-center gap-3 min-w-[180px]">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">🏗️</div>
+              <div className="text-base font-semibold">Aktuelle Baustellen</div>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Projekte suchen…"
+                className="w-40 md:w-56 lg:w-72 bg-secondary rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all"
+              />
+              
+              {!isMobile && (
+                <>
+                  {/* Sort Button */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <ShadcnButton variant="outline" size="icon" title="Sortieren">
+                        <ArrowUpDown className="w-4 h-4" />
+                      </ShadcnButton>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64">
+                      <div className="space-y-3">
+                        <div className="font-semibold text-sm">Sortieren nach</div>
+                        <select 
+                          value={sortBy}
+                          onChange={(e) => setSortBy(e.target.value as any)}
+                          className="w-full text-sm px-3 py-2 bg-background border border-border rounded-md outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          <option value="created_at">Datum</option>
+                          <option value="title">Titel</option>
+                          <option value="auftragsnummer">Auftragsnummer</option>
+                          <option value="projektstatus">Status</option>
+                        </select>
+                        <div className="flex items-center gap-2">
+                          <label className="text-sm flex items-center gap-2 cursor-pointer flex-1">
+                            <input 
+                              type="radio" 
+                              name="sortOrder"
+                              checked={sortOrder === 'asc'} 
+                              onChange={() => setSortOrder('asc')}
+                              className="accent-primary" 
+                            />
+                            <span>Aufsteigend</span>
+                          </label>
+                          <label className="text-sm flex items-center gap-2 cursor-pointer flex-1">
+                            <input 
+                              type="radio" 
+                              name="sortOrder"
+                              checked={sortOrder === 'desc'} 
+                              onChange={() => setSortOrder('desc')}
+                              className="accent-primary" 
+                            />
+                            <span>Absteigend</span>
+                          </label>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  
+                  {/* Filter Button */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <ShadcnButton variant="outline" size="icon" title="Filtern" className="relative">
+                        <Filter className="w-4 h-4" />
+                        {filterStatus && (
+                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
+                            1
+                          </span>
+                        )}
+                      </ShadcnButton>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64">
+                      <div className="space-y-3">
+                        <div className="font-semibold text-sm">Status filtern</div>
+                        <select 
+                          value={filterStatus || ''}
+                          onChange={(e) => setFilterStatus(e.target.value || null)}
+                          className="w-full text-sm px-3 py-2 bg-background border border-border rounded-md outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          <option value="">Alle Status</option>
+                          {PROJECT_STATUS_OPTIONS.map(status => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                        {filterStatus && (
+                          <ShadcnButton 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setFilterStatus(null)}
+                            className="w-full"
+                          >
+                            Filter zurücksetzen
+                          </ShadcnButton>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </>
+              )}
+              
+              {!isMobile && hasFullAccess && (
+                <label className="text-sm flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="accent-primary" /> 
+                  <span className="text-muted-foreground">Archiv anzeigen</span>
+                </label>
+              )}
           
           {hasFullAccess && (
             <>
@@ -518,71 +620,15 @@ export default function Index() {
             searchResults={searchResults}
             setSearch={setSearch}
           />
-        </div>
-      ) : (
-        <div className="h-[calc(100vh-56px)] grid grid-cols-1 md:grid-cols-[320px_1fr] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
-        <aside className="border-r border-border bg-sidebar relative overflow-hidden flex flex-col">
-          {/* Dashboard & Calendar Buttons */}
-          {canAccessDashboard && (
-            <div className="border-b border-border p-3 bg-card flex gap-2">
-              <button
-                onClick={() => setShowDashboardDialog(true)}
-                className="flex-1 px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center justify-center gap-2"
-              >
-                📊 Dashboard
-              </button>
-              <button
-                onClick={() => setShowCalendarDialog(true)}
-                className="flex-1 px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center justify-center gap-2"
-              >
-                📅 Kalender
-              </button>
-            </div>
-          )}
-
-          {/* Sort/Filter Bar */}
-          <div className="px-3 py-2 border-b border-border bg-card space-y-2">
-            <div className="flex gap-2">
-              <select 
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="created_at">Datum</option>
-                <option value="title">Titel</option>
-                <option value="auftragsnummer">Auftragsnummer</option>
-                <option value="projektstatus">Status</option>
-              </select>
-              <button 
-                onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
-                className="px-2 py-1.5 bg-secondary border border-border rounded-md hover:bg-accent transition-colors"
-                title={sortOrder === 'asc' ? 'Aufsteigend' : 'Absteigend'}
-              >
-                <ArrowUpDown className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <select 
-                value={filterStatus || ''}
-                onChange={(e) => setFilterStatus(e.target.value || null)}
-                className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="">Alle Status</option>
-                {PROJECT_STATUS_OPTIONS.map(status => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-              {filterStatus && (
-                <button 
-                  onClick={() => setFilterStatus(null)}
-                  className="px-2 py-1.5 bg-secondary border border-border rounded-md hover:bg-accent transition-colors"
-                  title="Filter zurücksetzen"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
           </div>
+        ) : (
+          <div className={cn(
+            "h-[calc(100vh-56px)] grid grid-cols-1",
+            showDetailsSidebar 
+              ? "md:grid-cols-[280px_1fr] xl:grid-cols-[280px_minmax(0,1fr)_280px]"
+              : "md:grid-cols-[280px_1fr]"
+          )}>
+          <aside className="border-r border-border bg-sidebar relative overflow-hidden flex flex-col">
           
           <div className="flex-1 overflow-auto">
             {isLoading ? (
@@ -649,23 +695,36 @@ export default function Index() {
                 {selectedProject ? selectedProject.title : selectedFolder ? selectedFolder.name : "–"}
               </h2>
               <div className="flex items-center gap-2">
+                {selectedProject && (
+                  <ShadcnButton 
+                    variant="outline" 
+                    size="icon"
+                    onClick={() => setShowDetailsSidebar(!showDetailsSidebar)}
+                    title={showDetailsSidebar ? "Details ausblenden" : "Details anzeigen"}
+                    className="hidden xl:flex"
+                  >
+                    {showDetailsSidebar ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                  </ShadcnButton>
+                )}
                 {selectedProject && canManageProjects && (
                   <>
-                    <button
+                    <ShadcnButton
                       onClick={() => setShowProjectMembers(true)}
-                      className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
+                      variant="outline"
+                      size="sm"
                       title="Projekt-Mitglieder anzeigen"
                     >
                       <Users className="w-3.5 h-3.5" />
-                      <span className="hidden md:inline">Mitglieder</span>
-                    </button>
-                    <button
+                      <span className="hidden md:inline ml-2">Mitglieder</span>
+                    </ShadcnButton>
+                    <ShadcnButton
                       onClick={() => setShowExportDlg(true)}
-                      className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
+                      variant="outline"
+                      size="sm"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span className="hidden md:inline">Export</span>
-                    </button>
+                      <span className="hidden md:inline ml-2">Export</span>
+                    </ShadcnButton>
                   </>
                 )}
               </div>
@@ -684,7 +743,7 @@ export default function Index() {
           <div className="absolute inset-0 top-[96px] flex flex-col">
             {selectedProject ? (
               view === "chat" ? (
-                <ChatView project={selectedProject} />
+                <ChatView project={selectedProject} fullWidth={!showDetailsSidebar} />
               ) : view === "files" ? (
                 <FilesView project={selectedProject} />
               ) : (
@@ -697,14 +756,18 @@ export default function Index() {
             )}
           </div>
         </main>
-
-        <aside className="hidden xl:flex flex-col w-[360px] border-l border-border bg-card">
-          {selectedProject ? (
-            <DetailsSidebar project={selectedProject} />
-          ) : (
-            <div className="h-full items-center justify-center text-muted-foreground flex text-sm">Keine Details ausgewählt</div>
-          )}
-        </aside>
+        
+        {showDetailsSidebar && (
+          <aside className="hidden xl:flex flex-col w-[280px] border-l border-border bg-card">
+            {selectedProject ? (
+              <DetailsSidebar project={selectedProject} />
+            ) : (
+              <div className="h-full items-center justify-center text-muted-foreground flex text-sm">
+                Keine Details ausgewählt
+              </div>
+            )}
+          </aside>
+        )}
         </div>
       )}
 
@@ -858,7 +921,7 @@ export default function Index() {
           </div>
         </div>
       )}
-    </div>
+    </SidebarProvider>
   );
 }
 
@@ -983,7 +1046,9 @@ function DeadlineNotifications({
           )}
         </div>
       </div>
-    </div>
+      </div>
+      </div>
+    </SidebarProvider>
   );
 }
 
@@ -1919,7 +1984,7 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenu
   );
 }
 
-function ChatView({ project }: { project: Project }) {
+function ChatView({ project, fullWidth = false }: { project: Project; fullWidth?: boolean }) {
   const [text, setText] = useState("");
   const { messages, sendMessage, deleteMessage } = useMessages(project.id);
   const { uploadFile, isUploading, getFileUrl } = useProjectFiles(project.id);
@@ -2004,7 +2069,7 @@ function ChatView({ project }: { project: Project }) {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className={cn("h-full flex flex-col", !fullWidth && "max-w-4xl mx-auto")}>
       <div 
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto px-6 py-4 space-y-3"
@@ -3574,16 +3639,16 @@ function DetailsSidebar({ project }: { project: Project }) {
   }
   
   return (
-    <div className="w-full h-full overflow-auto p-6 space-y-4 text-sm">
-      <div className="font-bold text-base mb-4 pb-3 border-b border-border">📋 Projektdetails</div>
+    <div className="w-full h-full overflow-auto p-4 space-y-3 text-sm">
+      <div className="font-semibold text-sm mb-3 pb-2 border-b border-border">📋 Projektdetails</div>
       <InfoRow k="Projektname" v={details?.projektname || "–"} />
       <InfoRow k="Startdatum" v={details?.startdatum || "–"} />
       <InfoRow k="Enddatum" v={details?.enddatum || "–"} />
       <InfoRow k="Auftragsnummer" v={details?.auftragsnummer || "–"} />
       <InfoRow k="Projektstatus" v={details?.projektstatus || "–"} />
       
-      <div className="pt-4">
-        <div className="text-muted-foreground font-semibold mb-2">👥 Ansprechpartner</div>
+      <div className="pt-3">
+        <div className="text-muted-foreground font-medium mb-2 text-xs">👥 Ansprechpartner</div>
         {contacts.length === 0 ? (
           <div className="text-muted-foreground">–</div>
         ) : (
@@ -3599,8 +3664,8 @@ function DetailsSidebar({ project }: { project: Project }) {
         )}
       </div>
       
-      <div className="pt-4">
-        <div className="text-muted-foreground font-semibold mb-2">📝 Notizen</div>
+      <div className="pt-3">
+        <div className="text-muted-foreground font-medium mb-2 text-xs">📝 Notizen</div>
         {notes.length === 0 ? (
           <div className="text-muted-foreground">–</div>
         ) : (
