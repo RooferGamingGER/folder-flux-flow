@@ -1,6 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+// Speicher-Limits
+const PRO_TIER_GB = 100;
+const PRO_TIER_MB = PRO_TIER_GB * 1024; // 102,400 MB
+
 export function useStorageStats() {
   return useQuery({
     queryKey: ['storage_stats'],
@@ -41,6 +45,7 @@ export function useStorageStats() {
       return {
         totalBytes,
         totalMB: (totalBytes / 1024 / 1024).toFixed(2),
+        totalGB: (totalBytes / 1024 / 1024 / 1024).toFixed(2),
         totalFiles,
         totalImages,
         totalDocuments: totalFiles - totalImages,
@@ -49,6 +54,9 @@ export function useStorageStats() {
         documentBytes,
         documentMB: (documentBytes / 1024 / 1024).toFixed(2),
         projectsWithFiles,
+        maxStorageGB: PRO_TIER_GB,
+        maxStorageMB: PRO_TIER_MB,
+        usagePercentage: ((totalBytes / 1024 / 1024) / PRO_TIER_MB * 100).toFixed(1),
       };
     },
     refetchInterval: 30000, // Alle 30 Sekunden aktualisieren

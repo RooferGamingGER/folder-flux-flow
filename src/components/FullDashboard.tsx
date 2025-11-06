@@ -79,6 +79,9 @@ export function FullDashboard({ allProjects }: FullDashboardProps) {
           <CardTitle className="flex items-center gap-2">
             <HardDrive className="w-5 h-5" />
             Speicherverbrauch
+            <Badge variant="secondary" className="ml-auto">
+              ✨ Pro Account
+            </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -132,23 +135,29 @@ export function FullDashboard({ allProjects }: FullDashboardProps) {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Verwendeter Speicher</span>
                   <span className="font-medium">
-                    {storageStats?.totalMB || 0} MB / 1024 MB (Free Tier)
+                    {storageStats?.totalGB || '0.00'} GB / {storageStats?.maxStorageGB || 100} GB (Pro Tier)
                   </span>
                 </div>
                 <div className="w-full bg-secondary rounded-full h-3">
                   <div 
                     className={`h-3 rounded-full transition-all ${
-                      (parseFloat(storageStats?.totalMB || '0') / 1024) > 0.8 
-                        ? 'bg-red-500' 
-                        : (parseFloat(storageStats?.totalMB || '0') / 1024) > 0.5 
+                      (parseFloat(storageStats?.totalMB || '0') / (storageStats?.maxStorageMB || 102400)) > 0.85 
+                        ? 'bg-red-500'
+                        : (parseFloat(storageStats?.totalMB || '0') / (storageStats?.maxStorageMB || 102400)) > 0.70 
                         ? 'bg-yellow-500' 
                         : 'bg-green-500'
                     }`}
-                    style={{ width: `${Math.min((parseFloat(storageStats?.totalMB || '0') / 1024) * 100, 100)}%` }}
+                    style={{ 
+                      width: `${Math.min(
+                        (parseFloat(storageStats?.totalMB || '0') / (storageStats?.maxStorageMB || 102400)) * 100, 
+                        100
+                      )}%` 
+                    }}
                   />
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  ℹ️ Bildkompression spart durchschnittlich 70-90% Speicherplatz
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <div>ℹ️ Bildkompression spart durchschnittlich 70-90% Speicherplatz</div>
+                  <div>✨ Du nutzt das Pro Tier mit 100 GB included Storage</div>
                 </div>
               </div>
             </>

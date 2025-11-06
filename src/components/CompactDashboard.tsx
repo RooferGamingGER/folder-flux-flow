@@ -46,13 +46,24 @@ export function CompactDashboard({
       {/* Speicher-Anzeige */}
       <div className="p-2 bg-muted/50 rounded-lg space-y-1">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">💾 Speicher</span>
-          <span className="font-medium">{storageStats?.totalMB || 0} MB</span>
+          <span className="text-muted-foreground flex items-center gap-1">
+            💾 Speicher
+            <span className="text-[10px] text-muted-foreground/60">Pro</span>
+          </span>
+          <span className="font-medium">
+            {storageStats?.totalGB || '0.00'} GB / 100 GB
+          </span>
         </div>
         <div className="w-full bg-secondary rounded-full h-1.5">
           <div 
-            className="h-1.5 rounded-full bg-primary transition-all"
-            style={{ width: `${Math.min((parseFloat(storageStats?.totalMB || '0') / 1024) * 100, 100)}%` }}
+            className={`h-1.5 rounded-full transition-all ${
+              (parseFloat(storageStats?.usagePercentage || '0')) > 85 
+                ? 'bg-red-500' 
+                : (parseFloat(storageStats?.usagePercentage || '0')) > 70 
+                ? 'bg-yellow-500' 
+                : 'bg-green-500'
+            }`}
+            style={{ width: `${Math.min(parseFloat(storageStats?.usagePercentage || '0'), 100)}%` }}
           />
         </div>
       </div>
