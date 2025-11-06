@@ -526,10 +526,12 @@ export default function Index() {
             search={search}
             searchResults={searchResults}
             setSearch={setSearch}
+            onDashboardClick={() => setShowDashboardDialog(true)}
+            onCalendarClick={() => setShowCalendarDialog(true)}
           />
         </div>
       ) : (
-        <SidebarProvider style={{ "--sidebar-width": "6rem" } as React.CSSProperties} defaultOpen={false}>
+        <SidebarProvider style={{ "--sidebar-width": "6rem" } as React.CSSProperties} defaultOpen={true}>
           <div className="h-[calc(100vh-56px)] flex w-full">
             {/* App Sidebar (Icon-only sidebar) */}
         <AppSidebar 
@@ -1287,6 +1289,8 @@ function MobileLayout({
   search,
   searchResults,
   setSearch,
+  onDashboardClick,
+  onCalendarClick,
 }: {
   mobileLevel: 'folders' | 'projects' | 'project';
   setMobileLevel: (level: 'folders' | 'projects' | 'project') => void;
@@ -1302,6 +1306,8 @@ function MobileLayout({
   search: string;
   searchResults: any[];
   setSearch: (search: string) => void;
+  onDashboardClick: () => void;
+  onCalendarClick: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { canAccessDashboard, hasFullAccess } = useUserRole();
@@ -1341,7 +1347,7 @@ function MobileLayout({
                   <>
                     <button
                       onClick={() => {
-                        // Future: Navigate to dashboard view
+                        onDashboardClick();
                         setMenuOpen(false);
                       }}
                       className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
@@ -1351,7 +1357,7 @@ function MobileLayout({
                     </button>
                     <button
                       onClick={() => {
-                        // Future: Navigate to calendar view
+                        onCalendarClick();
                         setMenuOpen(false);
                       }}
                       className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
@@ -1361,6 +1367,17 @@ function MobileLayout({
                     </button>
                   </>
                 )}
+                <a
+                  href="https://eu.jotform.com/app/build/240792512672357/publish"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3 block"
+                >
+                  <span className="text-lg">🔗</span>
+                  <span className="font-medium">App</span>
+                </a>
+                <div className="border-t border-border my-2" />
                 <button
                   onClick={() => {
                     setShowTrashDialog(true);
