@@ -556,7 +556,7 @@ export default function Index() {
                 ) : search.trim() ? (
                   <SearchList results={searchResults} open={(r) => { setSelectedFolderId(r.folderId); setSelectedProjectId(r.project.id); setView("chat"); setSearch(""); }} />
                 ) : folders.filter((f) => showArchived || !f.archived).length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-muted-foreground px-8 text-center text-sm">
+                  <div className="h-full flex items-center justify-center text-muted-foreground px-4 text-center text-sm">
                     Noch keine Ordner vorhanden.<br/>Klicke auf + um zu starten.
                   </div>
                 ) : (
@@ -564,7 +564,7 @@ export default function Index() {
                     {/* Aktive Ordner */}
                     {folders.filter(f => !f.archived).length > 0 && (
                       <div>
-                        <div className="px-2 py-3 text-sm font-bold text-foreground uppercase tracking-wide bg-muted sticky top-0 z-10 border-b border-border">
+                        <div className="pl-1 pr-2 py-3 text-sm font-bold text-foreground uppercase tracking-wide bg-muted sticky top-0 z-10 border-b border-border">
                           Aktive Ordner
                         </div>
                         {folders.filter(f => !f.archived).map((f) => (
@@ -576,7 +576,7 @@ export default function Index() {
                     {/* Archivierte Ordner (nur wenn showArchived aktiv) */}
                     {showArchived && folders.filter(f => f.archived).length > 0 && (
                       <div className="mt-8">
-                        <div className="px-2 py-3 text-sm font-bold text-foreground uppercase tracking-wide bg-amber-50 dark:bg-amber-950/20 sticky top-0 z-10 border-b border-amber-200 dark:border-amber-800">
+                        <div className="pl-1 pr-2 py-3 text-sm font-bold text-foreground uppercase tracking-wide bg-amber-50 dark:bg-amber-950/20 sticky top-0 z-10 border-b border-amber-200 dark:border-amber-800">
                           📦 Archivierte Ordner
                         </div>
                         {folders.filter(f => f.archived).map((f) => (
@@ -1860,8 +1860,8 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
   
   return (
     <div>
-      <div className="sticky top-0 z-10 bg-card px-2 py-3 text-sm font-semibold border-b border-border flex items-center gap-2 group">
-        <button className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors flex-1 min-w-0 ${selectedFolderId === f.id ? "bg-card shadow-sm" : "hover:bg-card/50"}`} onClick={() => { setSelectedFolderId(f.id); setSelectedProjectId(null); }}>
+      <div className="sticky top-0 z-10 bg-card pl-1 pr-2 py-3 text-sm font-semibold border-b border-border flex items-center gap-2 group">
+        <button className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors flex-1 min-w-0 ${selectedFolderId === f.id ? "bg-card shadow-sm" : "hover:bg-card/50"}`} onClick={() => { setSelectedFolderId(f.id); setSelectedProjectId(null); }}>
           <span className="truncate">
             📁 {f.name}{f.archived ? " (Archiv)" : ""}
           </span>
@@ -1939,7 +1939,7 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
           )}
           
           {f.projects.filter(p => !p.archived).length === 0 && !showArchived && (
-            <div className="px-4 py-4 text-sm text-muted-foreground">
+            <div className="pl-2 pr-2 py-4 text-sm text-muted-foreground">
               Keine aktiven Projekte vorhanden
             </div>
           )}
@@ -1947,7 +1947,7 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
           {/* Archivierte Projekte (nur wenn showArchived aktiv) */}
           {showArchived && f.projects.filter(p => p.archived).length > 0 && (
             <>
-              <div className="px-4 py-2 text-xs font-semibold text-muted-foreground bg-amber-50 dark:bg-amber-950/20 border-y border-amber-200 dark:border-amber-800">
+              <div className="pl-2 pr-2 py-2 text-xs font-semibold text-muted-foreground bg-amber-50 dark:bg-amber-950/20 border-y border-amber-200 dark:border-amber-800">
                 📦 Archivierte Projekte
               </div>
               <ul className="divide-y divide-border bg-amber-50/30 dark:bg-amber-950/10">
@@ -1975,7 +1975,7 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenu
   const showMenu = canManageProjects;
   
   return (
-    <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 px-4 py-3 cursor-pointer transition-colors ${selected ? "bg-accent" : "hover:bg-accent/50"} group`}>
+    <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 pl-2 pr-2 py-3 cursor-pointer transition-colors ${selected ? "bg-accent" : "hover:bg-accent/50"} group`}>
       <div className={`w-1.5 h-full ${p.archived ? "bg-muted-foreground" : "bg-success"} rounded-full`} />
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium text-foreground truncate">
