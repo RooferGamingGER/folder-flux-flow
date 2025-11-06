@@ -18,13 +18,14 @@ export function FolderMembersDialog({
   onClose: () => void;
 }) {
   const { user } = useAuth();
-  const { members, isLoading, addMember, removeMember, leaveFolder } = useFolderMembers(folderId);
+  const { members, isLoading, accessInfo, addMember, removeMember, leaveFolder } = useFolderMembers(folderId);
   const { users: orgUsers } = useOrganizationUsers();
   const { canManageProjects } = useUserRole();
   const [selectedUserId, setSelectedUserId] = useState('');
 
   const canManage = canManageProjects;
   const isMember = members.some(m => m.user_id === user?.id);
+  const canLeave = isMember && accessInfo?.canLeave;
 
   const memberIds = new Set(members.map(m => m.user_id));
   const availableUsers = orgUsers.filter(u => !memberIds.has(u.user_id));
@@ -120,7 +121,7 @@ export function FolderMembersDialog({
             )}
           </div>
 
-          {isMember && !canManage && (
+          {canLeave && (
             <div className="border-t pt-4">
               <Button 
                 variant="outline" 
@@ -133,9 +134,19 @@ export function FolderMembersDialog({
             </div>
           )}
 
-          {!isMember && !canManage && (
+          {!canLeave && !accessInfo?.hasFullAccess && (
             <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded border">
-              ℹ️ Du hast indirekten Zugriff auf diesen Ordner (z.B. über ein Projekt). Ein direktes Verlassen ist nicht möglich.
+              {accessInfo?.isOwner && (
+                <>
+                  ℹ️ Du bist Eigentümer dieses Ordners und kannst ihn nicht verlassen. Übertrage den Ordner an einen anderen User oder lösche ihn.
+                </>
+              )}
+            </div>
+          )}
+
+          {accessInfo?.hasFullAccess && (
+            <div className="text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded border border-blue-200 dark:border-blue-800">
+              🔒 Als Geschäftsführer/Bürokraft hast du immer Zugriff auf alle Ordner.
             </div>
           )}
         </div>

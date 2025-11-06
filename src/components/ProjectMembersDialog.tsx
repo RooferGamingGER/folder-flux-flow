@@ -23,13 +23,14 @@ export function ProjectMembersDialog({
   onClose: () => void;
 }) {
   const { user } = useAuth();
-  const { members, isLoading, addMember, removeMember, leaveProject } = useProjectMembers(projectId);
+  const { members, isLoading, accessInfo, addMember, removeMember, leaveProject } = useProjectMembers(projectId);
   const { users: orgUsers } = useOrganizationUsers();
   const { canManageProjects } = useUserRole();
   const [selectedUserId, setSelectedUserId] = useState('');
 
   const canManage = canManageProjects;
   const isMember = members.some(m => m.user_id === user?.id);
+  const canLeave = isMember && accessInfo?.canLeave;
 
   const memberIds = new Set(members.map(m => m.user_id));
   const availableUsers = orgUsers.filter(u => !memberIds.has(u.user_id));
@@ -118,7 +119,7 @@ export function ProjectMembersDialog({
             )}
           </div>
 
-          {isMember && !canManage && (
+          {canLeave && (
             <div className="border-t pt-4">
               <Button 
                 variant="outline" 
@@ -131,9 +132,24 @@ export function ProjectMembersDialog({
             </div>
           )}
 
-          {!isMember && !canManage && (
+          {!canLeave && !accessInfo?.hasFullAccess && (
             <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded border">
-              ℹ️ Du hast Zugriff über einen Ordner. Um den Zugriff zu entfernen, verlasse den entsprechenden Ordner.
+              {accessInfo?.hasFolderAccess && (
+                <>
+                  ℹ️ Du hast Zugriff über einen Ordner. Um den Zugriff zu entfernen, verlasse den entsprechenden Ordner.
+                </>
+              )}
+              {accessInfo?.isOwner && (
+                <>
+                  ℹ️ Du bist Eigentümer dieses Projekts und kannst es nicht verlassen. Übertrage das Projekt an einen anderen User oder lösche es.
+                </>
+              )}
+            </div>
+          )}
+
+          {accessInfo?.hasFullAccess && (
+            <div className="text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded border border-blue-200 dark:border-blue-800">
+              🔒 Als Geschäftsführer/Bürokraft hast du immer Zugriff auf alle Projekte.
             </div>
           )}
         </div>

@@ -50,6 +50,7 @@ import { UPLOAD_LIMITS, formatFileSize, validateFileSize } from "@/lib/uploadCon
 import { FullDashboard } from "@/components/FullDashboard";
 import { FullCalendar } from "@/components/FullCalendar";
 import { TrashDialog } from "@/components/TrashDialog";
+import { DeletedItemsDialog } from "@/components/DeletedItemsDialog";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
 
@@ -214,6 +215,7 @@ export default function Index() {
   const [fabOpen, setFabOpen] = useState(false);
   const [view, setView] = useState<"chat" | "files" | "details">("chat");
   const [showTrashDialog, setShowTrashDialog] = useState(false);
+  const [showDeletedItems, setShowDeletedItems] = useState(false);
   
   // User management dialogs
   const [showUserManagement, setShowUserManagement] = useState(false);
@@ -452,14 +454,24 @@ export default function Index() {
           )}
           
           {hasFullAccess && (
-            <button
-              onClick={() => setShowTrashDialog(true)}
-              className="px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors flex items-center gap-2 text-sm font-medium"
-              title="Papierkorb"
-            >
-              <Trash2 className="w-4 h-4" />
-              {!isMobile && deletedProjects.length > 0 && <span>({deletedProjects.length})</span>}
-            </button>
+            <>
+              <button
+                onClick={() => setShowTrashDialog(true)}
+                className="px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors flex items-center gap-2 text-sm font-medium"
+                title="Papierkorb"
+              >
+                <Trash2 className="w-4 h-4" />
+                {!isMobile && deletedProjects.length > 0 && <span>({deletedProjects.length})</span>}
+              </button>
+              <button
+                onClick={() => setShowDeletedItems(true)}
+                className="px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors flex items-center gap-2 text-sm font-medium"
+                title="Gelöschte Inhalte"
+              >
+                <RotateCcw className="w-4 h-4" />
+                {!isMobile && <span>Gelöschte Inhalte</span>}
+              </button>
+            </>
           )}
           
           <UserRoleBadge />
@@ -785,9 +797,14 @@ export default function Index() {
         deletedProjects={deletedProjects}
         deletedFolders={deletedFolders}
         onRestoreProject={restoreProject}
-        onPermanentDeleteProject={permanentlyDeleteProject}
         onRestoreFolder={restoreFolder}
+        onPermanentDeleteProject={permanentlyDeleteProject}
         onPermanentDeleteFolder={permanentlyDeleteFolder}
+      />
+
+      <DeletedItemsDialog
+        open={showDeletedItems}
+        onClose={() => setShowDeletedItems(false)}
       />
 
       {/* Dashboard Dialog */}
@@ -1200,10 +1217,11 @@ function MobileLayout({
   setSearch: (search: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { canAccessDashboard } = useUserRole();
+  const { canAccessDashboard, hasFullAccess } = useUserRole();
   const { deletedProjects, restoreProject, permanentlyDeleteProject } = useDeletedProjects();
   const { deletedFolders, restoreFolder, permanentlyDeleteFolder } = useDeletedFolders();
   const [showTrashDialog, setShowTrashDialog] = useState(false);
+  const [showDeletedItems, setShowDeletedItems] = useState(false);
   
   // Level 1: Ordner-Liste
   if (mobileLevel === 'folders') {
@@ -1271,6 +1289,18 @@ function MobileLayout({
                     </span>
                   )}
                 </button>
+                {hasFullAccess && (
+                  <button
+                    onClick={() => {
+                      setShowDeletedItems(true);
+                      setMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                    <span className="font-medium">Gelöschte Inhalte</span>
+                  </button>
+                )}
               </div>
             </SheetContent>
           </Sheet>
@@ -1283,9 +1313,14 @@ function MobileLayout({
           deletedProjects={deletedProjects}
           deletedFolders={deletedFolders}
           onRestoreProject={restoreProject}
-          onPermanentDeleteProject={permanentlyDeleteProject}
           onRestoreFolder={restoreFolder}
+          onPermanentDeleteProject={permanentlyDeleteProject}
           onPermanentDeleteFolder={permanentlyDeleteFolder}
+        />
+
+        <DeletedItemsDialog
+          open={showDeletedItems}
+          onClose={() => setShowDeletedItems(false)}
         />
 
         {search.trim() ? (
@@ -1477,6 +1512,18 @@ function MobileLayout({
                     </span>
                   )}
                 </button>
+                {hasFullAccess && (
+                  <button
+                    onClick={() => {
+                      setShowDeletedItems(true);
+                      setMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                    <span className="font-medium">Gelöschte Inhalte</span>
+                  </button>
+                )}
               </div>
             </SheetContent>
           </Sheet>
@@ -1498,9 +1545,14 @@ function MobileLayout({
           deletedProjects={deletedProjects}
           deletedFolders={deletedFolders}
           onRestoreProject={restoreProject}
-          onPermanentDeleteProject={permanentlyDeleteProject}
           onRestoreFolder={restoreFolder}
+          onPermanentDeleteProject={permanentlyDeleteProject}
           onPermanentDeleteFolder={permanentlyDeleteFolder}
+        />
+
+        <DeletedItemsDialog
+          open={showDeletedItems}
+          onClose={() => setShowDeletedItems(false)}
         />
         
         {/* View Content */}

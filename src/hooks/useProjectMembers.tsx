@@ -7,6 +7,58 @@ export function useProjectMembers(projectId?: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  // Query to check access type for the current user
+  const { data: accessInfo } = useQuery({
+    queryKey: ['project-access-info', projectId, user?.id],
+    queryFn: async () => {
+      if (!projectId || !user) return null;
+      
+      // Check all access paths
+      const [projectData, folderMemberData, userRoleData] = await Promise.all([
+        // Is user the project owner?
+        supabase
+          .from('projects')
+          .select('user_id, folder_id')
+          .eq('id', projectId)
+          .maybeSingle(),
+        
+        // Does user have access via folder_members?
+        supabase
+          .from('projects')
+          .select(`
+            folder_id,
+            folders!inner(
+              folder_members!inner(user_id)
+            )
+          `)
+          .eq('id', projectId)
+          .eq('folders.folder_members.user_id', user.id)
+          .maybeSingle(),
+        
+        // Does user have has_full_access?
+        supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .maybeSingle()
+      ]);
+      
+      const isOwner = projectData.data?.user_id === user.id;
+      const hasFullAccess = ['geschaeftsfuehrer', 'buerokraft'].includes(
+        userRoleData.data?.role
+      );
+      const hasFolderAccess = !!folderMemberData.data;
+      
+      return {
+        isOwner,
+        hasFullAccess,
+        hasFolderAccess,
+        canLeave: !isOwner && !hasFullAccess && !hasFolderAccess
+      };
+    },
+    enabled: !!projectId && !!user,
+  });
+
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['project-members', projectId],
     queryFn: async () => {
@@ -137,6 +189,7 @@ export function useProjectMembers(projectId?: string) {
   return {
     members,
     isLoading,
+    accessInfo,
     addMember: addMember.mutate,
     removeMember: removeMember.mutate,
     leaveProject: leaveProject.mutate,

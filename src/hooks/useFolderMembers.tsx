@@ -7,6 +7,43 @@ export function useFolderMembers(folderId?: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  // Query to check access type for the current user
+  const { data: accessInfo } = useQuery({
+    queryKey: ['folder-access-info', folderId, user?.id],
+    queryFn: async () => {
+      if (!folderId || !user) return null;
+      
+      // Check all access paths
+      const [folderData, userRoleData] = await Promise.all([
+        // Is user the folder owner?
+        supabase
+          .from('folders')
+          .select('user_id')
+          .eq('id', folderId)
+          .maybeSingle(),
+        
+        // Does user have has_full_access?
+        supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .maybeSingle()
+      ]);
+      
+      const isOwner = folderData.data?.user_id === user.id;
+      const hasFullAccess = ['geschaeftsfuehrer', 'buerokraft'].includes(
+        userRoleData.data?.role
+      );
+      
+      return {
+        isOwner,
+        hasFullAccess,
+        canLeave: !isOwner && !hasFullAccess
+      };
+    },
+    enabled: !!folderId && !!user,
+  });
+
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['folder-members', folderId],
     queryFn: async () => {
@@ -131,6 +168,7 @@ export function useFolderMembers(folderId?: string) {
   return {
     members,
     isLoading,
+    accessInfo,
     addMember: addMember.mutate,
     removeMember: removeMember.mutate,
     leaveFolder: leaveFolder.mutate,
