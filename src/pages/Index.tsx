@@ -558,6 +558,16 @@ export default function Index() {
             setProjectFolderId={setProjectFolderId}
             createFolder={createFolder}
             createProject={createProject}
+            deleteFolder={deleteFolder}
+            toggleArchiveFolder={toggleArchiveFolder}
+            deleteProject={deleteProject}
+            toggleArchiveProject={toggleArchiveProject}
+            sortBy={sortBy}
+            setSortBy={setSortBy}
+            sortOrder={sortOrder}
+            setSortOrder={setSortOrder}
+            filterStatus={filterStatus}
+            setFilterStatus={setFilterStatus}
           />
         </div>
       ) : (
@@ -1333,6 +1343,16 @@ function MobileLayout({
   setProjectFolderId,
   createFolder,
   createProject,
+  deleteFolder,
+  toggleArchiveFolder,
+  deleteProject,
+  toggleArchiveProject,
+  sortBy,
+  setSortBy,
+  sortOrder,
+  setSortOrder,
+  filterStatus,
+  setFilterStatus,
 }: {
   mobileLevel: 'folders' | 'projects' | 'project';
   setMobileLevel: (level: 'folders' | 'projects' | 'project') => void;
@@ -1362,6 +1382,16 @@ function MobileLayout({
   setProjectFolderId: (id: string) => void;
   createFolder: () => void;
   createProject: () => void;
+  deleteFolder: (folderId: string) => void;
+  toggleArchiveFolder: (folderId: string) => void;
+  deleteProject: (folderId: string, projectId: string) => void;
+  toggleArchiveProject: (folderId: string, projectId: string) => void;
+  sortBy: 'title' | 'auftragsnummer' | 'projektstatus' | 'created_at';
+  setSortBy: (sort: 'title' | 'auftragsnummer' | 'projektstatus' | 'created_at') => void;
+  sortOrder: 'asc' | 'desc';
+  setSortOrder: (order: 'asc' | 'desc') => void;
+  filterStatus: string | null;
+  setFilterStatus: (status: string | null) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { canAccessDashboard, hasFullAccess, canManageProjects } = useUserRole();
@@ -1379,6 +1409,10 @@ function MobileLayout({
   const [showProjectMembers, setShowProjectMembers] = useState(false);
   const [selectedFolderForMembers, setSelectedFolderForMembers] = useState<string | null>(null);
   const [selectedProjectForMembers, setSelectedProjectForMembers] = useState<string | null>(null);
+  
+  // Filter & Sort States
+  const [showSortSheet, setShowSortSheet] = useState(false);
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
   
   // Get user and signOut from auth
   const { user, signOut } = useAuth();
@@ -1562,13 +1596,21 @@ function MobileLayout({
                     onChange={(e) => setSearch(e.target.value)}
                     className="pl-9"
                   />
-                </div>
-                <button className="p-2 border border-border rounded-lg hover:bg-accent">
-                  <ArrowUpDown className="w-5 h-5" />
-                </button>
-                <button className="p-2 border border-border rounded-lg hover:bg-accent">
-                  <SlidersHorizontal className="w-5 h-5" />
-                </button>
+            </div>
+            <button 
+              onClick={() => setShowSortSheet(true)}
+              className="p-2 border border-border rounded-lg hover:bg-accent"
+              title="Sortieren"
+            >
+              <ArrowUpDown className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => setShowFilterSheet(true)}
+              className="p-2 border border-border rounded-lg hover:bg-accent"
+              title="Filtern"
+            >
+              <SlidersHorizontal className="w-5 h-5" />
+            </button>
               </div>
             </div>
             
@@ -1628,10 +1670,35 @@ function MobileLayout({
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>Bearbeiten</DropdownMenuItem>
-                            <DropdownMenuItem>Archivieren</DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              toast({ title: "Ordner bearbeiten", description: "Diese Funktion wird bald verfügbar sein." });
+                            }}>
+                              Bearbeiten
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              toggleArchiveFolder(folder.id);
+                              toast({ 
+                                title: folder.archived ? "Ordner wiederhergestellt" : "Ordner archiviert",
+                                description: folder.archived ? `"${folder.name}" wurde wiederhergestellt.` : `"${folder.name}" wurde archiviert.`
+                              });
+                            }}>
+                              {folder.archived ? "Wiederherstellen" : "Archivieren"}
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive">Löschen</DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="text-destructive" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`Ordner "${folder.name}" wirklich löschen?`)) {
+                                  deleteFolder(folder.id);
+                                  toast({ title: "Ordner gelöscht", description: `"${folder.name}" wurde gelöscht.` });
+                                }
+                              }}
+                            >
+                              Löschen
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -1691,7 +1758,42 @@ function MobileLayout({
   
   // Level 2: Projekt-Liste
   if (mobileLevel === 'projects' && selectedFolder) {
-    const projects = selectedFolder.projects.filter(p => showArchived || !p.archived);
+    // Filter und sortieren
+    let projects = selectedFolder.projects.filter(p => showArchived || !p.archived);
+    
+    // Filter nach Status
+    if (filterStatus) {
+      projects = projects.filter(p => p.projektstatus === filterStatus);
+    }
+    
+    // Sortieren
+    projects = projects.sort((a, b) => {
+      let compareA: any, compareB: any;
+      
+      switch (sortBy) {
+        case 'title':
+          compareA = a.title?.toLowerCase() || '';
+          compareB = b.title?.toLowerCase() || '';
+          break;
+        case 'auftragsnummer':
+          compareA = a.auftragsnummer || '';
+          compareB = b.auftragsnummer || '';
+          break;
+        case 'projektstatus':
+          compareA = a.projektstatus || '';
+          compareB = b.projektstatus || '';
+          break;
+        case 'created_at':
+        default:
+          compareA = new Date(a.created_at || 0).getTime();
+          compareB = new Date(b.created_at || 0).getTime();
+          break;
+      }
+      
+      if (compareA < compareB) return sortOrder === 'asc' ? -1 : 1;
+      if (compareA > compareB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
     
     return (
       <div className="h-full flex flex-col bg-background">
@@ -1748,10 +1850,18 @@ function MobileLayout({
                 className="pl-9"
               />
             </div>
-            <button className="p-2 border border-border rounded-lg hover:bg-accent">
+            <button 
+              onClick={() => setShowSortSheet(true)}
+              className="p-2 border border-border rounded-lg hover:bg-accent"
+              title="Sortieren"
+            >
               <ArrowUpDown className="w-5 h-5" />
             </button>
-            <button className="p-2 border border-border rounded-lg hover:bg-accent">
+            <button 
+              onClick={() => setShowFilterSheet(true)}
+              className="p-2 border border-border rounded-lg hover:bg-accent"
+              title="Filtern"
+            >
               <SlidersHorizontal className="w-5 h-5" />
             </button>
           </div>
@@ -1818,10 +1928,35 @@ function MobileLayout({
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Details bearbeiten</DropdownMenuItem>
-                        <DropdownMenuItem>Archivieren</DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation();
+                          toast({ title: "Projekt bearbeiten", description: "Diese Funktion wird bald verfügbar sein." });
+                        }}>
+                          Details bearbeiten
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation();
+                          toggleArchiveProject(selectedFolder.id, project.id);
+                          toast({ 
+                            title: project.archived ? "Projekt wiederhergestellt" : "Projekt archiviert",
+                            description: project.archived ? `"${project.title}" wurde wiederhergestellt.` : `"${project.title}" wurde archiviert.`
+                          });
+                        }}>
+                          {project.archived ? "Wiederherstellen" : "Archivieren"}
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">Löschen</DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`Projekt "${project.title}" wirklich löschen?`)) {
+                              deleteProject(selectedFolder.id, project.id);
+                              toast({ title: "Projekt gelöscht", description: `"${project.title}" wurde gelöscht.` });
+                            }
+                          }}
+                        >
+                          Löschen
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -2009,6 +2144,101 @@ function MobileLayout({
           open={showMobileNotifications} 
           onClose={() => setShowMobileNotifications(false)}
         />
+        
+        {/* Sort Sheet */}
+        <Sheet open={showSortSheet} onOpenChange={setShowSortSheet}>
+          <SheetContent side="bottom">
+            <SheetHeader>
+              <SheetTitle>Sortieren nach</SheetTitle>
+            </SheetHeader>
+            <div className="mt-6 space-y-2">
+              <button
+                onClick={() => {
+                  setSortBy('created_at');
+                  setSortOrder(sortBy === 'created_at' && sortOrder === 'desc' ? 'asc' : 'desc');
+                  setShowSortSheet(false);
+                }}
+                className={`w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors ${
+                  sortBy === 'created_at' ? 'bg-accent' : ''
+                }`}
+              >
+                📅 Erstellungsdatum {sortBy === 'created_at' && (sortOrder === 'desc' ? '↓' : '↑')}
+              </button>
+              <button
+                onClick={() => {
+                  setSortBy('title');
+                  setSortOrder(sortBy === 'title' && sortOrder === 'desc' ? 'asc' : 'desc');
+                  setShowSortSheet(false);
+                }}
+                className={`w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors ${
+                  sortBy === 'title' ? 'bg-accent' : ''
+                }`}
+              >
+                🔤 Name {sortBy === 'title' && (sortOrder === 'desc' ? '↓' : '↑')}
+              </button>
+              <button
+                onClick={() => {
+                  setSortBy('auftragsnummer');
+                  setSortOrder(sortBy === 'auftragsnummer' && sortOrder === 'desc' ? 'asc' : 'desc');
+                  setShowSortSheet(false);
+                }}
+                className={`w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors ${
+                  sortBy === 'auftragsnummer' ? 'bg-accent' : ''
+                }`}
+              >
+                🔢 Auftragsnummer {sortBy === 'auftragsnummer' && (sortOrder === 'desc' ? '↓' : '↑')}
+              </button>
+              <button
+                onClick={() => {
+                  setSortBy('projektstatus');
+                  setSortOrder(sortBy === 'projektstatus' && sortOrder === 'desc' ? 'asc' : 'desc');
+                  setShowSortSheet(false);
+                }}
+                className={`w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors ${
+                  sortBy === 'projektstatus' ? 'bg-accent' : ''
+                }`}
+              >
+                📊 Status {sortBy === 'projektstatus' && (sortOrder === 'desc' ? '↓' : '↑')}
+              </button>
+            </div>
+          </SheetContent>
+        </Sheet>
+        
+        {/* Filter Sheet */}
+        <Sheet open={showFilterSheet} onOpenChange={setShowFilterSheet}>
+          <SheetContent side="bottom">
+            <SheetHeader>
+              <SheetTitle>Filtern nach Status</SheetTitle>
+            </SheetHeader>
+            <div className="mt-6 space-y-2">
+              <button
+                onClick={() => {
+                  setFilterStatus(null);
+                  setShowFilterSheet(false);
+                }}
+                className={`w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors ${
+                  filterStatus === null ? 'bg-accent' : ''
+                }`}
+              >
+                ✨ Alle anzeigen
+              </button>
+              {PROJECT_STATUS_OPTIONS.map((status) => (
+                <button
+                  key={status}
+                  onClick={() => {
+                    setFilterStatus(status);
+                    setShowFilterSheet(false);
+                  }}
+                  className={`w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors ${
+                    filterStatus === status ? 'bg-accent' : ''
+                  }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </SheetContent>
+        </Sheet>
         
         <UserManagementDialog 
           open={showUserManagement} 
