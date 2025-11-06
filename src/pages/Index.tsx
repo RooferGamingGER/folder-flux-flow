@@ -30,8 +30,11 @@ import { FolderMembersDialog } from "@/components/FolderMembersDialog";
 import { UserRoleBadge } from "@/components/UserRoleBadge";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
-  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder
+  Download, ArrowUpDown, Filter as FilterIcon, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder, Search, Plus
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/AppSidebar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -45,7 +48,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { MediaUploadSheet } from "@/components/MediaUploadSheet";
 import { Button as ShadcnButton } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { UPLOAD_LIMITS, formatFileSize, validateFileSize } from "@/lib/uploadConfig";
 import { FullDashboard } from "@/components/FullDashboard";
 import { FullCalendar } from "@/components/FullCalendar";
@@ -232,6 +238,9 @@ export default function Index() {
   const isMobile = useIsMobile();
   const [mobileLevel, setMobileLevel] = useState<'folders' | 'projects' | 'project'>('folders');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Details sidebar toggle
+  const [showDetailsSidebar, setShowDetailsSidebar] = useState(true);
 
   const [showFolderDlg, setShowFolderDlg] = useState(false);
   const [showProjectDlg, setShowProjectDlg] = useState(false);
@@ -434,7 +443,7 @@ export default function Index() {
 
   return (
     <div className="h-screen w-full bg-background text-foreground">
-      <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-3 shadow-sm">
+      <header className="h-14 border-b border-border bg-card flex items-center pl-28 pr-4 gap-3 shadow-sm">
         <div className="flex items-center gap-3 min-w-[180px]">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">🏗️</div>
           <div className="text-base font-semibold">Aktuelle Baustellen</div>
@@ -517,195 +526,275 @@ export default function Index() {
             search={search}
             searchResults={searchResults}
             setSearch={setSearch}
+            onDashboardClick={() => setShowDashboardDialog(true)}
+            onCalendarClick={() => setShowCalendarDialog(true)}
           />
         </div>
       ) : (
-        <div className="h-[calc(100vh-56px)] grid grid-cols-1 md:grid-cols-[320px_1fr] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
-        <aside className="border-r border-border bg-sidebar relative overflow-hidden flex flex-col">
-          {/* Dashboard & Calendar Buttons */}
-          {canAccessDashboard && (
-            <div className="border-b border-border p-3 bg-card flex gap-2">
-              <button
-                onClick={() => setShowDashboardDialog(true)}
-                className="flex-1 px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center justify-center gap-2"
-              >
-                📊 Dashboard
-              </button>
-              <button
-                onClick={() => setShowCalendarDialog(true)}
-                className="flex-1 px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center justify-center gap-2"
-              >
-                📅 Kalender
-              </button>
-            </div>
-          )}
+        <SidebarProvider style={{ "--sidebar-width": "6rem" } as React.CSSProperties} defaultOpen={true}>
+          <div className="h-[calc(100vh-56px)] flex w-full">
+            {/* App Sidebar (Icon-only sidebar) */}
+        <AppSidebar 
+          onDashboardClick={() => setShowDashboardDialog(true)}
+          onCalendarClick={() => setShowCalendarDialog(true)}
+          canAccessDashboard={canAccessDashboard}
+        />
 
-          {/* Sort/Filter Bar */}
-          <div className="px-3 py-2 border-b border-border bg-card space-y-2">
-            <div className="flex gap-2">
-              <select 
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="created_at">Datum</option>
-                <option value="title">Titel</option>
-                <option value="auftragsnummer">Auftragsnummer</option>
-                <option value="projektstatus">Status</option>
-              </select>
-              <button 
-                onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
-                className="px-2 py-1.5 bg-secondary border border-border rounded-md hover:bg-accent transition-colors"
-                title={sortOrder === 'asc' ? 'Aufsteigend' : 'Absteigend'}
-              >
-                <ArrowUpDown className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <select 
-                value={filterStatus || ''}
-                onChange={(e) => setFilterStatus(e.target.value || null)}
-                className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="">Alle Status</option>
-                {PROJECT_STATUS_OPTIONS.map(status => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-              {filterStatus && (
-                <button 
-                  onClick={() => setFilterStatus(null)}
-                  className="px-2 py-1.5 bg-secondary border border-border rounded-md hover:bg-accent transition-colors"
-                  title="Filter zurücksetzen"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-          
-          <div className="flex-1 overflow-auto">
-            {isLoading ? (
-              <div className="p-4 space-y-4">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-              </div>
-            ) : search.trim() ? (
-              <SearchList results={searchResults} open={(r) => { setSelectedFolderId(r.folderId); setSelectedProjectId(r.project.id); setView("chat"); setSearch(""); }} />
-            ) : folders.filter((f) => showArchived || !f.archived).length === 0 ? (
-              <div className="h-full flex items-center justify-center text-muted-foreground px-8 text-center text-sm">
-                Noch keine Ordner vorhanden.<br/>Klicke auf + um zu starten.
-              </div>
-            ) : (
-              <div className="pb-20">
-                {folders.filter((f) => showArchived || !f.archived).map((f) => (
-                  <FolderBlock key={f.id} f={f} selectedFolderId={selectedFolderId} selectedProjectId={selectedProjectId} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} showArchived={showArchived} onDelete={deleteFolder} onArchiveToggle={toggleArchiveFolder} onMoveProject={openMoveProject} onDeleteProject={deleteProject} onArchiveProject={toggleArchiveProject} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {canManageProjects && (
-            <div className="absolute right-4 bottom-4">
-              <div className="relative">
-                {fabOpen && (
-                  <div className="absolute bottom-16 right-0 w-60 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1 z-20">
-                    <button onClick={openFolderDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
-                      📁 Neuen Ordner erstellen
-                    </button>
-                    <button onClick={openProjectDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={folders.length === 0}>
-                      🏗️ Neues Projekt anlegen
-                    </button>
-                    {folders.length === 0 && (<div className="px-4 pb-1 text-xs text-muted-foreground">Erst einen Ordner anlegen</div>)}
-                    
-                    {selectedProject && (
-                      <button onClick={() => { setShowProjectMembers(true); setFabOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors border-t border-border">
-                        <UserPlus className="w-4 h-4 inline mr-2" />
-                        Projekt-Mitglieder
-                      </button>
+            {/* Main Grid Layout */}
+            <div className={cn(
+              "flex-1 grid",
+              showDetailsSidebar 
+                ? "grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_280px]"
+                : "grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)]"
+            )}>
+              {/* Folder Sidebar (280px) */}
+              <aside className="border-r border-border bg-card relative overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-auto">
+                {isLoading ? (
+                  <div className="p-4 space-y-4">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                ) : search.trim() ? (
+                  <SearchList results={searchResults} open={(r) => { setSelectedFolderId(r.folderId); setSelectedProjectId(r.project.id); setView("chat"); setSearch(""); }} />
+                ) : folders.filter((f) => showArchived || !f.archived).length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-muted-foreground px-4 text-center text-sm">
+                    Noch keine Ordner vorhanden.<br/>Klicke auf + um zu starten.
+                  </div>
+                ) : (
+                  <div className="pb-20">
+                    {/* Aktive Ordner */}
+                    {folders.filter(f => !f.archived).length > 0 && (
+                      <div>
+                        <div className="pl-1 pr-2 py-3 text-sm font-bold text-foreground uppercase tracking-wide bg-muted sticky top-0 z-10 border-b border-border">
+                          Aktive Ordner
+                        </div>
+                        {folders.filter(f => !f.archived).map((f) => (
+                          <FolderBlock key={f.id} f={f} selectedFolderId={selectedFolderId} selectedProjectId={selectedProjectId} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} showArchived={showArchived} onDelete={deleteFolder} onArchiveToggle={toggleArchiveFolder} onMoveProject={openMoveProject} onDeleteProject={deleteProject} onArchiveProject={toggleArchiveProject} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
+                        ))}
+                      </div>
                     )}
-                    {selectedFolder && (
-                      <button onClick={() => { setSelectedFolderForMembers(selectedFolderId); setShowFolderMembers(true); setFabOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
-                        <Users className="w-4 h-4 inline mr-2" />
-                        Ordner-Mitglieder
-                      </button>
+                    
+                    {/* Archivierte Ordner (nur wenn showArchived aktiv) */}
+                    {showArchived && folders.filter(f => f.archived).length > 0 && (
+                      <div className="mt-8">
+                        <div className="pl-1 pr-2 py-3 text-sm font-bold text-foreground uppercase tracking-wide bg-amber-50 dark:bg-amber-950/20 sticky top-0 z-10 border-b border-amber-200 dark:border-amber-800">
+                          📦 Archivierte Ordner
+                        </div>
+                        {folders.filter(f => f.archived).map((f) => (
+                          <FolderBlock key={f.id} f={f} selectedFolderId={selectedFolderId} selectedProjectId={selectedProjectId} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} showArchived={showArchived} onDelete={deleteFolder} onArchiveToggle={toggleArchiveFolder} onMoveProject={openMoveProject} onDeleteProject={deleteProject} onArchiveProject={toggleArchiveProject} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}
-                <button onClick={() => setFabOpen((v) => !v)} className="w-14 h-14 rounded-full bg-primary hover:bg-primary-hover text-primary-foreground text-2xl shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95" title="Neu">
-                  +
-                </button>
               </div>
-            </div>
-          )}
-        </aside>
 
-        <main className="relative overflow-hidden bg-background">
-          <div className="border-b border-border bg-card shadow-sm">
-            {/* Erste Zeile: Titel und Action-Buttons */}
-            <div className="h-14 px-6 flex items-center justify-between">
-              <h2 className="font-semibold text-lg truncate">
-                {selectedProject ? selectedProject.title : selectedFolder ? selectedFolder.name : "–"}
-              </h2>
-              <div className="flex items-center gap-2">
-                {selectedProject && canManageProjects && (
-                  <>
-                    <button
-                      onClick={() => setShowProjectMembers(true)}
-                      className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
-                      title="Projekt-Mitglieder anzeigen"
-                    >
-                      <Users className="w-3.5 h-3.5" />
-                      <span className="hidden md:inline">Mitglieder</span>
+              {canManageProjects && (
+                <div className="absolute right-4 bottom-4">
+                  <div className="relative">
+                    {fabOpen && (
+                      <div className="absolute bottom-16 right-0 w-60 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1 z-20">
+                        <button onClick={openFolderDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
+                          📁 Neuen Ordner erstellen
+                        </button>
+                        <button onClick={openProjectDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={folders.length === 0}>
+                          🏗️ Neues Projekt anlegen
+                        </button>
+                        {folders.length === 0 && (<div className="px-4 pb-1 text-xs text-muted-foreground">Erst einen Ordner anlegen</div>)}
+                        
+                        {selectedProject && (
+                          <button onClick={() => { setShowProjectMembers(true); setFabOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors border-t border-border">
+                            <UserPlus className="w-4 h-4 inline mr-2" />
+                            Projekt-Mitglieder
+                          </button>
+                        )}
+                        {selectedFolder && (
+                          <button onClick={() => { setSelectedFolderForMembers(selectedFolderId); setShowFolderMembers(true); setFabOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
+                            <Users className="w-4 h-4 inline mr-2" />
+                            Ordner-Mitglieder
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <button onClick={() => setFabOpen((v) => !v)} className="w-14 h-14 rounded-full bg-primary hover:bg-primary-hover text-primary-foreground text-2xl shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95" title="Neu">
+                      +
                     </button>
-                    <button
-                      onClick={() => setShowExportDlg(true)}
-                      className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span className="hidden md:inline">Export</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-            
-              {/* Zweite Zeile: Tab-Navigation - immer sichtbar */}
-              {selectedProject && canViewProjectContent && (
-                <div className="flex px-6 pb-3 items-center gap-2">
-                  <HeaderBtn label="💬 Chat" active={view === "chat"} onClick={() => setView("chat")} />
-                  <HeaderBtn label="📁 Dateien" active={view === "files"} onClick={() => setView("files")} />
-                  <HeaderBtn label="📋 Details" active={view === "details"} onClick={() => setView("details")} />
+                  </div>
                 </div>
               )}
-          </div>
+            </aside>
 
-          <div className="absolute inset-0 top-[96px] flex flex-col">
-            {selectedProject ? (
-              view === "chat" ? (
-                <ChatView project={selectedProject} />
-              ) : view === "files" ? (
-                <FilesView project={selectedProject} />
-              ) : (
-                <DetailsView project={selectedProject} />
-              )
-            ) : (
-              <div className="h-full flex items-center justify-center text-muted-foreground text-sm px-8 text-center">
-                {selectedFolder ? "Ordner geöffnet – wähle ein Projekt oder lege eines an" : "Wähle einen Ordner oder lege einen an"}
+            <main className="relative overflow-hidden bg-background">
+              <div className="border-b border-border bg-card shadow-sm">
+                {/* Header: Titel, Suche, Filter/Sort/Details Toggle */}
+                <div className="h-14 px-6 flex items-center justify-between gap-4">
+                  <h2 className="font-semibold text-lg truncate">
+                    {selectedProject ? selectedProject.title : selectedFolder ? selectedFolder.name : "–"}
+                  </h2>
+
+                  <div className="flex items-center gap-2">
+                    {/* Suche */}
+                    <div className="relative w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <input
+                        type="text"
+                        placeholder="Suchen..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="w-full pl-10 pr-3 py-1.5 text-sm border border-input rounded-md bg-background outline-none focus:ring-2 focus:ring-ring transition-all"
+                      />
+                    </div>
+
+                    {/* Sort Button mit Popover */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <ShadcnButton variant="outline" size="icon" title="Sortieren">
+                          <ArrowUpDown className="w-4 h-4" />
+                        </ShadcnButton>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56" align="end">
+                        <div className="space-y-2">
+                          <div className="text-sm font-semibold mb-2">Sortieren nach</div>
+                          <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="created_at">Datum</SelectItem>
+                              <SelectItem value="title">Titel</SelectItem>
+                              <SelectItem value="auftragsnummer">Auftragsnummer</SelectItem>
+                              <SelectItem value="projektstatus">Status</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <div className="flex items-center justify-between pt-2">
+                            <span className="text-xs text-muted-foreground">Reihenfolge</span>
+                            <ShadcnButton
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
+                            >
+                              {sortOrder === 'asc' ? '↑ Aufsteigend' : '↓ Absteigend'}
+                            </ShadcnButton>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+
+                    {/* Filter Button mit Popover */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <ShadcnButton variant="outline" size="icon" title="Filtern" className="relative">
+                          <FilterIcon className="w-4 h-4" />
+                          {filterStatus && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                              1
+                            </span>
+                          )}
+                        </ShadcnButton>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56" align="end">
+                        <div className="space-y-2">
+                          <div className="text-sm font-semibold mb-2">Status filtern</div>
+                          <Select value={filterStatus || ''} onValueChange={(v) => setFilterStatus(v || null)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Alle Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">Alle Status</SelectItem>
+                              {PROJECT_STATUS_OPTIONS.map(status => (
+                                <SelectItem key={status} value={status}>{status}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {filterStatus && (
+                            <ShadcnButton
+                              variant="outline"
+                              size="sm"
+                              className="w-full"
+                              onClick={() => setFilterStatus(null)}
+                            >
+                              <X className="w-3 h-3 mr-1" />
+                              Filter zurücksetzen
+                            </ShadcnButton>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+
+                    {/* Details Sidebar Toggle (nur wenn Projekt ausgewählt) */}
+                    {selectedProject && (
+                      <ShadcnButton
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setShowDetailsSidebar(!showDetailsSidebar)}
+                        title={showDetailsSidebar ? "Details ausblenden" : "Details einblenden"}
+                      >
+                        {showDetailsSidebar ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                      </ShadcnButton>
+                    )}
+
+                    {/* Existing Action Buttons */}
+                    {selectedProject && canManageProjects && (
+                      <>
+                        <ShadcnButton
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setShowProjectMembers(true)}
+                          title="Projekt-Mitglieder"
+                        >
+                          <Users className="w-4 h-4" />
+                        </ShadcnButton>
+                        <ShadcnButton
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setShowExportDlg(true)}
+                          title="Export"
+                        >
+                          <Download className="w-4 h-4" />
+                        </ShadcnButton>
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+                  {/* Zweite Zeile: Tab-Navigation - immer sichtbar */}
+                  {selectedProject && canViewProjectContent && (
+                    <div className="flex px-6 pb-3 items-center gap-2">
+                      <HeaderBtn label="💬 Chat" active={view === "chat"} onClick={() => setView("chat")} />
+                      <HeaderBtn label="📁 Dateien" active={view === "files"} onClick={() => setView("files")} />
+                      <HeaderBtn label="📋 Details" active={view === "details"} onClick={() => setView("details")} />
+                    </div>
+                  )}
               </div>
-            )}
-          </div>
-        </main>
 
-        <aside className="hidden xl:flex flex-col w-[360px] border-l border-border bg-card">
-          {selectedProject ? (
-            <DetailsSidebar project={selectedProject} />
-          ) : (
-            <div className="h-full items-center justify-center text-muted-foreground flex text-sm">Keine Details ausgewählt</div>
-          )}
-        </aside>
-        </div>
+              <div className="absolute inset-0 top-[96px] flex flex-col">
+                {selectedProject ? (
+                  view === "chat" ? (
+                    <ChatView project={selectedProject} fullWidth={!showDetailsSidebar} />
+                  ) : view === "files" ? (
+                    <FilesView project={selectedProject} />
+                  ) : (
+                    <DetailsView project={selectedProject} />
+                  )
+                ) : (
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm px-8 text-center">
+                    {selectedFolder ? "Ordner geöffnet – wähle ein Projekt oder lege eines an" : "Wähle einen Ordner oder lege einen an"}
+                  </div>
+                )}
+              </div>
+            </main>
+
+              {/* Details Sidebar (conditional, 280px) */}
+              {showDetailsSidebar && selectedProject && (
+                <aside className="hidden xl:flex flex-col w-[280px] border-l border-border bg-card">
+                  <DetailsSidebar project={selectedProject} />
+                </aside>
+              )}
+            </div>
+          </div>
+        </SidebarProvider>
       )}
 
       {showFolderDlg && (
@@ -1200,6 +1289,8 @@ function MobileLayout({
   search,
   searchResults,
   setSearch,
+  onDashboardClick,
+  onCalendarClick,
 }: {
   mobileLevel: 'folders' | 'projects' | 'project';
   setMobileLevel: (level: 'folders' | 'projects' | 'project') => void;
@@ -1215,6 +1306,8 @@ function MobileLayout({
   search: string;
   searchResults: any[];
   setSearch: (search: string) => void;
+  onDashboardClick: () => void;
+  onCalendarClick: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { canAccessDashboard, hasFullAccess } = useUserRole();
@@ -1254,7 +1347,7 @@ function MobileLayout({
                   <>
                     <button
                       onClick={() => {
-                        // Future: Navigate to dashboard view
+                        onDashboardClick();
                         setMenuOpen(false);
                       }}
                       className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
@@ -1264,7 +1357,7 @@ function MobileLayout({
                     </button>
                     <button
                       onClick={() => {
-                        // Future: Navigate to calendar view
+                        onCalendarClick();
                         setMenuOpen(false);
                       }}
                       className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
@@ -1274,6 +1367,17 @@ function MobileLayout({
                     </button>
                   </>
                 )}
+                <a
+                  href="https://eu.jotform.com/app/240792512672357"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3 block"
+                >
+                  <span className="text-lg">🔗</span>
+                  <span className="font-medium">App</span>
+                </a>
+                <div className="border-t border-border my-2" />
                 <button
                   onClick={() => {
                     setShowTrashDialog(true);
@@ -1758,6 +1862,7 @@ function HeaderBtn({ label, onClick, active }: { label: string; onClick: () => v
   );
 }
 
+
 function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolderId, setSelectedProjectId, showArchived, onDelete, onArchiveToggle, onMoveProject, onDeleteProject, onArchiveProject, openMenuId, setOpenMenuId }: { f: Folder; selectedFolderId: string | null; selectedProjectId: string | null; setSelectedFolderId: (id: string) => void; setSelectedProjectId: (id: string | null) => void; showArchived: boolean; onDelete: (id: string) => void; onArchiveToggle: (id: string) => void; onMoveProject: (fid: string, pid: string) => void; onDeleteProject: (fid: string, pid: string) => void; onArchiveProject: (fid: string, pid: string) => void; openMenuId: string | null; setOpenMenuId: (id: string | null) => void }) {
   const menuId = `folder-${f.id}`;
   const isMenuOpen = openMenuId === menuId;
@@ -1773,9 +1878,11 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
   
   return (
     <div>
-      <div className="sticky top-0 z-10 bg-sidebar-accent px-4 py-3 text-sm font-semibold border-y border-sidebar-border flex items-center gap-2 group">
-        <button className={`px-3 py-1.5 rounded-md transition-colors ${selectedFolderId === f.id ? "bg-card shadow-sm" : "hover:bg-card/50"}`} onClick={() => { setSelectedFolderId(f.id); setSelectedProjectId(null); }}>
-          📁 {f.name}{f.archived ? " (Archiv)" : ""}
+      <div className="sticky top-0 z-10 bg-card pl-1 pr-2 py-3 text-sm font-semibold border-b border-border flex items-center gap-2 group">
+        <button className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors active:scale-[0.98] flex-1 min-w-0 ${selectedFolderId === f.id ? "bg-card shadow-sm" : "hover:bg-card/50 active:bg-card"}`} onClick={() => { setSelectedFolderId(f.id); setSelectedProjectId(null); }}>
+          <span className="truncate">
+            📁 {f.name}{f.archived ? " (Archiv)" : ""}
+          </span>
         </button>
         {canManageProjects && (
           <button 
@@ -1839,15 +1946,36 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
         onClose={() => setShowFolderMembersDialog(false)}
       />
       {selectedFolderId === f.id && (
-        <ul className="divide-y divide-border">
-          {f.projects.filter((p) => (showArchived || !p.archived)).length === 0 ? (
-            <li className="px-4 py-4 text-sm text-muted-foreground">Keine Projekte vorhanden</li>
-          ) : (
-            f.projects.filter((p) => (showArchived || !p.archived)).map((p) => (
-              <ProjectRow key={p.id} p={p} onOpen={() => { setSelectedProjectId(p.id); }} onMove={() => onMoveProject(f.id, p.id)} onDelete={() => onDeleteProject(f.id, p.id)} onArchive={() => onArchiveProject(f.id, p.id)} selected={!!selectedProjectId && p.id === selectedProjectId} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} onLeave={() => setSelectedProjectId(null)} />
-            ))
+        <div>
+          {/* Aktive Projekte */}
+          {f.projects.filter(p => !p.archived).length > 0 && (
+            <ul className="divide-y divide-border">
+              {f.projects.filter(p => !p.archived).map((p) => (
+                <ProjectRow key={p.id} p={p} onOpen={() => { setSelectedProjectId(p.id); }} onMove={() => onMoveProject(f.id, p.id)} onDelete={() => onDeleteProject(f.id, p.id)} onArchive={() => onArchiveProject(f.id, p.id)} selected={!!selectedProjectId && p.id === selectedProjectId} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} onLeave={() => setSelectedProjectId(null)} />
+              ))}
+            </ul>
           )}
-        </ul>
+          
+          {f.projects.filter(p => !p.archived).length === 0 && !showArchived && (
+            <div className="pl-2 pr-2 py-4 text-sm text-muted-foreground">
+              Keine aktiven Projekte vorhanden
+            </div>
+          )}
+          
+          {/* Archivierte Projekte (nur wenn showArchived aktiv) */}
+          {showArchived && f.projects.filter(p => p.archived).length > 0 && (
+            <>
+              <div className="pl-2 pr-2 py-2 text-xs font-semibold text-muted-foreground bg-amber-50 dark:bg-amber-950/20 border-y border-amber-200 dark:border-amber-800">
+                📦 Archivierte Projekte
+              </div>
+              <ul className="divide-y divide-border bg-amber-50/30 dark:bg-amber-950/10">
+                {f.projects.filter(p => p.archived).map((p) => (
+                  <ProjectRow key={p.id} p={p} onOpen={() => { setSelectedProjectId(p.id); }} onMove={() => onMoveProject(f.id, p.id)} onDelete={() => onDeleteProject(f.id, p.id)} onArchive={() => onArchiveProject(f.id, p.id)} selected={!!selectedProjectId && p.id === selectedProjectId} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} onLeave={() => setSelectedProjectId(null)} />
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
@@ -1865,9 +1993,9 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenu
   const showMenu = canManageProjects;
   
   return (
-    <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 px-4 py-3 cursor-pointer transition-colors ${selected ? "bg-accent" : "hover:bg-accent/50"} group`}>
+    <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 pl-2 pr-2 py-3 cursor-pointer transition-colors active:scale-[0.98] ${selected ? "bg-accent" : "hover:bg-accent/50 active:bg-accent/70"} group`}>
       <div className={`w-1.5 h-full ${p.archived ? "bg-muted-foreground" : "bg-success"} rounded-full`} />
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="text-sm font-medium text-foreground truncate">
           {p.title}
           {p.auftragsnummer && (
@@ -1919,8 +2047,9 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenu
   );
 }
 
-function ChatView({ project }: { project: Project }) {
+function ChatView({ project, fullWidth = false }: { project: Project; fullWidth?: boolean }) {
   const [text, setText] = useState("");
+  const [showUploadSheet, setShowUploadSheet] = useState(false);
   const { messages, sendMessage, deleteMessage } = useMessages(project.id);
   const { uploadFile, isUploading, getFileUrl } = useProjectFiles(project.id);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -1937,6 +2066,51 @@ function ChatView({ project }: { project: Project }) {
     if (!t) return;
     sendMessage({ type: "text", content: { text: t } });
     setText("");
+  };
+
+  // Helper function for time formatting
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Media upload handlers
+  const handleImageFromGallery = (files: FileList | null) => {
+    if (files) handleImageUpload(files);
+    setShowUploadSheet(false);
+  };
+  
+  const handleVideoFromGallery = (files: FileList | null) => {
+    if (files) handleImageUpload(files);
+    setShowUploadSheet(false);
+  };
+  
+  const handleAudioFromFiles = (files: FileList | null) => {
+    if (files && files[0]) {
+      handleAudioUpload(files[0]);
+      setShowUploadSheet(false);
+    }
+  };
+  
+  const handleFileSelect = (files: FileList | null) => {
+    if (files) handleImageUpload(files);
+    setShowUploadSheet(false);
+  };
+  
+  const handleCameraOpen = () => {
+    setShowUploadSheet(false);
+    // Camera input is handled through file input with capture attribute
+  };
+  
+  const handleVideoRecordStart = () => {
+    setShowUploadSheet(false);
+    videoRecorder.startRecording();
+  };
+  
+  const handleAudioRecordStart = () => {
+    setShowUploadSheet(false);
+    audioRecorder.startRecording();
   };
 
   const handleImageUpload = async (files: FileList | null) => {
@@ -2002,9 +2176,13 @@ function ChatView({ project }: { project: Project }) {
       }
     });
   };
+  
+  // Use recorder hooks (must be after handler functions)
+  const audioRecorder = useAudioRecorder(handleAudioUpload);
+  const videoRecorder = useVideoRecorder(handleVideoUpload);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className={`h-full flex flex-col ${fullWidth ? 'max-w-5xl mx-auto' : ''}`}>
       <div 
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto px-6 py-4 space-y-3"
@@ -2023,37 +2201,114 @@ function ChatView({ project }: { project: Project }) {
 
       <div className="shrink-0 border-t border-border p-4 bg-card shadow-sm">
         <div className="flex items-center gap-2">
-          <input 
-            ref={imageInputRef}
-            type="file" 
-            accept="image/*,application/pdf,.pdf,video/*" 
-            multiple 
-            className="hidden" 
-            onChange={(e) => { 
-              handleImageUpload(e.target.files); 
-              e.target.value = ""; 
-            }} 
-          />
+          {/* Single Plus Button for All Uploads */}
           <button 
-            onClick={() => imageInputRef.current?.click()} 
-            className="p-2.5 rounded-lg border border-border bg-background hover:bg-accent transition-colors" 
-            title="Datei anhängen"
+            onClick={() => setShowUploadSheet(true)}
+            className="p-2.5 rounded-lg border border-border bg-background hover:bg-accent active:bg-accent/70 transition-colors touch-manipulation"
+            title="Medien anhängen"
             disabled={isUploading}
           >
-            📎
+            <Plus className="w-5 h-5" />
           </button>
-          <AudioRecorder onRecordingComplete={handleAudioUpload} />
-          <VideoRecorder onRecordingComplete={handleVideoUpload} />
-          <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); } }} placeholder="Eine Nachricht schreiben…" className="flex-1 bg-secondary rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" />
-          <button onClick={sendText} className="p-2.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground transition-all hover:scale-105 active:scale-95" title="Senden">➤</button>
+          
+          {/* Text Input - Now Has More Space! */}
+          <input 
+            value={text} 
+            onChange={(e) => setText(e.target.value)} 
+            onKeyDown={(e) => { 
+              if (e.key === "Enter" && !e.shiftKey) { 
+                e.preventDefault(); 
+                sendText(); 
+              } 
+            }} 
+            placeholder="Eine Nachricht schreiben…" 
+            className="flex-1 bg-secondary rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+          />
+          
+          {/* Send Button - Now Clearly Visible! */}
+          <button 
+            onClick={sendText} 
+            className="p-2.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground transition-all hover:scale-105 active:scale-95 touch-manipulation" 
+            title="Senden"
+          >
+            ➤
+          </button>
         </div>
-        <div className="text-xs text-muted-foreground mt-2">Enter = senden, Shift + Enter = neue Zeile</div>
+        <div className="text-xs text-muted-foreground mt-2">
+          Enter = senden, Shift + Enter = neue Zeile
+        </div>
+        
+        {/* Recording UI Overlays */}
+        {audioRecorder.isRecording && (
+          <div className="fixed bottom-20 left-0 right-0 flex justify-center z-50">
+            <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-950/20 border border-red-500 rounded-lg shadow-lg">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                {formatTime(audioRecorder.recordingTime)}
+              </span>
+              <button
+                onClick={audioRecorder.stopRecording}
+                className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-medium transition-colors touch-manipulation"
+              >
+                Stoppen
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {videoRecorder.isRecording && (
+          <div className="fixed bottom-20 left-0 right-0 flex justify-center z-50">
+            <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-950/20 border border-red-500 rounded-lg shadow-lg">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                {formatTime(videoRecorder.recordingTime)}
+              </span>
+              <button
+                onClick={videoRecorder.stopRecording}
+                className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-medium transition-colors touch-manipulation"
+              >
+                Stoppen
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {videoRecorder.showPreview && (
+          <Modal onClose={videoRecorder.stopRecording} title="Video-Aufnahme">
+            <div className="relative">
+              <video
+                ref={videoRecorder.videoPreviewRef}
+                autoPlay
+                muted
+                className="w-full max-h-96 rounded-lg bg-black"
+              />
+              <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
+                <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                REC {formatTime(videoRecorder.recordingTime)}
+              </div>
+            </div>
+          </Modal>
+        )}
+        
+        {/* MediaUploadSheet */}
+        <MediaUploadSheet 
+          open={showUploadSheet}
+          onOpenChange={setShowUploadSheet}
+          onImageFromGallery={handleImageFromGallery}
+          onImageFromCamera={handleCameraOpen}
+          onVideoFromGallery={handleVideoFromGallery}
+          onVideoRecord={handleVideoRecordStart}
+          onAudioFromFiles={handleAudioFromFiles}
+          onAudioRecord={handleAudioRecordStart}
+          onFileSelect={handleFileSelect}
+        />
       </div>
     </div>
   );
 }
 
-function AudioRecorder({ onRecordingComplete }: { onRecordingComplete: (blob: Blob) => void }) {
+// Audio Recorder Hook
+function useAudioRecorder(onRecordingComplete: (blob: Blob) => void) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -2104,39 +2359,16 @@ function AudioRecorder({ onRecordingComplete }: { onRecordingComplete: (blob: Bl
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  return {
+    isRecording,
+    recordingTime,
+    startRecording,
+    stopRecording,
   };
-
-  return (
-    <div className="flex items-center gap-2">
-      {!isRecording ? (
-        <button
-          onClick={startRecording}
-          className="p-2.5 rounded-lg border border-border bg-background hover:bg-accent transition-colors"
-          title="Sprachnachricht aufnehmen"
-        >
-          🎤
-        </button>
-      ) : (
-        <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-950/20 border border-red-500 rounded-lg">
-          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-          <span className="text-sm font-medium text-red-600 dark:text-red-400">{formatTime(recordingTime)}</span>
-          <button
-            onClick={stopRecording}
-            className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-medium transition-colors"
-          >
-            Stoppen
-          </button>
-        </div>
-      )}
-    </div>
-  );
 }
 
-function VideoRecorder({ onRecordingComplete }: { onRecordingComplete: (blob: Blob) => void }) {
+// Video Recorder Hook
+function useVideoRecorder(onRecordingComplete: (blob: Blob) => void) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
@@ -2202,53 +2434,14 @@ function VideoRecorder({ onRecordingComplete }: { onRecordingComplete: (blob: Bl
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  return {
+    isRecording,
+    recordingTime,
+    showPreview,
+    videoPreviewRef,
+    startRecording,
+    stopRecording,
   };
-
-  return (
-    <>
-      {!isRecording ? (
-        <button
-          onClick={startRecording}
-          className="p-2.5 rounded-lg border border-border bg-background hover:bg-accent transition-colors"
-          title="Video aufnehmen"
-        >
-          🎥
-        </button>
-      ) : (
-        <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-950/20 border border-red-500 rounded-lg">
-          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-          <span className="text-sm font-medium text-red-600 dark:text-red-400">{formatTime(recordingTime)}</span>
-          <button
-            onClick={stopRecording}
-            className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-medium transition-colors"
-          >
-            Stoppen
-          </button>
-        </div>
-      )}
-
-      {showPreview && (
-        <Modal onClose={stopRecording} title="Video-Aufnahme">
-          <div className="relative">
-            <video
-              ref={videoPreviewRef}
-              autoPlay
-              muted
-              className="w-full max-h-96 rounded-lg bg-black"
-            />
-            <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-              REC {formatTime(recordingTime)}
-            </div>
-          </div>
-        </Modal>
-      )}
-    </>
-  );
 }
 
 const MessageBubble = memo(function MessageBubble({ msg, getFileUrl, onDelete }: { msg: any; getFileUrl?: any; onDelete?: (id: string) => void }) {
@@ -3565,8 +3758,8 @@ function DetailsSidebar({ project }: { project: Project }) {
   
   if (detailsLoading || notesLoading || contactsLoading) {
     return (
-      <div className="w-full h-full overflow-auto p-6">
-        <Skeleton className="h-6 w-full mb-4" />
+      <div className="w-full h-full overflow-auto p-4">
+        <Skeleton className="h-6 w-full mb-3" />
         <Skeleton className="h-4 w-full mb-2" />
         <Skeleton className="h-4 w-full mb-2" />
       </div>
@@ -3574,24 +3767,24 @@ function DetailsSidebar({ project }: { project: Project }) {
   }
   
   return (
-    <div className="w-full h-full overflow-auto p-6 space-y-4 text-sm">
-      <div className="font-bold text-base mb-4 pb-3 border-b border-border">📋 Projektdetails</div>
+    <div className="w-full h-full overflow-auto p-4 space-y-3 text-sm">
+      <div className="font-bold text-sm mb-3 pb-2 border-b border-border">📋 Projektdetails</div>
       <InfoRow k="Projektname" v={details?.projektname || "–"} />
       <InfoRow k="Startdatum" v={details?.startdatum || "–"} />
       <InfoRow k="Enddatum" v={details?.enddatum || "–"} />
       <InfoRow k="Auftragsnummer" v={details?.auftragsnummer || "–"} />
       <InfoRow k="Projektstatus" v={details?.projektstatus || "–"} />
       
-      <div className="pt-4">
-        <div className="text-muted-foreground font-semibold mb-2">👥 Ansprechpartner</div>
+      <div className="pt-3">
+        <div className="text-muted-foreground font-semibold mb-2 text-xs">👥 Ansprechpartner</div>
         {contacts.length === 0 ? (
-          <div className="text-muted-foreground">–</div>
+          <div className="text-muted-foreground text-xs">–</div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {contacts.map((c) => (
               <div key={c.id} className="p-2 bg-secondary rounded-md">
-                <div className="font-semibold">{c.name || "–"}</div>
-                <div className="text-xs text-muted-foreground">{c.email || "–"}</div>
+                <div className="font-semibold text-xs">{c.name || "–"}</div>
+                <div className="text-xs text-muted-foreground truncate">{c.email || "–"}</div>
                 <div className="text-xs text-muted-foreground">{c.phone || "–"}</div>
               </div>
             ))}
@@ -3599,12 +3792,12 @@ function DetailsSidebar({ project }: { project: Project }) {
         )}
       </div>
       
-      <div className="pt-4">
-        <div className="text-muted-foreground font-semibold mb-2">📝 Notizen</div>
+      <div className="pt-3">
+        <div className="text-muted-foreground font-semibold mb-2 text-xs">📝 Notizen</div>
         {notes.length === 0 ? (
-          <div className="text-muted-foreground">–</div>
+          <div className="text-muted-foreground text-xs">–</div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {notes.map((n) => (
               <div key={n.id} className="p-2 bg-secondary rounded-md">
                 <div className="text-xs text-muted-foreground font-mono mb-1">
