@@ -594,6 +594,24 @@ export default function Index() {
           hasFullAccess={hasFullAccess}
           canManageProjects={canManageProjects}
         />
+        <MobileLayoutSheets
+          showMobileSettings={showMobileSettings}
+          setShowMobileSettings={setShowMobileSettings}
+          showMobileNotifications={showMobileNotifications}
+          setShowMobileNotifications={setShowMobileNotifications}
+          showUserManagement={showUserManagement}
+          setShowUserManagement={setShowUserManagement}
+          showFolderMembers={showFolderMembers}
+          setShowFolderMembers={setShowFolderMembers}
+          selectedFolderForMembers={selectedFolderForMembers}
+          setSelectedFolderForMembers={setSelectedFolderForMembers}
+          showProjectMembers={showProjectMembers}
+          setShowProjectMembers={setShowProjectMembers}
+          selectedProjectForMembers={selectedProjectForMembers}
+          setSelectedProjectForMembers={setSelectedProjectForMembers}
+          user={user}
+          signOut={signOut}
+        />
         </div>
       ) : (
         <SidebarProvider style={{ "--sidebar-width": "6rem" } as React.CSSProperties} defaultOpen={true}>
@@ -2076,135 +2094,6 @@ function MobileLayout({
             </div>
           </div>
         )}
-      </div>
-    );
-  }
-  
-  // Level 3: Projekt-Ansicht mit Tabs
-  if (mobileLevel === 'project' && selectedProject) {
-    return (
-      <div className="h-full flex flex-col bg-background">
-        {/* Header mit X-Button */}
-        <div className="h-14 border-b border-border px-4 flex items-center justify-between bg-card">
-          {/* Links: X-Button (Schließen) + Projekt-Name */}
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <button 
-              onClick={() => {
-                setMobileLevel('projects');
-                setSelectedProjectId(null);
-              }}
-              className="p-2 hover:bg-accent rounded-lg transition-colors shrink-0"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h2 className="font-semibold text-sm truncate">
-              {selectedProject.title.length > 20 
-                ? selectedProject.title.substring(0, 20) + '...' 
-                : selectedProject.title}
-            </h2>
-          </div>
-          
-          {/* Rechts: Icons */}
-          <div className="flex items-center gap-2 shrink-0">
-            <button 
-              className="p-2 hover:bg-accent rounded-lg transition-colors"
-              title="Team-Mitglieder"
-            >
-              <Users className="w-5 h-5" />
-            </button>
-            <button 
-              className="p-2 hover:bg-accent rounded-lg transition-colors"
-              title="Projekt bearbeiten"
-            >
-              <Edit2 className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        <TrashDialog
-          open={showTrashDialog}
-          onClose={() => setShowTrashDialog(false)}
-          deletedProjects={deletedProjects}
-          deletedFolders={deletedFolders}
-          onRestoreProject={restoreProject}
-          onRestoreFolder={restoreFolder}
-          onPermanentDeleteProject={permanentlyDeleteProject}
-          onPermanentDeleteFolder={permanentlyDeleteFolder}
-        />
-
-        <DeletedItemsDialog
-          open={showDeletedItems}
-          onClose={() => setShowDeletedItems(false)}
-        />
-        
-        {/* View Content */}
-        <div className="flex-1 overflow-auto">
-          {view === "chat" ? (
-            <ChatView project={selectedProject} />
-          ) : view === "files" ? (
-            <FilesView project={selectedProject} />
-          ) : (
-            <DetailsView project={selectedProject} />
-          )}
-        </div>
-        
-        {/* Bottom Tab Bar */}
-        <div className="h-16 border-t border-border bg-card flex items-center justify-around px-4 relative">
-          <button
-            onClick={() => setView('chat')}
-            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors relative ${
-              view === 'chat' 
-                ? 'text-primary' 
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <MessageSquare className="w-5 h-5" />
-            <span className="text-xs font-medium">Chat</span>
-            {view === 'chat' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-12 bg-primary rounded-full" />}
-          </button>
-          
-          <button
-            onClick={() => setView('details')}
-            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors relative ${
-              view === 'details' 
-                ? 'text-primary' 
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Briefcase className="w-5 h-5" />
-            <span className="text-xs font-medium">Arbeitsbereich</span>
-            {view === 'details' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-12 bg-primary rounded-full" />}
-          </button>
-          
-          <button
-            onClick={() => setView('files')}
-            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors relative ${
-              view === 'files' 
-                ? 'text-primary' 
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <FolderOpen className="w-5 h-5" />
-            <span className="text-xs font-medium">Dateien</span>
-            {view === 'files' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-12 bg-primary rounded-full" />}
-          </button>
-        </div>
-        
-        {/* Mobile-spezifische Dialoge */}
-        <MobileSettingsSheet 
-          open={showMobileSettings} 
-          onClose={() => setShowMobileSettings(false)}
-          onSignOut={async () => {
-            await signOut();
-            toast({ title: "Abgemeldet", description: "Sie wurden erfolgreich abgemeldet." });
-          }}
-          userEmail={user?.email}
-        />
-
-        <MobileNotificationsSheet 
-          open={showMobileNotifications} 
-          onClose={() => setShowMobileNotifications(false)}
-        />
         
         {/* Sort Sheet */}
         <Sheet open={showSortSheet} onOpenChange={setShowSortSheet}>
@@ -2300,38 +2189,217 @@ function MobileLayout({
             </div>
           </SheetContent>
         </Sheet>
-        
-        <UserManagementDialog 
-          open={showUserManagement} 
-          onClose={() => setShowUserManagement(false)} 
+      </div>
+    );
+  }
+  
+  // Level 3: Projekt-Ansicht mit Tabs
+  if (mobileLevel === 'project' && selectedProject) {
+    return (
+      <div className="h-full flex flex-col bg-background">
+        {/* Header mit X-Button */}
+        <div className="h-14 border-b border-border px-4 flex items-center justify-between bg-card">
+          {/* Links: X-Button (Schließen) + Projekt-Name */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <button 
+              onClick={() => {
+                setMobileLevel('projects');
+                setSelectedProjectId(null);
+              }}
+              className="p-2 hover:bg-accent rounded-lg transition-colors shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="font-semibold text-sm truncate">
+              {selectedProject.title.length > 20 
+                ? selectedProject.title.substring(0, 20) + '...' 
+                : selectedProject.title}
+            </h2>
+          </div>
+          
+          {/* Rechts: Icons */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button 
+              onClick={() => {
+                setSelectedProjectForMembers(selectedProject?.id || null);
+                setShowProjectMembers(true);
+              }}
+              className="p-2 hover:bg-accent rounded-lg transition-colors"
+              title="Team-Mitglieder"
+            >
+              <Users className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => {
+                toast({ 
+                  title: "Projekt bearbeiten", 
+                  description: "Diese Funktion wird bald verfügbar sein." 
+                });
+              }}
+              className="p-2 hover:bg-accent rounded-lg transition-colors"
+              title="Projekt bearbeiten"
+            >
+              <Edit2 className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <TrashDialog
+          open={showTrashDialog}
+          onClose={() => setShowTrashDialog(false)}
+          deletedProjects={deletedProjects}
+          deletedFolders={deletedFolders}
+          onRestoreProject={restoreProject}
+          onRestoreFolder={restoreFolder}
+          onPermanentDeleteProject={permanentlyDeleteProject}
+          onPermanentDeleteFolder={permanentlyDeleteFolder}
+        />
+
+        <DeletedItemsDialog
+          open={showDeletedItems}
+          onClose={() => setShowDeletedItems(false)}
         />
         
-        {selectedFolderForMembers && (
-          <FolderMembersDialog 
-            folderId={selectedFolderForMembers} 
-            open={showFolderMembers} 
-            onClose={() => {
-              setShowFolderMembers(false);
-              setSelectedFolderForMembers(null);
-            }} 
-          />
-        )}
+        {/* View Content */}
+        <div className="flex-1 overflow-auto">
+          {view === "chat" ? (
+            <ChatView project={selectedProject} />
+          ) : view === "files" ? (
+            <FilesView project={selectedProject} />
+          ) : (
+            <DetailsView project={selectedProject} />
+          )}
+        </div>
         
-        {selectedProjectForMembers && (
-          <ProjectMembersDialog 
-            projectId={selectedProjectForMembers} 
-            open={showProjectMembers} 
-            onClose={() => {
-              setShowProjectMembers(false);
-              setSelectedProjectForMembers(null);
-            }} 
-          />
-        )}
+        {/* Bottom Tab Bar */}
+        <div className="h-16 border-t border-border bg-card flex items-center justify-around px-4 relative">
+          <button
+            onClick={() => setView('chat')}
+            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors relative ${
+              view === 'chat' 
+                ? 'text-primary' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <MessageSquare className="w-5 h-5" />
+            <span className="text-xs font-medium">Chat</span>
+            {view === 'chat' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-12 bg-primary rounded-full" />}
+          </button>
+          
+          <button
+            onClick={() => setView('details')}
+            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors relative ${
+              view === 'details' 
+                ? 'text-primary' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Briefcase className="w-5 h-5" />
+            <span className="text-xs font-medium">Arbeitsbereich</span>
+            {view === 'details' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-12 bg-primary rounded-full" />}
+          </button>
+          
+          <button
+            onClick={() => setView('files')}
+            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors relative ${
+              view === 'files' 
+                ? 'text-primary' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <FolderOpen className="w-5 h-5" />
+            <span className="text-xs font-medium">Dateien</span>
+            {view === 'files' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-12 bg-primary rounded-full" />}
+          </button>
+        </div>
       </div>
     );
   }
 
   return null;
+}
+
+// Globale Sheets für Mobile Layout (funktionieren in allen Levels)
+function MobileLayoutSheets({ 
+  showMobileSettings,
+  setShowMobileSettings,
+  showMobileNotifications,
+  setShowMobileNotifications,
+  showUserManagement,
+  setShowUserManagement,
+  showFolderMembers,
+  setShowFolderMembers,
+  selectedFolderForMembers,
+  setSelectedFolderForMembers,
+  showProjectMembers,
+  setShowProjectMembers,
+  selectedProjectForMembers,
+  setSelectedProjectForMembers,
+  user,
+  signOut
+}: {
+  showMobileSettings: boolean;
+  setShowMobileSettings: (show: boolean) => void;
+  showMobileNotifications: boolean;
+  setShowMobileNotifications: (show: boolean) => void;
+  showUserManagement: boolean;
+  setShowUserManagement: (show: boolean) => void;
+  showFolderMembers: boolean;
+  setShowFolderMembers: (show: boolean) => void;
+  selectedFolderForMembers: string | null;
+  setSelectedFolderForMembers: (id: string | null) => void;
+  showProjectMembers: boolean;
+  setShowProjectMembers: (show: boolean) => void;
+  selectedProjectForMembers: string | null;
+  setSelectedProjectForMembers: (id: string | null) => void;
+  user: any;
+  signOut: () => Promise<void>;
+}) {
+  return (
+    <>
+      <MobileSettingsSheet 
+        open={showMobileSettings} 
+        onClose={() => setShowMobileSettings(false)}
+        onSignOut={async () => {
+          await signOut();
+          toast({ title: "Abgemeldet", description: "Sie wurden erfolgreich abgemeldet." });
+        }}
+        userEmail={user?.email}
+      />
+
+      <MobileNotificationsSheet 
+        open={showMobileNotifications} 
+        onClose={() => setShowMobileNotifications(false)}
+      />
+      
+      <UserManagementDialog 
+        open={showUserManagement} 
+        onClose={() => setShowUserManagement(false)} 
+      />
+      
+      {selectedFolderForMembers && (
+        <FolderMembersDialog 
+          folderId={selectedFolderForMembers} 
+          open={showFolderMembers} 
+          onClose={() => {
+            setShowFolderMembers(false);
+            setSelectedFolderForMembers(null);
+          }} 
+        />
+      )}
+      
+      {selectedProjectForMembers && (
+        <ProjectMembersDialog 
+          projectId={selectedProjectForMembers} 
+          open={showProjectMembers} 
+          onClose={() => {
+            setShowProjectMembers(false);
+            setSelectedProjectForMembers(null);
+          }} 
+        />
+      )}
+    </>
+  );
 }
 
 function DashboardView({ 
