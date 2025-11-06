@@ -4,6 +4,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useFolders } from "@/hooks/useFolders";
 import { useProjects } from "@/hooks/useProjects";
 import { useDeletedProjects } from "@/hooks/useDeletedProjects";
+import { useDeletedFolders } from "@/hooks/useDeletedFolders";
 import { useMessages } from "@/hooks/useMessages";
 import { useProjectFiles } from "@/hooks/useProjectFiles";
 import { useProjectDirectories } from "@/hooks/useProjectDirectories";
@@ -194,6 +195,7 @@ export default function Index() {
   const { folders: dbFolders, isLoading: foldersLoading, createFolder: dbCreateFolder, deleteFolder: dbDeleteFolder, toggleArchive: dbToggleArchive } = useFolders();
   const { projects: dbProjects, isLoading: projectsLoading, createProject: dbCreateProject, deleteProject: dbDeleteProject, toggleArchive: dbToggleProjectArchive } = useProjects();
   const { deletedProjects, restoreProject, permanentlyDeleteProject } = useDeletedProjects();
+  const { deletedFolders, restoreFolder, permanentlyDeleteFolder } = useDeletedFolders();
   const { allDetails, getDetailsForProject } = useAllProjectDetails();
 
   // 🐛 DEBUG: Berechtigungen überwachen
@@ -781,8 +783,11 @@ export default function Index() {
         open={showTrashDialog}
         onClose={() => setShowTrashDialog(false)}
         deletedProjects={deletedProjects}
-        onRestore={restoreProject}
-        onPermanentDelete={permanentlyDeleteProject}
+        deletedFolders={deletedFolders}
+        onRestoreProject={restoreProject}
+        onPermanentDeleteProject={permanentlyDeleteProject}
+        onRestoreFolder={restoreFolder}
+        onPermanentDeleteFolder={permanentlyDeleteFolder}
       />
 
       {/* Dashboard Dialog */}
@@ -1197,6 +1202,7 @@ function MobileLayout({
   const [menuOpen, setMenuOpen] = useState(false);
   const { canAccessDashboard } = useUserRole();
   const { deletedProjects, restoreProject, permanentlyDeleteProject } = useDeletedProjects();
+  const { deletedFolders, restoreFolder, permanentlyDeleteFolder } = useDeletedFolders();
   const [showTrashDialog, setShowTrashDialog] = useState(false);
   
   // Level 1: Ordner-Liste
@@ -1275,8 +1281,11 @@ function MobileLayout({
           open={showTrashDialog}
           onClose={() => setShowTrashDialog(false)}
           deletedProjects={deletedProjects}
-          onRestore={restoreProject}
-          onPermanentDelete={permanentlyDeleteProject}
+          deletedFolders={deletedFolders}
+          onRestoreProject={restoreProject}
+          onPermanentDeleteProject={permanentlyDeleteProject}
+          onRestoreFolder={restoreFolder}
+          onPermanentDeleteFolder={permanentlyDeleteFolder}
         />
 
         {search.trim() ? (
@@ -1487,8 +1496,11 @@ function MobileLayout({
           open={showTrashDialog}
           onClose={() => setShowTrashDialog(false)}
           deletedProjects={deletedProjects}
-          onRestore={restoreProject}
-          onPermanentDelete={permanentlyDeleteProject}
+          deletedFolders={deletedFolders}
+          onRestoreProject={restoreProject}
+          onPermanentDeleteProject={permanentlyDeleteProject}
+          onRestoreFolder={restoreFolder}
+          onPermanentDeleteFolder={permanentlyDeleteFolder}
         />
         
         {/* View Content */}
