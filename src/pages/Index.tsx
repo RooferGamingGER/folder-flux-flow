@@ -61,6 +61,8 @@ import { FullDashboard } from "@/components/FullDashboard";
 import { FullCalendar } from "@/components/FullCalendar";
 import { TrashDialog } from "@/components/TrashDialog";
 import { DeletedItemsDialog } from "@/components/DeletedItemsDialog";
+import { MobileSettingsSheet } from "@/components/MobileSettingsSheet";
+import { MobileNotificationsSheet } from "@/components/MobileNotificationsSheet";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
 
@@ -244,6 +246,13 @@ export default function Index() {
   const isMobile = useIsMobile();
   const [mobileLevel, setMobileLevel] = useState<'folders' | 'projects' | 'project'>('folders');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Mobile Settings & Notifications
+  const [showMobileSettings, setShowMobileSettings] = useState(false);
+  const [showMobileNotifications, setShowMobileNotifications] = useState(false);
+  
+  // FAB Menu für Mobile
+  const [mobileFabOpen, setMobileFabOpen] = useState(false);
   
   // Details sidebar toggle
   const [showDetailsSidebar, setShowDetailsSidebar] = useState(true);
@@ -449,7 +458,9 @@ export default function Index() {
 
   return (
     <div className="h-screen w-full bg-background text-foreground">
-      <header className="h-14 border-b border-border bg-card flex items-center pl-28 pr-4 gap-3 shadow-sm">
+      {/* Header - NUR auf Desktop */}
+      {!isMobile && (
+        <header className="h-14 border-b border-border bg-card flex items-center pl-28 pr-4 gap-3 shadow-sm">
         <div className="flex items-center gap-3 min-w-[180px]">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">🏗️</div>
           <div className="text-base font-semibold">Aktuelle Baustellen</div>
@@ -514,6 +525,7 @@ export default function Index() {
           </button>
         </div>
       </header>
+      )}
 
       {isMobile ? (
         <div className="h-[calc(100vh-56px)]">
@@ -534,6 +546,18 @@ export default function Index() {
             setSearch={setSearch}
             onDashboardClick={() => setShowDashboardDialog(true)}
             onCalendarClick={() => setShowCalendarDialog(true)}
+            showFolderDlg={showFolderDlg}
+            setShowFolderDlg={setShowFolderDlg}
+            folderName={folderName}
+            setFolderName={setFolderName}
+            showProjectDlg={showProjectDlg}
+            setShowProjectDlg={setShowProjectDlg}
+            projectTitle={projectTitle}
+            setProjectTitle={setProjectTitle}
+            projectFolderId={projectFolderId}
+            setProjectFolderId={setProjectFolderId}
+            createFolder={createFolder}
+            createProject={createProject}
           />
         </div>
       ) : (
@@ -1314,6 +1338,18 @@ function MobileLayout({
   setSearch: (search: string) => void;
   onDashboardClick: () => void;
   onCalendarClick: () => void;
+  showFolderDlg: boolean;
+  setShowFolderDlg: (show: boolean) => void;
+  folderName: string;
+  setFolderName: (name: string) => void;
+  showProjectDlg: boolean;
+  setShowProjectDlg: (show: boolean) => void;
+  projectTitle: string;
+  setProjectTitle: (title: string) => void;
+  projectFolderId: string;
+  setProjectFolderId: (id: string) => void;
+  createFolder: () => void;
+  createProject: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { canAccessDashboard, hasFullAccess, canManageProjects } = useUserRole();
@@ -1321,6 +1357,33 @@ function MobileLayout({
   const { deletedFolders, restoreFolder, permanentlyDeleteFolder } = useDeletedFolders();
   const [showTrashDialog, setShowTrashDialog] = useState(false);
   const [showDeletedItems, setShowDeletedItems] = useState(false);
+  
+  // Mobile Settings & Notifications
+  const [showMobileSettings, setShowMobileSettings] = useState(false);
+  const [showMobileNotifications, setShowMobileNotifications] = useState(false);
+  const [mobileFabOpen, setMobileFabOpen] = useState(false);
+  const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showFolderMembers, setShowFolderMembers] = useState(false);
+  const [showProjectMembers, setShowProjectMembers] = useState(false);
+  const [selectedFolderForMembers, setSelectedFolderForMembers] = useState<string | null>(null);
+  const [selectedProjectForMembers, setSelectedProjectForMembers] = useState<string | null>(null);
+  
+  // Get user and signOut from auth
+  const { user, signOut } = useAuth();
+  
+  // Helper functions to open dialogs
+  const openFolderDialog = () => {
+    setShowFolderDlg(true);
+  };
+  
+  const openProjectDialog = () => {
+    if (folders.length === 0) {
+      toast({ title: "Kein Ordner", description: "Bitte erst einen Ordner erstellen." });
+      return;
+    }
+    setProjectFolderId(selectedFolder?.id || folders[0]?.id || '');
+    setShowProjectDlg(true);
+  };
   
   // Level 1: Ordner-Liste
   if (mobileLevel === 'folders') {
@@ -1419,13 +1482,26 @@ function MobileLayout({
           
           {/* Rechts: Icons */}
           <div className="flex items-center gap-2">
-            <button className="p-2 hover:bg-accent rounded-lg transition-colors" title="Team">
+            <button 
+              onClick={() => setShowUserManagement(true)}
+              className="p-2 hover:bg-accent rounded-lg transition-colors" 
+              title="Team"
+            >
               <Users className="w-5 h-5" />
             </button>
-            <button className="p-2 hover:bg-accent rounded-lg transition-colors relative" title="Benachrichtigungen">
+            <button 
+              onClick={() => setShowMobileNotifications(true)}
+              className="p-2 hover:bg-accent rounded-lg transition-colors relative" 
+              title="Benachrichtigungen"
+            >
               <Bell className="w-5 h-5" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
             </button>
-            <button className="p-2 hover:bg-accent rounded-lg transition-colors" title="Einstellungen">
+            <button 
+              onClick={() => setShowMobileSettings(true)}
+              className="p-2 hover:bg-accent rounded-lg transition-colors" 
+              title="Einstellungen"
+            >
               <Settings className="w-5 h-5" />
             </button>
           </div>
@@ -1554,6 +1630,49 @@ function MobileLayout({
             </div>
           </>
         )}
+        
+        {/* FAB Button für Level 1 */}
+        {canManageProjects && (
+          <div className="fixed right-4 bottom-4 z-50">
+            <div className="relative">
+              {mobileFabOpen && (
+                <div className="absolute bottom-16 right-0 w-60 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1 z-20">
+                  <button 
+                    onClick={() => { 
+                      openFolderDialog(); 
+                      setMobileFabOpen(false); 
+                    }} 
+                    className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors"
+                  >
+                    📁 Neuen Ordner erstellen
+                  </button>
+                  <button 
+                    onClick={() => { 
+                      openProjectDialog(); 
+                      setMobileFabOpen(false); 
+                    }} 
+                    className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+                    disabled={folders.length === 0}
+                  >
+                    🏗️ Neues Projekt anlegen
+                  </button>
+                  {folders.length === 0 && (
+                    <div className="px-4 pb-1 text-xs text-muted-foreground">
+                      Erst einen Ordner anlegen
+                    </div>
+                  )}
+                </div>
+              )}
+              <button 
+                onClick={() => setMobileFabOpen((v) => !v)} 
+                className="w-14 h-14 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground text-2xl shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95" 
+                title="Neu"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1583,13 +1702,20 @@ function MobileLayout({
           {/* Rechts: Icons */}
           <div className="flex items-center gap-2 shrink-0">
             <button 
-              className="p-2 hover:bg-accent rounded-lg transition-colors"
+              onClick={() => {
+                setSelectedFolderForMembers(selectedFolder?.id || null); 
+                setShowFolderMembers(true);
+              }}
+              className="p-2 hover:bg-accent rounded-lg transition-colors" 
               title="Team-Mitglieder"
             >
               <Users className="w-5 h-5" />
             </button>
             <button 
-              className="p-2 hover:bg-accent rounded-lg transition-colors"
+              onClick={() => {
+                toast({ title: "Ordner bearbeiten", description: "Diese Funktion wird bald verfügbar sein." });
+              }}
+              className="p-2 hover:bg-accent rounded-lg transition-colors" 
               title="Ordner bearbeiten"
             >
               <Edit2 className="w-5 h-5" />
@@ -1693,21 +1819,53 @@ function MobileLayout({
           )}
         </div>
         
-        {/* FAB Button */}
+        {/* FAB Button für Level 2 */}
         {canManageProjects && (
-          <div className="fixed right-4 bottom-20 z-50">
-            <button 
-              onClick={() => {
-                toast({
-                  title: "Neues Projekt",
-                  description: "Diese Funktion wird bald verfügbar sein.",
-                });
-              }}
-              className="w-14 h-14 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground text-2xl shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95" 
-              title="Neues Projekt"
-            >
-              +
-            </button>
+          <div className="fixed right-4 bottom-4 z-50">
+            <div className="relative">
+              {mobileFabOpen && (
+                <div className="absolute bottom-16 right-0 w-60 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1 z-20">
+                  <button 
+                    onClick={() => { 
+                      openFolderDialog(); 
+                      setMobileFabOpen(false); 
+                    }} 
+                    className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors"
+                  >
+                    📁 Neuen Ordner erstellen
+                  </button>
+                  <button 
+                    onClick={() => { 
+                      openProjectDialog(); 
+                      setMobileFabOpen(false); 
+                    }} 
+                    className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors"
+                  >
+                    🏗️ Neues Projekt anlegen
+                  </button>
+                  {selectedFolder && (
+                  <button 
+                    onClick={() => { 
+                      setSelectedFolderForMembers(selectedFolder?.id || null); 
+                      setShowFolderMembers(true); 
+                      setMobileFabOpen(false); 
+                    }}
+                      className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors border-t border-border"
+                    >
+                      <Users className="w-4 h-4 inline mr-2" />
+                      Ordner-Mitglieder
+                    </button>
+                  )}
+                </div>
+              )}
+              <button 
+                onClick={() => setMobileFabOpen((v) => !v)} 
+                className="w-14 h-14 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground text-2xl shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95" 
+                title="Neu"
+              >
+                +
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -1823,10 +1981,53 @@ function MobileLayout({
             {view === 'files' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-12 bg-primary rounded-full" />}
           </button>
         </div>
+        
+        {/* Mobile-spezifische Dialoge */}
+        <MobileSettingsSheet 
+          open={showMobileSettings} 
+          onClose={() => setShowMobileSettings(false)}
+          onSignOut={async () => {
+            await signOut();
+            toast({ title: "Abgemeldet", description: "Sie wurden erfolgreich abgemeldet." });
+          }}
+          userEmail={user?.email}
+        />
+
+        <MobileNotificationsSheet 
+          open={showMobileNotifications} 
+          onClose={() => setShowMobileNotifications(false)}
+        />
+        
+        <UserManagementDialog 
+          open={showUserManagement} 
+          onClose={() => setShowUserManagement(false)} 
+        />
+        
+        {selectedFolderForMembers && (
+          <FolderMembersDialog 
+            folderId={selectedFolderForMembers} 
+            open={showFolderMembers} 
+            onClose={() => {
+              setShowFolderMembers(false);
+              setSelectedFolderForMembers(null);
+            }} 
+          />
+        )}
+        
+        {selectedProjectForMembers && (
+          <ProjectMembersDialog 
+            projectId={selectedProjectForMembers} 
+            open={showProjectMembers} 
+            onClose={() => {
+              setShowProjectMembers(false);
+              setSelectedProjectForMembers(null);
+            }} 
+          />
+        )}
       </div>
     );
   }
-  
+
   return null;
 }
 
