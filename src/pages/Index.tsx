@@ -441,7 +441,7 @@ export default function Index() {
 
   return (
     <div className="h-screen w-full bg-background text-foreground">
-      <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-3 shadow-sm">
+      <header className="h-14 border-b border-border bg-card flex items-center pl-28 pr-4 gap-3 shadow-sm">
         <div className="flex items-center gap-3 min-w-[180px]">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">🏗️</div>
           <div className="text-base font-semibold">Aktuelle Baustellen</div>
@@ -564,7 +564,7 @@ export default function Index() {
                     {/* Aktive Ordner */}
                     {folders.filter(f => !f.archived).length > 0 && (
                       <div>
-                        <div className="px-4 py-3 text-sm font-bold text-foreground uppercase tracking-wide bg-muted sticky top-0 z-10 border-b border-border">
+                        <div className="px-2 py-3 text-sm font-bold text-foreground uppercase tracking-wide bg-muted sticky top-0 z-10 border-b border-border">
                           Aktive Ordner
                         </div>
                         {folders.filter(f => !f.archived).map((f) => (
@@ -576,7 +576,7 @@ export default function Index() {
                     {/* Archivierte Ordner (nur wenn showArchived aktiv) */}
                     {showArchived && folders.filter(f => f.archived).length > 0 && (
                       <div className="mt-8">
-                        <div className="px-4 py-3 text-sm font-bold text-foreground uppercase tracking-wide bg-amber-50 dark:bg-amber-950/20 sticky top-0 z-10 border-b border-amber-200 dark:border-amber-800">
+                        <div className="px-2 py-3 text-sm font-bold text-foreground uppercase tracking-wide bg-amber-50 dark:bg-amber-950/20 sticky top-0 z-10 border-b border-amber-200 dark:border-amber-800">
                           📦 Archivierte Ordner
                         </div>
                         {folders.filter(f => f.archived).map((f) => (
@@ -1860,7 +1860,7 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
   
   return (
     <div>
-      <div className="sticky top-0 z-10 bg-card px-4 py-3 text-sm font-semibold border-b border-border flex items-center gap-2 group">
+      <div className="sticky top-0 z-10 bg-card px-2 py-3 text-sm font-semibold border-b border-border flex items-center gap-2 group">
         <button className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors flex-1 min-w-0 ${selectedFolderId === f.id ? "bg-card shadow-sm" : "hover:bg-card/50"}`} onClick={() => { setSelectedFolderId(f.id); setSelectedProjectId(null); }}>
           <span className="truncate">
             📁 {f.name}{f.archived ? " (Archiv)" : ""}
