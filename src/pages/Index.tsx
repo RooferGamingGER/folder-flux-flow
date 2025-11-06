@@ -532,12 +532,11 @@ export default function Index() {
         <SidebarProvider style={{ "--sidebar-width": "6rem" } as React.CSSProperties} defaultOpen={false}>
           <div className="h-[calc(100vh-56px)] flex w-full">
             {/* App Sidebar (Icon-only sidebar) */}
-            {canAccessDashboard && (
-              <AppSidebar 
-                onDashboardClick={() => setShowDashboardDialog(true)}
-                onCalendarClick={() => setShowCalendarDialog(true)}
-              />
-            )}
+        <AppSidebar 
+          onDashboardClick={() => setShowDashboardDialog(true)}
+          onCalendarClick={() => setShowCalendarDialog(true)}
+          canAccessDashboard={canAccessDashboard}
+        />
 
             {/* Main Grid Layout */}
             <div className={cn(
