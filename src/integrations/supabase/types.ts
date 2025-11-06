@@ -374,6 +374,35 @@ export type Database = {
           },
         ]
       }
+      project_exclusions: {
+        Row: {
+          excluded_at: string | null
+          id: string
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          excluded_at?: string | null
+          id?: string
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          excluded_at?: string | null
+          id?: string
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_exclusions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_files: {
         Row: {
           created_by: string | null

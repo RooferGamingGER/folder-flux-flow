@@ -30,7 +30,7 @@ export function ProjectMembersDialog({
 
   const canManage = canManageProjects;
   const isMember = members.some(m => m.user_id === user?.id);
-  const canLeave = isMember && accessInfo?.canLeave;
+  const canLeave = accessInfo?.canLeave;
 
   const memberIds = new Set(members.map(m => m.user_id));
   const availableUsers = orgUsers.filter(u => !memberIds.has(u.user_id));
@@ -121,7 +121,13 @@ export function ProjectMembersDialog({
 
           {canLeave && (
             <div className="border-t pt-4 space-y-2">
-              {accessInfo?.hasFolderAccess && (
+              {accessInfo?.hasFolderAccess && !isMember && (
+                <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-2 rounded border border-blue-200 dark:border-blue-800">
+                  ℹ️ <strong>Hinweis:</strong> Du hast Zugriff über den Ordner. 
+                  Das Projekt wird aus deiner Ansicht entfernt, bleibt aber über den Ordner verfügbar.
+                </div>
+              )}
+              {accessInfo?.hasFolderAccess && isMember && (
                 <div className="text-xs text-muted-foreground bg-yellow-50 dark:bg-yellow-950 p-2 rounded border border-yellow-200 dark:border-yellow-800">
                   ℹ️ <strong>Hinweis:</strong> Nach dem Verlassen hast du weiterhin Zugriff über den zugeordneten Ordner.
                 </div>
@@ -132,7 +138,7 @@ export function ProjectMembersDialog({
                 onClick={handleLeave}
               >
                 <LogOut className="w-4 h-4 mr-2" />
-                Projekt verlassen
+                {isMember ? 'Projekt verlassen' : 'Projekt ausblenden'}
               </Button>
             </div>
           )}

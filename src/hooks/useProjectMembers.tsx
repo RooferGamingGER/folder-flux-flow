@@ -154,13 +154,36 @@ export function useProjectMembers(projectId?: string) {
     mutationFn: async () => {
       if (!projectId || !user) throw new Error('Keine Projekt-ID oder User');
 
-      const { error } = await supabase
+      // Prüfen ob User direktes Mitglied ist
+      const { data: memberData } = await supabase
         .from('project_members')
-        .delete()
+        .select('id')
         .eq('project_id', projectId)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      const isMember = !!memberData;
+      
+      if (isMember) {
+        // Direktes Mitglied: Aus project_members entfernen
+        const { error } = await supabase
+          .from('project_members')
+          .delete()
+          .eq('project_id', projectId)
+          .eq('user_id', user.id);
+        
+        if (error) throw error;
+      } else {
+        // Nur Ordner-Zugriff: In project_exclusions eintragen
+        const { error } = await supabase
+          .from('project_exclusions')
+          .insert({
+            project_id: projectId,
+            user_id: user.id,
+          });
+        
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-members'] });
