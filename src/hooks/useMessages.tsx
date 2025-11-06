@@ -94,9 +94,30 @@ export function useMessages(projectId?: string) {
     },
   });
 
+  const deleteMessage = useMutation({
+    mutationFn: async (messageId: string) => {
+      if (!user) throw new Error('Not authenticated');
+      
+      const { error } = await supabase
+        .from('messages')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', messageId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages', projectId] });
+    },
+    onError: (error: any) => {
+      console.error('Delete message error:', error);
+    },
+  });
+
   return {
     messages,
     isLoading,
     sendMessage: sendMessage.mutate,
+    deleteMessage: deleteMessage.mutate,
+    isDeleting: deleteMessage.isPending,
   };
 }

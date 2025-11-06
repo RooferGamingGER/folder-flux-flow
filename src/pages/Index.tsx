@@ -1,8 +1,10 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback, memo } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useFolders } from "@/hooks/useFolders";
 import { useProjects } from "@/hooks/useProjects";
 import { useDeletedProjects } from "@/hooks/useDeletedProjects";
+import { useDeletedFolders } from "@/hooks/useDeletedFolders";
 import { useMessages } from "@/hooks/useMessages";
 import { useProjectFiles } from "@/hooks/useProjectFiles";
 import { useProjectDirectories } from "@/hooks/useProjectDirectories";
@@ -10,6 +12,9 @@ import { useProjectDetails, ProjectDetailsData } from "@/hooks/useProjectDetails
 import { useAllProjectDetails } from "@/hooks/useAllProjectDetails";
 import { useNotes } from "@/hooks/useNotes";
 import { useContacts } from "@/hooks/useContacts";
+import { useProjectMembers } from "@/hooks/useProjectMembers";
+import { useFolderMembers } from "@/hooks/useFolderMembers";
+import { useOrganizationUsers } from "@/hooks/useOrganizationUsers";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
@@ -19,10 +24,33 @@ import { exportProjectsToExcel, exportProjectToWord, exportProjectAsZip } from "
 import { PROJECT_STATUS_OPTIONS, STATUS_COLORS } from "@/lib/constants";
 import { format, isSameMonth, isSameDay } from "date-fns";
 import { de } from "date-fns/locale";
+import { UserManagementDialog } from "@/components/UserManagementDialog";
+import { ProjectMembersDialog } from "@/components/ProjectMembersDialog";
+import { FolderMembersDialog } from "@/components/FolderMembersDialog";
+import { UserRoleBadge } from "@/components/UserRoleBadge";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
-  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive 
+  Download, ArrowUpDown, Filter, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder
 } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button as ShadcnButton } from "@/components/ui/button";
+import { UPLOAD_LIMITS, formatFileSize, validateFileSize } from "@/lib/uploadConfig";
+import { FullDashboard } from "@/components/FullDashboard";
+import { FullCalendar } from "@/components/FullCalendar";
+import { TrashDialog } from "@/components/TrashDialog";
+import { DeletedItemsDialog } from "@/components/DeletedItemsDialog";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
 
@@ -143,6 +171,7 @@ type ProjectDetails = {
 type Project = {
   id: string;
   title: string;
+  user_id?: string;
   created_at?: string;
   auftragsnummer?: string;
   projektstatus?: string;
@@ -156,25 +185,53 @@ type Project = {
 type Folder = {
   id: string;
   name: string;
+  user_id: string;
   archived: boolean;
   projects: Project[];
 };
 
 export default function Index() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const { role, isAdmin, canManageProjects, canViewProjectContent, hasFullAccess, canAccessDashboard, loading: roleLoading } = useUserRole();
   const { folders: dbFolders, isLoading: foldersLoading, createFolder: dbCreateFolder, deleteFolder: dbDeleteFolder, toggleArchive: dbToggleArchive } = useFolders();
   const { projects: dbProjects, isLoading: projectsLoading, createProject: dbCreateProject, deleteProject: dbDeleteProject, toggleArchive: dbToggleProjectArchive } = useProjects();
   const { deletedProjects, restoreProject, permanentlyDeleteProject } = useDeletedProjects();
+  const { deletedFolders, restoreFolder, permanentlyDeleteFolder } = useDeletedFolders();
   const { allDetails, getDetailsForProject } = useAllProjectDetails();
+
+  // 🐛 DEBUG: Berechtigungen überwachen
+  useEffect(() => {
+    console.log('🎯 [Index] Current permissions:', {
+      role,
+      hasFullAccess,
+      canManageProjects,
+      roleLoading,
+      userId: user?.id
+    });
+  }, [role, hasFullAccess, canManageProjects, roleLoading, user]);
   
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [fabOpen, setFabOpen] = useState(false);
-  const [view, setView] = useState<"chat" | "files" | "details" | "trash" | "dashboard" | "calendar">("chat");
+  const [view, setView] = useState<"chat" | "files" | "details">("chat");
+  const [showTrashDialog, setShowTrashDialog] = useState(false);
+  const [showDeletedItems, setShowDeletedItems] = useState(false);
+  
+  // User management dialogs
+  const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showProjectMembers, setShowProjectMembers] = useState(false);
+  const [showFolderMembers, setShowFolderMembers] = useState(false);
+  const [selectedFolderForMembers, setSelectedFolderForMembers] = useState<string | null>(null);
+  
+  // Dashboard & Calendar Dialog states
+  const [showDashboardDialog, setShowDashboardDialog] = useState(false);
+  const [showCalendarDialog, setShowCalendarDialog] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   
   // Mobile states
   const isMobile = useIsMobile();
   const [mobileLevel, setMobileLevel] = useState<'folders' | 'projects' | 'project'>('folders');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [showFolderDlg, setShowFolderDlg] = useState(false);
   const [showProjectDlg, setShowProjectDlg] = useState(false);
@@ -249,6 +306,7 @@ export default function Index() {
       return {
         id: folder.id,
         name: folder.name,
+        user_id: folder.user_id,
         archived: folder.archived,
         projects: projectsList,
       };
@@ -328,6 +386,7 @@ export default function Index() {
     if (!project) return;
     dbToggleProjectArchive({ id: projectId, archived: project.archived });
   };
+  
   const openMoveProject = (folderId: string, projectId: string) => {
     setMoveDlg({ folderId, projectId, targetId: folders.find((f) => f.id !== folderId && !f.archived)?.id || "" });
   };
@@ -380,19 +439,64 @@ export default function Index() {
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">🏗️</div>
           <div className="text-base font-semibold">Aktuelle Baustellen</div>
         </div>
-        <div className="ml-auto flex items-center gap-4">
+        <div className="ml-auto flex items-center gap-3">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Projekte suchen…"
-            className="w-56 md:w-72 bg-secondary rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all"
+            className="w-40 md:w-56 lg:w-72 bg-secondary rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all"
           />
-          {!isMobile && (
+          {!isMobile && hasFullAccess && (
             <label className="text-sm flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="accent-primary" /> 
               <span className="text-muted-foreground">Archiv anzeigen</span>
             </label>
           )}
+          
+          {hasFullAccess && (
+            <>
+              <button
+                onClick={() => setShowTrashDialog(true)}
+                className="px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors flex items-center gap-2 text-sm font-medium"
+                title="Papierkorb"
+              >
+                <Trash2 className="w-4 h-4" />
+                {!isMobile && deletedProjects.length > 0 && <span>({deletedProjects.length})</span>}
+              </button>
+              <button
+                onClick={() => setShowDeletedItems(true)}
+                className="px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors flex items-center gap-2 text-sm font-medium"
+                title="Gelöschte Inhalte"
+              >
+                <RotateCcw className="w-4 h-4" />
+                {!isMobile && <span>Gelöschte Inhalte</span>}
+              </button>
+            </>
+          )}
+          
+          <UserRoleBadge />
+          {isAdmin && (
+            <button
+              onClick={() => setShowUserManagement(true)}
+              className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center gap-2 text-sm font-medium"
+              title="Benutzerverwaltung"
+            >
+              <Users className="w-4 h-4" />
+              {!isMobile && <span>Benutzer</span>}
+            </button>
+          )}
+          
+          <button
+            onClick={async () => {
+              await signOut();
+              toast({ title: "Abgemeldet", description: "Sie wurden erfolgreich abgemeldet." });
+            }}
+            className="px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors flex items-center gap-2 text-sm font-medium"
+            title="Abmelden"
+          >
+            <LogOut className="w-4 h-4" />
+            {!isMobile && <span>Abmelden</span>}
+          </button>
         </div>
       </header>
 
@@ -418,89 +522,70 @@ export default function Index() {
       ) : (
         <div className="h-[calc(100vh-56px)] grid grid-cols-1 md:grid-cols-[320px_1fr] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
         <aside className="border-r border-border bg-sidebar relative overflow-hidden flex flex-col">
-          {/* Navigation Tabs */}
-          <div className="flex border-b border-border bg-card overflow-x-auto">
-            <button 
-              onClick={() => { setView('dashboard'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-              className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${view === 'dashboard' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-            >
-              📊 Dashboard
-            </button>
-            <button 
-              onClick={() => { setView('calendar'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-              className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${view === 'calendar' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-            >
-              📅 Kalender
-            </button>
-            <button 
-              onClick={() => { setView('chat'); setSelectedProjectId(null); }}
-              className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${view === 'trash' || view === 'dashboard' || view === 'calendar' ? 'border-transparent text-muted-foreground hover:text-foreground' : 'border-primary text-foreground'}`}
-            >
-              📁 Projekte
-            </button>
-            <button 
-              onClick={() => { setView('trash'); setSelectedProjectId(null); setSelectedFolderId(null); }}
-              className={`flex-1 px-3 py-3 text-xs md:text-sm font-medium transition-colors border-b-2 flex items-center justify-center gap-2 whitespace-nowrap ${view === 'trash' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-            >
-              <Trash2 className="w-4 h-4" />
-              Papierkorb {deletedProjects.length > 0 && `(${deletedProjects.length})`}
-            </button>
-          </div>
-
-          {/* Sort/Filter Bar (nur bei Projekten) */}
-          {view !== 'trash' && view !== 'dashboard' && view !== 'calendar' && (
-            <div className="px-3 py-2 border-b border-border bg-card space-y-2">
-              <div className="flex gap-2">
-                <select 
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
-                >
-                  <option value="created_at">Datum</option>
-                  <option value="title">Titel</option>
-                  <option value="auftragsnummer">Auftragsnummer</option>
-                  <option value="projektstatus">Status</option>
-                </select>
-                <button 
-                  onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
-                  className="px-2 py-1.5 bg-secondary border border-border rounded-md hover:bg-accent transition-colors"
-                  title={sortOrder === 'asc' ? 'Aufsteigend' : 'Absteigend'}
-                >
-                  <ArrowUpDown className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <select 
-                  value={filterStatus || ''}
-                  onChange={(e) => setFilterStatus(e.target.value || null)}
-                  className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
-                >
-                  <option value="">Alle Status</option>
-                  {PROJECT_STATUS_OPTIONS.map(status => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </select>
-                {filterStatus && (
-                  <button 
-                    onClick={() => setFilterStatus(null)}
-                    className="px-2 py-1.5 bg-secondary border border-border rounded-md hover:bg-accent transition-colors"
-                    title="Filter zurücksetzen"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+          {/* Dashboard & Calendar Buttons */}
+          {canAccessDashboard && (
+            <div className="border-b border-border p-3 bg-card flex gap-2">
+              <button
+                onClick={() => setShowDashboardDialog(true)}
+                className="flex-1 px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center justify-center gap-2"
+              >
+                📊 Dashboard
+              </button>
+              <button
+                onClick={() => setShowCalendarDialog(true)}
+                className="flex-1 px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center justify-center gap-2"
+              >
+                📅 Kalender
+              </button>
             </div>
           )}
+
+          {/* Sort/Filter Bar */}
+          <div className="px-3 py-2 border-b border-border bg-card space-y-2">
+            <div className="flex gap-2">
+              <select 
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="created_at">Datum</option>
+                <option value="title">Titel</option>
+                <option value="auftragsnummer">Auftragsnummer</option>
+                <option value="projektstatus">Status</option>
+              </select>
+              <button 
+                onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
+                className="px-2 py-1.5 bg-secondary border border-border rounded-md hover:bg-accent transition-colors"
+                title={sortOrder === 'asc' ? 'Aufsteigend' : 'Absteigend'}
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <select 
+                value={filterStatus || ''}
+                onChange={(e) => setFilterStatus(e.target.value || null)}
+                className="flex-1 text-xs px-2 py-1.5 bg-secondary border border-border rounded-md outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">Alle Status</option>
+                {PROJECT_STATUS_OPTIONS.map(status => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+              {filterStatus && (
+                <button 
+                  onClick={() => setFilterStatus(null)}
+                  className="px-2 py-1.5 bg-secondary border border-border rounded-md hover:bg-accent transition-colors"
+                  title="Filter zurücksetzen"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
           
           <div className="flex-1 overflow-auto">
-            {view === 'trash' ? (
-              <TrashView 
-                deletedProjects={deletedProjects}
-                onRestore={restoreProject}
-                onPermanentDelete={permanentlyDeleteProject}
-              />
-            ) : isLoading ? (
+            {isLoading ? (
               <div className="p-4 space-y-4">
                 <Skeleton className="h-12 w-full" />
                 <Skeleton className="h-12 w-full" />
@@ -515,63 +600,89 @@ export default function Index() {
             ) : (
               <div className="pb-20">
                 {folders.filter((f) => showArchived || !f.archived).map((f) => (
-                  <FolderBlock key={f.id} f={f} selectedFolderId={selectedFolderId} selectedProjectId={selectedProjectId} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} showArchived={showArchived} onDelete={deleteFolder} onArchiveToggle={toggleArchiveFolder} onMoveProject={openMoveProject} onDeleteProject={deleteProject} onArchiveProject={toggleArchiveProject} />
+                  <FolderBlock key={f.id} f={f} selectedFolderId={selectedFolderId} selectedProjectId={selectedProjectId} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} showArchived={showArchived} onDelete={deleteFolder} onArchiveToggle={toggleArchiveFolder} onMoveProject={openMoveProject} onDeleteProject={deleteProject} onArchiveProject={toggleArchiveProject} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
                 ))}
               </div>
             )}
           </div>
 
-          <div className="absolute right-4 bottom-4">
-            <div className="relative">
-              {fabOpen && (
-                <div className="absolute bottom-16 right-0 w-60 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1 z-20">
-                  <button onClick={openFolderDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
-                    📁 Neuen Ordner erstellen
-                  </button>
-                  <button onClick={openProjectDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={folders.length === 0}>
-                    🏗️ Neues Projekt anlegen
-                  </button>
-                  {folders.length === 0 && (<div className="px-4 pb-1 text-xs text-muted-foreground">Erst einen Ordner anlegen</div>)}
-                </div>
-              )}
-              <button onClick={() => setFabOpen((v) => !v)} className="w-14 h-14 rounded-full bg-primary hover:bg-primary-hover text-primary-foreground text-2xl shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95" title="Neu">
-                +
-              </button>
+          {canManageProjects && (
+            <div className="absolute right-4 bottom-4">
+              <div className="relative">
+                {fabOpen && (
+                  <div className="absolute bottom-16 right-0 w-60 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1 z-20">
+                    <button onClick={openFolderDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
+                      📁 Neuen Ordner erstellen
+                    </button>
+                    <button onClick={openProjectDialog} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={folders.length === 0}>
+                      🏗️ Neues Projekt anlegen
+                    </button>
+                    {folders.length === 0 && (<div className="px-4 pb-1 text-xs text-muted-foreground">Erst einen Ordner anlegen</div>)}
+                    
+                    {selectedProject && (
+                      <button onClick={() => { setShowProjectMembers(true); setFabOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors border-t border-border">
+                        <UserPlus className="w-4 h-4 inline mr-2" />
+                        Projekt-Mitglieder
+                      </button>
+                    )}
+                    {selectedFolder && (
+                      <button onClick={() => { setSelectedFolderForMembers(selectedFolderId); setShowFolderMembers(true); setFabOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
+                        <Users className="w-4 h-4 inline mr-2" />
+                        Ordner-Mitglieder
+                      </button>
+                    )}
+                  </div>
+                )}
+                <button onClick={() => setFabOpen((v) => !v)} className="w-14 h-14 rounded-full bg-primary hover:bg-primary-hover text-primary-foreground text-2xl shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95" title="Neu">
+                  +
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </aside>
 
         <main className="relative overflow-hidden bg-background">
-          <div className="h-14 border-b border-border px-6 flex items-center justify-between bg-card shadow-sm">
-            <h2 className="font-semibold text-lg truncate">
-              {selectedProject ? selectedProject.title : selectedFolder ? selectedFolder.name : "–"}
-            </h2>
-            <div className="flex items-center gap-2">
-              {selectedProject && (
-                <>
-                  <button
-                    onClick={() => setShowExportDlg(true)}
-                    className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Export
-                  </button>
-                  <div className="hidden sm:flex items-center gap-2 text-sm">
-                    <HeaderBtn label="💬 Chat" active={view === "chat"} onClick={() => setView("chat")} />
-                    <HeaderBtn label="📁 Dateien" active={view === "files"} onClick={() => setView("files")} />
-                    <HeaderBtn label="📋 Details" active={view === "details"} onClick={() => setView("details")} />
-                  </div>
-                </>
-              )}
+          <div className="border-b border-border bg-card shadow-sm">
+            {/* Erste Zeile: Titel und Action-Buttons */}
+            <div className="h-14 px-6 flex items-center justify-between">
+              <h2 className="font-semibold text-lg truncate">
+                {selectedProject ? selectedProject.title : selectedFolder ? selectedFolder.name : "–"}
+              </h2>
+              <div className="flex items-center gap-2">
+                {selectedProject && canManageProjects && (
+                  <>
+                    <button
+                      onClick={() => setShowProjectMembers(true)}
+                      className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
+                      title="Projekt-Mitglieder anzeigen"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span className="hidden md:inline">Mitglieder</span>
+                    </button>
+                    <button
+                      onClick={() => setShowExportDlg(true)}
+                      className="px-3 py-1.5 text-xs font-medium bg-secondary hover:bg-accent border border-border rounded-md transition-colors flex items-center gap-1.5"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span className="hidden md:inline">Export</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
+            
+              {/* Zweite Zeile: Tab-Navigation - immer sichtbar */}
+              {selectedProject && canViewProjectContent && (
+                <div className="flex px-6 pb-3 items-center gap-2">
+                  <HeaderBtn label="💬 Chat" active={view === "chat"} onClick={() => setView("chat")} />
+                  <HeaderBtn label="📁 Dateien" active={view === "files"} onClick={() => setView("files")} />
+                  <HeaderBtn label="📋 Details" active={view === "details"} onClick={() => setView("details")} />
+                </div>
+              )}
           </div>
 
-          <div className="absolute inset-0 top-[56px] flex flex-col">
-            {view === "dashboard" ? (
-              <DashboardView allProjects={allProjects} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} setView={setView} />
-            ) : view === "calendar" ? (
-              <CalendarView allProjects={allProjects} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} setView={setView} />
-            ) : selectedProject ? (
+          <div className="absolute inset-0 top-[96px] flex flex-col">
+            {selectedProject ? (
               view === "chat" ? (
                 <ChatView project={selectedProject} />
               ) : view === "files" ? (
@@ -654,6 +765,98 @@ export default function Index() {
           onClose={() => setShowExportDlg(false)}
           allDetails={allDetails}
         />
+      )}
+
+      <UserManagementDialog 
+        open={showUserManagement}
+        onClose={() => setShowUserManagement(false)}
+      />
+
+      {selectedProject && (
+        <ProjectMembersDialog 
+          projectId={selectedProject.id}
+          open={showProjectMembers}
+          onClose={() => setShowProjectMembers(false)}
+        />
+      )}
+
+      {showFolderMembers && selectedFolderForMembers && (
+        <FolderMembersDialog 
+          folderId={selectedFolderForMembers}
+          open={showFolderMembers}
+          onClose={() => {
+            setShowFolderMembers(false);
+            setSelectedFolderForMembers(null);
+          }}
+        />
+      )}
+
+      <TrashDialog
+        open={showTrashDialog}
+        onClose={() => setShowTrashDialog(false)}
+        deletedProjects={deletedProjects}
+        deletedFolders={deletedFolders}
+        onRestoreProject={restoreProject}
+        onRestoreFolder={restoreFolder}
+        onPermanentDeleteProject={permanentlyDeleteProject}
+        onPermanentDeleteFolder={permanentlyDeleteFolder}
+      />
+
+      <DeletedItemsDialog
+        open={showDeletedItems}
+        onClose={() => setShowDeletedItems(false)}
+      />
+
+      {/* Dashboard Dialog */}
+      {showDashboardDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h2 className="text-lg font-semibold">Dashboard</h2>
+              <button
+                onClick={() => setShowDashboardDialog(false)}
+                className="p-2 hover:bg-accent rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <FullDashboard allProjects={allProjects} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calendar Dialog */}
+      {showCalendarDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h2 className="text-lg font-semibold">Kalender</h2>
+              <button
+                onClick={() => setShowCalendarDialog(false)}
+                className="p-2 hover:bg-accent rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <FullCalendar 
+                allProjects={allProjects}
+                onProjectClick={(projectId) => {
+                  setShowCalendarDialog(false);
+                  setSelectedProjectId(projectId);
+                  
+                  // Finde den Ordner des Projekts
+                  const projectData = allProjects.find(({ project }) => project.id === projectId);
+                  if (projectData) {
+                    setSelectedFolderId(projectData.folderId);
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1013,10 +1216,113 @@ function MobileLayout({
   searchResults: any[];
   setSearch: (search: string) => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { canAccessDashboard, hasFullAccess } = useUserRole();
+  const { deletedProjects, restoreProject, permanentlyDeleteProject } = useDeletedProjects();
+  const { deletedFolders, restoreFolder, permanentlyDeleteFolder } = useDeletedFolders();
+  const [showTrashDialog, setShowTrashDialog] = useState(false);
+  const [showDeletedItems, setShowDeletedItems] = useState(false);
+  
   // Level 1: Ordner-Liste
   if (mobileLevel === 'folders') {
     return (
       <div className="h-full flex flex-col bg-background">
+        {/* Header mit Hamburger Menu */}
+        <div className="h-14 border-b border-border px-4 flex items-center gap-3 bg-card">
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetTrigger asChild>
+              <button className="p-2 hover:bg-accent rounded-lg transition-colors">
+                <Menu className="w-5 h-5" />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="left">
+              <SheetHeader>
+                <SheetTitle>Navigation</SheetTitle>
+              </SheetHeader>
+              <div className="mt-6 space-y-2">
+                <button
+                  onClick={() => {
+                    setMobileLevel('folders');
+                    setMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                >
+                  <span className="text-lg">🏠</span>
+                  <span className="font-medium">Ordner-Übersicht</span>
+                </button>
+                {canAccessDashboard && (
+                  <>
+                    <button
+                      onClick={() => {
+                        // Future: Navigate to dashboard view
+                        setMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                    >
+                      <span className="text-lg">📊</span>
+                      <span className="font-medium">Dashboard</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Future: Navigate to calendar view
+                        setMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                    >
+                      <span className="text-lg">📅</span>
+                      <span className="font-medium">Kalender</span>
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => {
+                    setShowTrashDialog(true);
+                    setMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <span className="font-medium">Papierkorb</span>
+                  {deletedProjects.length > 0 && (
+                    <span className="ml-auto text-xs bg-destructive text-destructive-foreground px-2 py-0.5 rounded-full">
+                      {deletedProjects.length}
+                    </span>
+                  )}
+                </button>
+                {hasFullAccess && (
+                  <button
+                    onClick={() => {
+                      setShowDeletedItems(true);
+                      setMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                    <span className="font-medium">Gelöschte Inhalte</span>
+                  </button>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
+          <h2 className="font-semibold text-lg">Ordner</h2>
+        </div>
+
+        <TrashDialog
+          open={showTrashDialog}
+          onClose={() => setShowTrashDialog(false)}
+          deletedProjects={deletedProjects}
+          deletedFolders={deletedFolders}
+          onRestoreProject={restoreProject}
+          onRestoreFolder={restoreFolder}
+          onPermanentDeleteProject={permanentlyDeleteProject}
+          onPermanentDeleteFolder={permanentlyDeleteFolder}
+        />
+
+        <DeletedItemsDialog
+          open={showDeletedItems}
+          onClose={() => setShowDeletedItems(false)}
+        />
+
         {search.trim() ? (
           <div className="flex-1 overflow-auto">
             <SearchList 
@@ -1142,8 +1448,85 @@ function MobileLayout({
   if (mobileLevel === 'project' && selectedProject) {
     return (
       <div className="h-full flex flex-col bg-background">
-        {/* Header mit Zurück-Button */}
+        {/* Header mit Hamburger Menu und Zurück-Button */}
         <div className="h-14 border-b border-border px-4 flex items-center gap-3 bg-card">
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetTrigger asChild>
+              <button className="p-2 hover:bg-accent rounded-lg transition-colors">
+                <Menu className="w-5 h-5" />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="left">
+              <SheetHeader>
+                <SheetTitle>Navigation</SheetTitle>
+              </SheetHeader>
+              <div className="mt-6 space-y-2">
+                <button
+                  onClick={() => {
+                    setMobileLevel('folders');
+                    setSelectedFolderId(null);
+                    setSelectedProjectId(null);
+                    setMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                >
+                  <span className="text-lg">🏠</span>
+                  <span className="font-medium">Ordner-Übersicht</span>
+                </button>
+                {canAccessDashboard && (
+                  <>
+                    <button
+                      onClick={() => {
+                        // Future: Navigate to dashboard view
+                        setMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                    >
+                      <span className="text-lg">📊</span>
+                      <span className="font-medium">Dashboard</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Future: Navigate to calendar view
+                        setMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                    >
+                      <span className="text-lg">📅</span>
+                      <span className="font-medium">Kalender</span>
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => {
+                    setShowTrashDialog(true);
+                    setMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <span className="font-medium">Papierkorb</span>
+                  {deletedProjects.length > 0 && (
+                    <span className="ml-auto text-xs bg-destructive text-destructive-foreground px-2 py-0.5 rounded-full">
+                      {deletedProjects.length}
+                    </span>
+                  )}
+                </button>
+                {hasFullAccess && (
+                  <button
+                    onClick={() => {
+                      setShowDeletedItems(true);
+                      setMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                    <span className="font-medium">Gelöschte Inhalte</span>
+                  </button>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
           <button 
             onClick={() => {
               setMobileLevel('projects');
@@ -1155,6 +1538,22 @@ function MobileLayout({
           </button>
           <h2 className="font-semibold text-base truncate">{selectedProject.title}</h2>
         </div>
+
+        <TrashDialog
+          open={showTrashDialog}
+          onClose={() => setShowTrashDialog(false)}
+          deletedProjects={deletedProjects}
+          deletedFolders={deletedFolders}
+          onRestoreProject={restoreProject}
+          onRestoreFolder={restoreFolder}
+          onPermanentDeleteProject={permanentlyDeleteProject}
+          onPermanentDeleteFolder={permanentlyDeleteFolder}
+        />
+
+        <DeletedItemsDialog
+          open={showDeletedItems}
+          onClose={() => setShowDeletedItems(false)}
+        />
         
         {/* View Content */}
         <div className="flex-1 overflow-auto">
@@ -1359,35 +1758,93 @@ function HeaderBtn({ label, onClick, active }: { label: string; onClick: () => v
   );
 }
 
-function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolderId, setSelectedProjectId, showArchived, onDelete, onArchiveToggle, onMoveProject, onDeleteProject, onArchiveProject }: { f: Folder; selectedFolderId: string | null; selectedProjectId: string | null; setSelectedFolderId: (id: string) => void; setSelectedProjectId: (id: string | null) => void; showArchived: boolean; onDelete: (id: string) => void; onArchiveToggle: (id: string) => void; onMoveProject: (fid: string, pid: string) => void; onDeleteProject: (fid: string, pid: string) => void; onArchiveProject: (fid: string, pid: string) => void }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolderId, setSelectedProjectId, showArchived, onDelete, onArchiveToggle, onMoveProject, onDeleteProject, onArchiveProject, openMenuId, setOpenMenuId }: { f: Folder; selectedFolderId: string | null; selectedProjectId: string | null; setSelectedFolderId: (id: string) => void; setSelectedProjectId: (id: string | null) => void; showArchived: boolean; onDelete: (id: string) => void; onArchiveToggle: (id: string) => void; onMoveProject: (fid: string, pid: string) => void; onDeleteProject: (fid: string, pid: string) => void; onArchiveProject: (fid: string, pid: string) => void; openMenuId: string | null; setOpenMenuId: (id: string | null) => void }) {
+  const menuId = `folder-${f.id}`;
+  const isMenuOpen = openMenuId === menuId;
+  const [showFolderMembersDialog, setShowFolderMembersDialog] = useState(false);
+  const { canManageProjects } = useUserRole();
+  const { user } = useAuth();
+  const { members, leaveFolder } = useFolderMembers(f.id);
+  
+  const isOwner = f.user_id === user?.id;
+  const isDirectMember = members.some(m => m.user_id === user?.id);
+  const canLeave = !canManageProjects && !isOwner && isDirectMember;
+  const showMenu = canManageProjects || canLeave;
+  
   return (
     <div>
-      <div className="sticky top-0 z-10 bg-sidebar-accent px-4 py-3 text-sm font-semibold border-y border-sidebar-border flex items-center gap-2">
+      <div className="sticky top-0 z-10 bg-sidebar-accent px-4 py-3 text-sm font-semibold border-y border-sidebar-border flex items-center gap-2 group">
         <button className={`px-3 py-1.5 rounded-md transition-colors ${selectedFolderId === f.id ? "bg-card shadow-sm" : "hover:bg-card/50"}`} onClick={() => { setSelectedFolderId(f.id); setSelectedProjectId(null); }}>
           📁 {f.name}{f.archived ? " (Archiv)" : ""}
         </button>
-        <div className="ml-auto relative">
-          <button className="px-2.5 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors" onClick={() => setMenuOpen((v) => !v)}>⋯</button>
-          {menuOpen && (
-            <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-10 text-sm min-w-[180px]">
-              <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={() => { setMenuOpen(false); onArchiveToggle(f.id); }}>
-                {f.archived ? "📤 Aus Archiv holen" : "📥 In Archiv"}
-              </button>
-              <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" onClick={() => { setMenuOpen(false); onDelete(f.id); }}>
-                🗑️ Ordner löschen
-              </button>
-            </div>
-          )}
-        </div>
+        {canManageProjects && (
+          <button 
+            className="px-2 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors opacity-0 group-hover:opacity-100"
+            onClick={() => setShowFolderMembersDialog(true)}
+            title="Ordner-Mitglieder verwalten"
+          >
+            <Users className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {canLeave && (
+          <button 
+            className="px-2 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors opacity-0 group-hover:opacity-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm(`Möchtest du den Ordner "${f.name}" wirklich verlassen? Du verlierst den Zugriff auf alle Projekte in diesem Ordner (außer du bist direkt Projekt-Mitglied).`)) {
+                leaveFolder();
+              }
+            }}
+            title="Ordner verlassen"
+          >
+            <LogOut className="w-3.5 h-3.5 text-orange-600" />
+          </button>
+        )}
+        {showMenu && (
+          <div className="ml-auto relative">
+            <button className="px-2.5 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors" onClick={() => setOpenMenuId(isMenuOpen ? null : menuId)}>⋯</button>
+            {isMenuOpen && (
+              <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 text-sm min-w-[180px]">
+                {canManageProjects && (
+                  <>
+                    <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={() => { setOpenMenuId(null); onArchiveToggle(f.id); }}>
+                      {f.archived ? "📤 Aus Archiv holen" : "📥 In Archiv"}
+                    </button>
+                    <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" onClick={() => { setOpenMenuId(null); onDelete(f.id); }}>
+                      🗑️ Ordner löschen
+                    </button>
+                  </>
+                )}
+                {canLeave && (
+                  <button
+                    className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-orange-600 rounded-b-lg"
+                    onClick={() => {
+                      setOpenMenuId(null);
+                      if (confirm(`Möchtest du den Ordner "${f.name}" wirklich verlassen? Du verlierst den Zugriff auf alle Projekte in diesem Ordner (außer du bist direkt Projekt-Mitglied).`)) {
+                        leaveFolder();
+                      }
+                    }}
+                  >
+                    🚪 Ordner verlassen
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+      <FolderMembersDialog 
+        folderId={f.id}
+        open={showFolderMembersDialog}
+        onClose={() => setShowFolderMembersDialog(false)}
+      />
       {selectedFolderId === f.id && (
         <ul className="divide-y divide-border">
           {f.projects.filter((p) => (showArchived || !p.archived)).length === 0 ? (
             <li className="px-4 py-4 text-sm text-muted-foreground">Keine Projekte vorhanden</li>
           ) : (
             f.projects.filter((p) => (showArchived || !p.archived)).map((p) => (
-              <ProjectRow key={p.id} p={p} onOpen={() => { setSelectedProjectId(p.id); }} onMove={() => onMoveProject(f.id, p.id)} onDelete={() => onDeleteProject(f.id, p.id)} onArchive={() => onArchiveProject(f.id, p.id)} selected={!!selectedProjectId && p.id === selectedProjectId} />
+              <ProjectRow key={p.id} p={p} onOpen={() => { setSelectedProjectId(p.id); }} onMove={() => onMoveProject(f.id, p.id)} onDelete={() => onDeleteProject(f.id, p.id)} onArchive={() => onArchiveProject(f.id, p.id)} selected={!!selectedProjectId && p.id === selectedProjectId} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} onLeave={() => setSelectedProjectId(null)} />
             ))
           )}
         </ul>
@@ -1396,10 +1853,19 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
   );
 }
 
-function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected }: { p: Project; onOpen: () => void; onMove: () => void; onDelete: () => void; onArchive: () => void; selected: boolean }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenuId, setOpenMenuId, onLeave }: { p: Project; onOpen: () => void; onMove: () => void; onDelete: () => void; onArchive: () => void; selected: boolean; openMenuId: string | null; setOpenMenuId: (id: string | null) => void; onLeave: () => void }) {
+  const menuId = `project-${p.id}`;
+  const isMenuOpen = openMenuId === menuId;
+  const { canManageProjects } = useUserRole();
+  const { user } = useAuth();
+  const { leaveProject } = useProjectMembers(p.id);
+  
+  const isOwner = p.user_id === user?.id;
+  const canLeave = !canManageProjects && !isOwner;
+  const showMenu = canManageProjects;
+  
   return (
-    <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 px-4 py-3 cursor-pointer transition-colors ${selected ? "bg-accent" : "hover:bg-accent/50"}`}>
+    <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 px-4 py-3 cursor-pointer transition-colors ${selected ? "bg-accent" : "hover:bg-accent/50"} group`}>
       <div className={`w-1.5 h-full ${p.archived ? "bg-muted-foreground" : "bg-success"} rounded-full`} />
       <div className="min-w-0">
         <div className="text-sm font-medium text-foreground truncate">
@@ -1411,22 +1877,41 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected }: { p: P
           )}
         </div>
         <div className="text-xs text-muted-foreground truncate">
-          {p.projektstatus || "Bauprojekt"}
+          {p.projektstatus || `Erstellt: ${new Date(p.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}`}
         </div>
       </div>
-      <div className="relative self-center">
-        <button className="px-2.5 py-1 rounded-md border border-border hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}>⋯</button>
-        {menuOpen && (
-          <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-10 text-sm min-w-[200px]">
-            <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onMove(); }}>
-              📂 In anderen Ordner
-            </button>
-            <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArchive(); }}>
-              {p.archived ? "📤 Aus Archiv holen" : "📥 Archivieren"}
-            </button>
-            <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(); }}>
-              🗑️ Projekt löschen
-            </button>
+      <div className="flex items-center gap-2 self-center">
+        {canLeave && (
+          <button
+            className="px-2 py-1 rounded-md border border-border bg-card hover:bg-accent transition-colors opacity-0 group-hover:opacity-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm(`Möchtest du das Projekt "${p.title}" wirklich verlassen?`)) {
+                leaveProject();
+                onLeave();
+              }
+            }}
+            title="Projekt verlassen"
+          >
+            <LogOut className="w-3.5 h-3.5 text-orange-600" />
+          </button>
+        )}
+        {showMenu && (
+          <div className="relative">
+            <button className="px-2.5 py-1 rounded-md border border-border hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setOpenMenuId(isMenuOpen ? null : menuId); }}>⋯</button>
+            {isMenuOpen && (
+              <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 text-sm min-w-[200px]">
+                <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); onMove(); }}>
+                  📂 In anderen Ordner
+                </button>
+                <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); onArchive(); }}>
+                  {p.archived ? "📤 Aus Archiv holen" : "📥 Archivieren"}
+                </button>
+                <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); onDelete(); }}>
+                  🗑️ Projekt löschen
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1436,7 +1921,7 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected }: { p: P
 
 function ChatView({ project }: { project: Project }) {
   const [text, setText] = useState("");
-  const { messages, sendMessage } = useMessages(project.id);
+  const { messages, sendMessage, deleteMessage } = useMessages(project.id);
   const { uploadFile, isUploading, getFileUrl } = useProjectFiles(project.id);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1464,17 +1949,17 @@ function ChatView({ project }: { project: Project }) {
       
       // Upload in Zielordner (Bilder oder Dokumente)
       uploadFile({ file, folder: targetFolder }, {
-        onSuccess: (data) => {
+        onSuccess: (result) => {
           // Chat-Nachricht mit Datei-Referenz erstellen
-          const fileUrl = getFileUrl(data);
+          const fileUrl = getFileUrl(result.data);
           sendMessage({
             type: isImage ? 'image' : 'file',
             content: {
               url: fileUrl,
               name: file.name,
-              ext: data.ext,
+              ext: result.data.ext,
               size: file.size,
-              fileId: data.id, // Referenz zur Datei in project_files
+              fileId: result.data.id, // Referenz zur Datei in project_files
             }
           });
         }
@@ -1486,14 +1971,14 @@ function ChatView({ project }: { project: Project }) {
     const file = new File([blob], `audio_${Date.now()}.webm`, { type: 'audio/webm' });
     
     uploadFile({ file, folder: 'Sprachnachrichten' }, {
-      onSuccess: (data) => {
-        const fileUrl = getFileUrl(data);
+      onSuccess: (result) => {
+        const fileUrl = getFileUrl(result.data);
         sendMessage({
           type: 'audio',
           content: {
             url: fileUrl,
             name: file.name,
-            fileId: data.id,
+            fileId: result.data.id,
           }
         });
       }
@@ -1504,14 +1989,14 @@ function ChatView({ project }: { project: Project }) {
     const file = new File([blob], `video_${Date.now()}.webm`, { type: 'video/webm' });
     
     uploadFile({ file, folder: 'Videos' }, {
-      onSuccess: (data) => {
-        const fileUrl = getFileUrl(data);
+      onSuccess: (result) => {
+        const fileUrl = getFileUrl(result.data);
         sendMessage({
           type: 'video',
           content: {
             url: fileUrl,
             name: file.name,
-            fileId: data.id,
+            fileId: result.data.id,
           }
         });
       }
@@ -1530,7 +2015,7 @@ function ChatView({ project }: { project: Project }) {
           </div>
         ) : (
           <>
-            {messages.map((m) => <MessageBubble key={m.id} msg={m} getFileUrl={getFileUrl} />)}
+            {messages.map((m) => <MessageBubble key={m.id} msg={m} getFileUrl={getFileUrl} onDelete={deleteMessage} />)}
             <div ref={messagesEndRef} />
           </>
         )}
@@ -1766,17 +2251,62 @@ function VideoRecorder({ onRecordingComplete }: { onRecordingComplete: (blob: Bl
   );
 }
 
-const MessageBubble = memo(function MessageBubble({ msg, getFileUrl }: { msg: any; getFileUrl?: any }) {
+const MessageBubble = memo(function MessageBubble({ msg, getFileUrl, onDelete }: { msg: any; getFileUrl?: any; onDelete?: (id: string) => void }) {
+  const { user } = useAuth();
+  const { hasFullAccess, role, loading } = useUserRole();
   const sender = msg.profile ? `${msg.profile.first_name} ${msg.profile.last_name}` : msg.sender || "Du";
   const timestamp = msg.timestamp || new Date().toISOString();
   const [showPdfPreview, setShowPdfPreview] = useState(false);
   
+  // Verbesserte Logik: Warten bis Rolle geladen ist
+  const canDelete = useMemo(() => {
+    if (!onDelete || loading || !user) return false;
+    
+    const isOwnMessage = msg.user_id === user.id;
+    
+    // Admin/Bürokraft können ALLE Nachrichten löschen
+    if (hasFullAccess) return true;
+    
+    // Nicht eigene Nachrichten können nur Admins löschen
+    if (!isOwnMessage) return false;
+    
+    // Team-Projektleiter & Vorarbeiter können eigene Nachrichten immer löschen
+    if (['team_projektleiter', 'vorarbeiter'].includes(role || '')) return true;
+    
+    // Mitarbeiter & Azubis nur innerhalb 48 Stunden
+    if (['mitarbeiter', 'azubi'].includes(role || '')) {
+      const msgDate = new Date(timestamp);
+      const now = new Date();
+      const hoursDiff = (now.getTime() - msgDate.getTime()) / (1000 * 60 * 60);
+      return hoursDiff < 48;
+    }
+    
+    return false;
+  }, [onDelete, loading, user, msg.user_id, hasFullAccess, role, timestamp]);
+  
   return (
     <div className="max-w-2xl bg-card rounded-lg p-3 shadow-sm border border-border">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-        <span className="font-semibold text-foreground">{sender}</span>
-        <span>•</span>
-        <span>{new Date(timestamp).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">{sender}</span>
+          <span>•</span>
+          <span>{new Date(timestamp).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>
+        </div>
+        
+        {canDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm('Nachricht wirklich löschen?')) {
+                onDelete(msg.id);
+              }
+            }}
+            className="px-2 py-1 text-xs rounded-md hover:bg-destructive/10 text-destructive transition-colors"
+            title="Nachricht löschen"
+          >
+            🗑️
+          </button>
+        )}
       </div>
       
       {msg.type === "text" && <div className="text-sm text-foreground whitespace-pre-wrap">{msg.content?.text}</div>}
@@ -1878,6 +2408,8 @@ const MessageBubble = memo(function MessageBubble({ msg, getFileUrl }: { msg: an
 });
 
 function FilesView({ project }: { project: Project }) {
+  const { user } = useAuth();
+  const { hasFullAccess, role, canManageProjects } = useUserRole();
   const uploadRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [currentDir, setCurrentDir] = useState("Bilder");
@@ -1886,9 +2418,38 @@ function FilesView({ project }: { project: Project }) {
   const [newDirName, setNewDirName] = useState("");
   const [preview, setPreview] = useState<{ url: string; mime: string; name: string; __temp: boolean } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [showUploadWarning, setShowUploadWarning] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<{
+    files: File[];
+    warnings: Array<{ name: string; size: string }>;
+    errors: Array<{ name: string; size: string }>;
+    totalSize: string;
+  } | null>(null);
   
   const { files: dbFiles, uploadFile, isUploading, getFileUrl, deleteFile, moveFile: dbMoveFile } = useProjectFiles(project.id);
   const { directories, createDirectory, renameDirectory, deleteDirectory } = useProjectDirectories(project.id);
+  
+  // Funktion um zu prüfen ob eine Datei gelöscht werden darf
+  const canDeleteFile = (file: any) => {
+    if (hasFullAccess) return true; // Admin/Bürokraft
+    
+    if (file.created_by !== user?.id) return false; // Nicht der Ersteller
+    
+    // Projektleiter/Vorarbeiter können eigene Dateien löschen
+    if (['team_projektleiter', 'vorarbeiter'].includes(role || '')) {
+      return true;
+    }
+    
+    // Mitarbeiter/Azubi nur innerhalb 48h
+    if (['mitarbeiter', 'azubi'].includes(role || '')) {
+      const modifiedDate = new Date(file.modified);
+      const now = new Date();
+      const hoursDiff = (now.getTime() - modifiedDate.getTime()) / (1000 * 60 * 60);
+      return hoursDiff < 48;
+    }
+    
+    return false;
+  };
 
   // Standard-Ordner + Datenbank-Ordner kombinieren, Duplikate vermeiden
   const standardDirs = ["Bilder", "Dokumente", "Chat", "Sprachnachrichten", "Videos"];
@@ -1897,9 +2458,7 @@ function FilesView({ project }: { project: Project }) {
   const uniqueStandardDirs = standardDirs.filter(std => !customDirs.includes(std));
   const listDirs = [...uniqueStandardDirs, ...customDirs];
 
-  const addFiles = async (files: FileList | null, forceImage = false) => {
-    if (!files || files.length === 0) return;
-    
+  const performUpload = async (files: File[]) => {
     const totalFiles = files.length;
     setUploadProgress({ current: 0, total: totalFiles });
     
@@ -1928,6 +2487,61 @@ function FilesView({ project }: { project: Project }) {
     
     // Nach 2 Sekunden Progress ausblenden
     setTimeout(() => setUploadProgress(null), 2000);
+  };
+
+  const addFiles = async (fileList: FileList | null, forceImage = false) => {
+    if (!fileList || fileList.length === 0) return;
+    
+    const files = Array.from(fileList);
+    
+    // Validierung
+    const warnings: Array<{ name: string; size: string }> = [];
+    const errors: Array<{ name: string; size: string }> = [];
+    let totalSize = 0;
+    
+    files.forEach(file => {
+      totalSize += file.size;
+      const validation = validateFileSize(file);
+      
+      if (validation === 'error') {
+        errors.push({ 
+          name: file.name, 
+          size: formatFileSize(file.size) 
+        });
+      } else if (validation === 'warning') {
+        warnings.push({ 
+          name: file.name, 
+          size: formatFileSize(file.size) 
+        });
+      }
+    });
+    
+    // Fehler: Dateien zu groß (>50 MB)
+    if (errors.length > 0) {
+      setPendingFiles({
+        files,
+        warnings,
+        errors,
+        totalSize: formatFileSize(totalSize),
+      });
+      setShowUploadWarning(true);
+      return; // Upload blockieren
+    }
+    
+    // Warnung: Große Dateien (10-50 MB) oder viele Dateien
+    if (warnings.length > 0 || totalSize > UPLOAD_LIMITS.WARNING_SIZE) {
+      setPendingFiles({
+        files,
+        warnings,
+        errors,
+        totalSize: formatFileSize(totalSize),
+      });
+      setShowUploadWarning(true);
+      return; // Auf Bestätigung warten
+    }
+    
+    // Keine Probleme -> Direkt hochladen
+    await performUpload(files);
   };
 
   const makeDir = () => {
@@ -2071,6 +2685,7 @@ function FilesView({ project }: { project: Project }) {
       folder: f.folder || '',
       modified: f.modified || '',
       takenAt: f.taken_at || '',
+      created_by: f.created_by,
     }));
     
   const openPreview = async (file: ProjectFile) => {
@@ -2090,14 +2705,16 @@ function FilesView({ project }: { project: Project }) {
   };
 
   return (
-    <div className="flex-1 overflow-hidden flex flex-col">
+    <div className="flex-1 flex flex-col">
       <div className="flex items-center justify-between p-4 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3">
           <strong className="text-sm">Verzeichnis:</strong>
           <select className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" value={currentDir} onChange={(e) => setCurrentDir(e.target.value)}>
             {listDirs.map((d) => (<option key={d} value={d}>{d}</option>))}
           </select>
-          <button className="ml-2 px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors" onClick={() => setShowNewDir(true)}>+ Neuer Ordner</button>
+          {canManageProjects && (
+            <button className="ml-2 px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors" onClick={() => setShowNewDir(true)}>+ Neuer Ordner</button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { addFiles(e.target.files, true); e.target.value = ""; }} />
@@ -2151,7 +2768,7 @@ function FilesView({ project }: { project: Project }) {
               </button>
               
               {/* Nur bei Custom-Ordnern: Umbenennen/Löschen Buttons anzeigen */}
-              {isCustom && (
+              {isCustom && canManageProjects && (
                 <div className="absolute -top-1 -right-1 hidden group-hover:flex gap-1 bg-card border border-border rounded-md shadow-lg p-1 z-10">
                   <button 
                     onClick={(e) => {
@@ -2190,7 +2807,7 @@ function FilesView({ project }: { project: Project }) {
           <div className="text-sm text-muted-foreground text-center py-12">Keine Dateien im Verzeichnis vorhanden.</div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {filesInDir(currentDir).map((f) => (<FileCard key={f.id} file={f} dirs={listDirs} onMove={moveFile} onOpen={() => openPreview(f)} />))}
+            {filesInDir(currentDir).map((f) => (<FileCard key={f.id} file={f} dirs={listDirs} onMove={moveFile} onOpen={() => openPreview(f)} onDelete={deleteFile} canDelete={canDeleteFile(f)} />))}
           </div>
         )}
       </div>
@@ -2237,46 +2854,211 @@ function FilesView({ project }: { project: Project }) {
           <div className="mt-4 flex justify-end"><a href={preview.url} download className="px-4 py-2 rounded-lg border border-border bg-background hover:bg-accent transition-colors">⬇️ Download</a></div>
         </Modal>
       )}
+      
+      {/* Upload-Warnung Dialog */}
+      <AlertDialog open={showUploadWarning} onOpenChange={setShowUploadWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {pendingFiles?.errors.length ? '🚫' : '⚠️'} 
+              {pendingFiles?.errors.length ? 'Upload blockiert' : 'Große Dateien erkannt'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-left">
+                {pendingFiles?.errors.length ? (
+                  <>
+                    <p className="text-destructive font-medium">
+                      Die folgenden Dateien sind zu groß (Limit: 50 MB):
+                    </p>
+                    <ul className="space-y-1 text-sm">
+                      {pendingFiles.errors.map((file, i) => (
+                        <li key={i} className="flex justify-between bg-destructive/10 p-2 rounded">
+                          <span className="truncate flex-1">{file.name}</span>
+                          <span className="font-mono text-destructive ml-2">{file.size}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-sm text-muted-foreground">
+                      💡 <strong>Tipp:</strong> Komprimiere die Dateien oder lade sie als ZIP-Archiv hoch.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      Du versuchst <strong>{pendingFiles?.files.length} Datei(en)</strong> mit einer Gesamtgröße von <strong>{pendingFiles?.totalSize}</strong> hochzuladen.
+                    </p>
+                    
+                    {pendingFiles?.warnings.length > 0 && (
+                      <>
+                        <p className="text-yellow-600 dark:text-yellow-500 font-medium">
+                          Große Dateien (&gt;10 MB):
+                        </p>
+                        <ul className="space-y-1 text-sm">
+                          {pendingFiles.warnings.map((file, i) => (
+                            <li key={i} className="flex justify-between bg-yellow-500/10 p-2 rounded">
+                              <span className="truncate flex-1">{file.name}</span>
+                              <span className="font-mono ml-2">{file.size}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                    
+                    <p className="text-sm text-muted-foreground">
+                      ℹ️ Große Uploads können einige Sekunden dauern. Bilder werden automatisch komprimiert.
+                    </p>
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setPendingFiles(null);
+              setShowUploadWarning(false);
+            }}>
+              Abbrechen
+            </AlertDialogCancel>
+            
+            {!pendingFiles?.errors.length && (
+              <AlertDialogAction onClick={() => {
+                setShowUploadWarning(false);
+                if (pendingFiles?.files) {
+                  performUpload(pendingFiles.files);
+                }
+                setPendingFiles(null);
+              }}>
+                Trotzdem hochladen
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
-const FileCard = memo(function FileCard({ file, dirs, onMove, onOpen }: { file: ProjectFile; dirs: string[]; onMove: (id: string, dir: string) => void; onOpen: () => void }) {
-  const [menu, setMenu] = useState(false);
+const FileCard = memo(function FileCard({ 
+  file, 
+  dirs, 
+  onMove, 
+  onOpen,
+  onDelete,
+  canDelete
+}: { 
+  file: ProjectFile; 
+  dirs: string[]; 
+  onMove: (id: string, dir: string) => void; 
+  onOpen: () => void;
+  onDelete: (id: string) => void;
+  canDelete: boolean;
+}) {
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [selectedTargetFolder, setSelectedTargetFolder] = useState(file.folder);
   const IconComponent = getFileIcon(file.name, file.mime);
   const isImage = ((file.isImage === true) || (file.mime || "").startsWith("image/") || isImgName(file.name));
   
   return (
-    <div className="border border-border rounded-lg overflow-hidden bg-card cursor-pointer group hover:shadow-md transition-all" draggable onDragStart={(e) => e.dataTransfer.setData("text/id", file.id)} onClick={onOpen} title={`${file.name}`}>
-      {isImage ? (
-        <img src={file.thumbUrl || file.url} alt={file.name} className="w-full h-36 object-cover" />
-      ) : (
-        <div className="w-full h-36 flex flex-col items-center justify-center bg-secondary gap-2">
-          <IconComponent className="w-12 h-12 text-muted-foreground" />
-          <div className="text-xs text-muted-foreground font-mono font-semibold">{(file.ext || "FILE").toUpperCase()}</div>
-        </div>
-      )}
-      <div className="px-3 py-2 text-xs text-muted-foreground truncate flex items-center justify-between border-t border-border">
-        <span className="truncate font-medium text-foreground">{file.name}</span>
-        <div className="relative">
-          <button onClick={(e) => { e.stopPropagation(); setMenu((v) => !v); }} className="px-2 py-1 rounded-md border border-border hover:bg-accent transition-colors" title="Aktionen">⋯</button>
-          {menu && (
-            <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-10 text-sm min-w-[160px]">
-              {dirs.map((d) => (
-                <button key={d} onClick={(e) => { e.stopPropagation(); setMenu(false); if (d !== file.folder) onMove(file.id, d); }} className={`block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors ${d === file.folder ? "text-primary font-semibold" : "text-foreground"}`}>
-                  📂 {d}
-                </button>
-              ))}
+    <>
+      <div className="border border-border rounded-lg bg-card cursor-pointer group hover:shadow-md transition-all" draggable onDragStart={(e) => e.dataTransfer.setData("text/id", file.id)} onClick={onOpen} title={`${file.name}`}>
+        {isImage ? (
+          <div className="overflow-hidden rounded-t-lg">
+            <img src={file.thumbUrl || file.url} alt={file.name} className="w-full h-36 object-cover" />
+          </div>
+        ) : (
+          <div className="w-full h-36 flex flex-col items-center justify-center bg-secondary gap-2 rounded-t-lg">
+            <IconComponent className="w-12 h-12 text-muted-foreground" />
+            <div className="text-xs text-muted-foreground font-mono font-semibold">{(file.ext || "FILE").toUpperCase()}</div>
+          </div>
+        )}
+        <div className="px-3 py-2 text-xs text-muted-foreground truncate flex items-center justify-between border-t border-border">
+          <span className="truncate font-medium text-foreground">{file.name}</span>
+          {canDelete && (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Verschieben-Button */}
+              <button 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  setSelectedTargetFolder(file.folder);
+                  setMoveDialogOpen(true); 
+                }} 
+                className="p-1.5 rounded-md hover:bg-accent transition-colors" 
+                title="Verschieben"
+              >
+                <FolderInput className="w-4 h-4 text-muted-foreground" />
+              </button>
+              
+              {/* Löschen-Button */}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm(`Datei "${file.name}" wirklich löschen?`)) {
+                    onDelete(file.id);
+                  }
+                }}
+                className="p-1.5 rounded-md hover:bg-accent transition-colors" 
+                title="Löschen"
+              >
+                <Trash2 className="w-4 h-4 text-destructive" />
+              </button>
             </div>
           )}
         </div>
       </div>
-    </div>
+
+      {/* Move Dialog */}
+      <Dialog open={moveDialogOpen} onOpenChange={setMoveDialogOpen}>
+        <DialogContent onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Datei verschieben</DialogTitle>
+            <DialogDescription>
+              Wähle den Zielordner für "{file.name}"
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Select value={selectedTargetFolder} onValueChange={setSelectedTargetFolder}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {dirs.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    <div className="flex items-center gap-2">
+                      <Folder className="w-4 h-4" />
+                      {d}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <ShadcnButton variant="outline" onClick={() => setMoveDialogOpen(false)}>
+              Abbrechen
+            </ShadcnButton>
+            <ShadcnButton 
+              onClick={() => {
+                if (selectedTargetFolder !== file.folder) {
+                  onMove(file.id, selectedTargetFolder);
+                }
+                setMoveDialogOpen(false);
+              }}
+            >
+              Verschieben
+            </ShadcnButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 });
 
 function DetailsView({ project }: { project: Project }) {
   const { details, saveDetails, isSaving } = useProjectDetails(project.id);
+  const { canManageProjects } = useUserRole();
+  const isReadOnly = !canManageProjects;
+  const [activeTab, setActiveTab] = useState<'details' | 'members'>('details');
   
   const [form, setForm] = useState<ProjectDetailsData>({
     projektname: "",
@@ -2342,12 +3124,50 @@ function DetailsView({ project }: { project: Project }) {
   };
 
   return (
-    <div className="p-6 space-y-6 overflow-auto">
-      <Field label="Projektname">
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Tab Navigation */}
+      <div className="border-b border-border bg-card px-6 flex gap-4">
+        <button
+          onClick={() => setActiveTab('details')}
+          className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'details' 
+              ? 'border-primary text-primary' 
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          📋 Projektdetails
+        </button>
+        {canManageProjects && (
+          <button
+            onClick={() => setActiveTab('members')}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'members' 
+                ? 'border-primary text-primary' 
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Users className="w-4 h-4 inline mr-1.5" />
+            Mitglieder
+          </button>
+        )}
+      </div>
+
+      {/* Tab Content */}
+      <div className="flex-1 overflow-auto">
+        {activeTab === 'details' ? (
+          <div className="p-6 space-y-6">
+            {isReadOnly && (
+              <div className="mb-4 p-3 bg-secondary rounded-lg border border-border text-sm text-muted-foreground">
+                ℹ️ Du hast nur Lesezugriff auf diese Projektdetails
+              </div>
+            )}
+            <Field label="Projektname">
         <input 
           className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
           value={form.projektname || ""} 
-          onChange={(e) => update("projektname", e.target.value)} 
+          onChange={(e) => update("projektname", e.target.value)}
+          disabled={isReadOnly}
+          readOnly={isReadOnly}
         />
       </Field>
       
@@ -2357,7 +3177,9 @@ function DetailsView({ project }: { project: Project }) {
             type="date" 
             className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
             value={form.startdatum || ""} 
-            onChange={(e) => update("startdatum", e.target.value)} 
+            onChange={(e) => update("startdatum", e.target.value)}
+            disabled={isReadOnly}
+            readOnly={isReadOnly}
           />
         </Field>
         <Field label="Enddatum">
@@ -2365,7 +3187,9 @@ function DetailsView({ project }: { project: Project }) {
             type="date" 
             className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
             value={form.enddatum || ""} 
-            onChange={(e) => update("enddatum", e.target.value)} 
+            onChange={(e) => update("enddatum", e.target.value)}
+            disabled={isReadOnly}
+            readOnly={isReadOnly}
           />
         </Field>
       </div>
@@ -2375,7 +3199,9 @@ function DetailsView({ project }: { project: Project }) {
           <input 
             className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
             value={form.auftragsnummer || ""} 
-            onChange={(e) => update("auftragsnummer", e.target.value)} 
+            onChange={(e) => update("auftragsnummer", e.target.value)}
+            disabled={isReadOnly}
+            readOnly={isReadOnly}
           />
         </Field>
         <Field label="Projektstatus">
@@ -2383,6 +3209,7 @@ function DetailsView({ project }: { project: Project }) {
             className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all cursor-pointer"
             value={form.projektstatus || ""} 
             onChange={(e) => update("projektstatus", e.target.value)}
+            disabled={isReadOnly}
           >
             <option value="">-- Status wählen --</option>
             {PROJECT_STATUS_OPTIONS.map(status => (
@@ -2398,6 +3225,8 @@ function DetailsView({ project }: { project: Project }) {
           value={form.ansprechpartner || ""} 
           onChange={(e) => update("ansprechpartner", e.target.value)} 
           placeholder="Name des Hauptansprechpartners"
+          disabled={isReadOnly}
+          readOnly={isReadOnly}
         />
       </Field>
 
@@ -2407,7 +3236,9 @@ function DetailsView({ project }: { project: Project }) {
           <input 
             className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
             value={form.strasse || ""} 
-            onChange={(e) => update("strasse", e.target.value)} 
+            onChange={(e) => update("strasse", e.target.value)}
+            disabled={isReadOnly}
+            readOnly={isReadOnly}
           />
         </Field>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2415,21 +3246,27 @@ function DetailsView({ project }: { project: Project }) {
             <input 
               className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
               value={form.plz || ""} 
-              onChange={(e) => update("plz", e.target.value)} 
+              onChange={(e) => update("plz", e.target.value)}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
             />
           </Field>
           <Field label="Stadt">
             <input 
               className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
               value={form.stadt || ""} 
-              onChange={(e) => update("stadt", e.target.value)} 
+              onChange={(e) => update("stadt", e.target.value)}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
             />
           </Field>
           <Field label="Land">
             <input 
               className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
               value={form.land || ""} 
-              onChange={(e) => update("land", e.target.value)} 
+              onChange={(e) => update("land", e.target.value)}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
             />
           </Field>
         </div>
@@ -2442,21 +3279,30 @@ function DetailsView({ project }: { project: Project }) {
           value={form.notiz || ""} 
           onChange={(e) => update("notiz", e.target.value)}
           placeholder="Allgemeine Notizen zum Projekt..."
+          disabled={isReadOnly}
+          readOnly={isReadOnly}
         />
       </Field>
 
-      <div className="flex justify-end gap-3 pt-6 border-t border-border">
-        <Button variant="ghost" onClick={reset}>Zurücksetzen</Button>
-        <Button onClick={save} disabled={isSaving}>
-          {isSaving ? "Speichere..." : "💾 Speichern"}
-        </Button>
-      </div>
+      {!isReadOnly && (
+        <div className="flex justify-end gap-3 pt-6 border-t border-border">
+          <Button variant="ghost" onClick={reset}>Zurücksetzen</Button>
+          <Button onClick={save} disabled={isSaving}>
+            {isSaving ? "Speichere..." : "💾 Speichern"}
+          </Button>
+        </div>
+      )}
 
       {/* Notizen Sektion */}
       <NotesSection projectId={project.id} />
 
       {/* Kontakte Sektion */}
       <ContactsSection projectId={project.id} />
+          </div>
+        ) : (
+          <DetailsViewMembersTab projectId={project.id} canManageProjects={canManageProjects} />
+        )}
+      </div>
     </div>
   );
 }
@@ -2514,6 +3360,129 @@ function NotesSection({ projectId }: { projectId: string }) {
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+function DetailsViewMembersTab({ projectId, canManageProjects }: { projectId: string; canManageProjects: boolean }) {
+  const { user } = useAuth();
+  const { members, isLoading, addMember, removeMember, leaveProject, isAdding, isRemoving } = useProjectMembers(projectId);
+  const { users } = useOrganizationUsers();
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
+
+  const isMember = members.some(m => m.user_id === user?.id);
+  
+  const availableUsers = users.filter(
+    u => !members.some(m => m.user_id === u.user_id)
+  );
+
+  const handleAdd = () => {
+    if (!selectedUserId) return;
+    addMember(selectedUserId);
+    setSelectedUserId("");
+  };
+
+  const handleLeave = () => {
+    if (confirm("Möchtest du dieses Projekt wirklich verlassen?")) {
+      leaveProject();
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-4">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-20 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold mb-1">Projekt-Mitglieder</h3>
+        <p className="text-sm text-muted-foreground">
+          Verwalte die Zugriffsberechtigung für dieses Projekt
+        </p>
+      </div>
+
+      {canManageProjects && (
+        <div className="border border-border rounded-lg p-4 bg-card space-y-3">
+          <div className="text-sm font-medium">Mitglied hinzufügen</div>
+          <div className="flex gap-2">
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all"
+            >
+              <option value="">Benutzer auswählen...</option>
+              {availableUsers.map((u) => (
+                <option key={u.user_id} value={u.user_id}>
+                  {u.first_name} {u.last_name} ({u.email})
+                </option>
+              ))}
+            </select>
+            <Button onClick={handleAdd} disabled={!selectedUserId || isAdding}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Hinzufügen
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <div className="text-sm font-medium">Zugewiesene Mitglieder ({members.length})</div>
+        {members.length === 0 ? (
+          <div className="text-sm text-muted-foreground p-8 bg-secondary rounded-lg text-center">
+            Noch keine Mitglieder zugewiesen
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {members.map((member) => (
+              <div
+                key={member.id}
+                className="flex items-center justify-between p-3 border border-border rounded-lg bg-card"
+              >
+                <div>
+                  <div className="font-medium text-sm">
+                    {member.profile?.first_name} {member.profile?.last_name}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {member.profile?.email}
+                  </div>
+                </div>
+                {canManageProjects && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm(`${member.profile?.first_name} ${member.profile?.last_name} aus dem Projekt entfernen?`)) {
+                        removeMember(member.user_id);
+                      }
+                    }}
+                    disabled={isRemoving}
+                  >
+                    Entfernen
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {!canManageProjects && isMember && (
+        <div className="pt-4 border-t border-border">
+          <Button
+            variant="ghost"
+            onClick={handleLeave}
+            className="w-full text-destructive hover:bg-destructive/10"
+          >
+            Projekt verlassen
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

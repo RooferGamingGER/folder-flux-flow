@@ -3,17 +3,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from '@/hooks/use-toast';
 
-export function useDeletedProjects() {
+export function useDeletedFolders() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: deletedProjects = [], isLoading } = useQuery({
-    queryKey: ['deleted_projects', user?.id],
+  const { data: deletedFolders = [], isLoading } = useQuery({
+    queryKey: ['deleted_folders', user?.id],
     queryFn: async () => {
       if (!user) return [];
       
       const { data, error } = await supabase
-        .from('projects')
+        .from('folders')
         .select('*')
         .not('deleted_at', 'is', null)
         .order('deleted_at', { ascending: false });
@@ -24,21 +24,21 @@ export function useDeletedProjects() {
     enabled: !!user,
   });
 
-  const restoreProject = useMutation({
-    mutationFn: async (projectId: string) => {
+  const restoreFolder = useMutation({
+    mutationFn: async (folderId: string) => {
       if (!user) throw new Error('Not authenticated');
       
       const { error } = await supabase
-        .from('projects')
+        .from('folders')
         .update({ deleted_at: null })
-        .eq('id', projectId);
+        .eq('id', folderId);
       
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['deleted_projects'] });
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      toast({ title: 'Projekt wiederhergestellt' });
+      queryClient.invalidateQueries({ queryKey: ['deleted_folders'] });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      toast({ title: 'Ordner wiederhergestellt' });
     },
     onError: (error: any) => {
       toast({
@@ -49,20 +49,20 @@ export function useDeletedProjects() {
     },
   });
 
-  const permanentlyDeleteProject = useMutation({
-    mutationFn: async (projectId: string) => {
+  const permanentlyDeleteFolder = useMutation({
+    mutationFn: async (folderId: string) => {
       if (!user) throw new Error('Not authenticated');
       
       const { error } = await supabase
-        .from('projects')
+        .from('folders')
         .delete()
-        .eq('id', projectId);
+        .eq('id', folderId);
       
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['deleted_projects'] });
-      toast({ title: 'Projekt dauerhaft gelöscht' });
+      queryClient.invalidateQueries({ queryKey: ['deleted_folders'] });
+      toast({ title: 'Ordner dauerhaft gelöscht' });
     },
     onError: (error: any) => {
       toast({
@@ -74,9 +74,9 @@ export function useDeletedProjects() {
   });
 
   return {
-    deletedProjects,
+    deletedFolders,
     isLoading,
-    restoreProject: restoreProject.mutate,
-    permanentlyDeleteProject: permanentlyDeleteProject.mutate,
+    restoreFolder: restoreFolder.mutate,
+    permanentlyDeleteFolder: permanentlyDeleteFolder.mutate,
   };
 }
