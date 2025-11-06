@@ -50,7 +50,6 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button as ShadcnButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
 import { UPLOAD_LIMITS, formatFileSize, validateFileSize } from "@/lib/uploadConfig";
 import { FullDashboard } from "@/components/FullDashboard";
 import { FullCalendar } from "@/components/FullCalendar";
@@ -537,9 +536,6 @@ export default function Index() {
                 onCalendarClick={() => setShowCalendarDialog(true)}
               />
             )}
-            
-            {/* Floating Trigger when Sidebar is collapsed */}
-            {canAccessDashboard && <FloatingSidebarTrigger />}
 
             {/* Main Grid Layout */}
             <div className={cn(
@@ -1848,17 +1844,6 @@ function HeaderBtn({ label, onClick, active }: { label: string; onClick: () => v
   );
 }
 
-function FloatingSidebarTrigger() {
-  const { open } = useSidebar();
-  
-  if (open) return null;
-  
-  return (
-    <div className="fixed top-20 left-4 z-50">
-      <SidebarTrigger />
-    </div>
-  );
-}
 
 function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolderId, setSelectedProjectId, showArchived, onDelete, onArchiveToggle, onMoveProject, onDeleteProject, onArchiveProject, openMenuId, setOpenMenuId }: { f: Folder; selectedFolderId: string | null; selectedProjectId: string | null; setSelectedFolderId: (id: string) => void; setSelectedProjectId: (id: string | null) => void; showArchived: boolean; onDelete: (id: string) => void; onArchiveToggle: (id: string) => void; onMoveProject: (fid: string, pid: string) => void; onDeleteProject: (fid: string, pid: string) => void; onArchiveProject: (fid: string, pid: string) => void; openMenuId: string | null; setOpenMenuId: (id: string | null) => void }) {
   const menuId = `folder-${f.id}`;

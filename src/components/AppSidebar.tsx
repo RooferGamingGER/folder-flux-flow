@@ -1,5 +1,5 @@
 import { LayoutDashboard, Calendar } from "lucide-react";
-import { Sidebar, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
 
 interface AppSidebarProps {
   onDashboardClick: () => void;
@@ -8,22 +8,27 @@ interface AppSidebarProps {
 
 export function AppSidebar({ onDashboardClick, onCalendarClick }: AppSidebarProps) {
   return (
-    <Sidebar collapsible="offcanvas" className="border-r border-border bg-sidebar w-14 data-[state=expanded]:w-48">
-      <div className="p-2 border-b border-border">
-        <SidebarTrigger />
-      </div>
-      <SidebarContent>
-        <SidebarMenu>
+    <Sidebar className="border-r border-border bg-sidebar w-24">
+      <SidebarContent className="py-4">
+        <SidebarMenu className="space-y-2">
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={onDashboardClick} tooltip="Dashboard">
-              <LayoutDashboard className="w-5 h-5" />
-              <span>Dashboard</span>
+            <SidebarMenuButton 
+              onClick={onDashboardClick} 
+              tooltip="Dashboard"
+              className="flex flex-col items-center justify-center h-20 gap-2 px-2 hover:bg-accent transition-colors"
+            >
+              <LayoutDashboard className="w-8 h-8" />
+              <span className="text-xs text-center">Dashboard</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={onCalendarClick} tooltip="Kalender">
-              <Calendar className="w-5 h-5" />
-              <span>Kalender</span>
+            <SidebarMenuButton 
+              onClick={onCalendarClick} 
+              tooltip="Kalender"
+              className="flex flex-col items-center justify-center h-20 gap-2 px-2 hover:bg-accent transition-colors"
+            >
+              <Calendar className="w-8 h-8" />
+              <span className="text-xs text-center">Kalender</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
