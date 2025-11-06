@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from '@/hooks/use-toast';
+import { compressImageForUpload, shouldCompressImage, formatBytes } from '@/lib/imageCompression';
 
 export function useProjectFiles(projectId?: string) {
   const { user } = useAuth();
@@ -33,6 +34,19 @@ export function useProjectFiles(projectId?: string) {
     mutationFn: async ({ file, folder }: { file: File; folder: string }) => {
       if (!user || !projectId) throw new Error('Not authenticated or no project');
       
+      const originalSize = file.size;
+      const originalName = file.name;
+      
+      // Bildkompression vor Upload
+      if (shouldCompressImage(file)) {
+        console.log('🖼️ Komprimiere Bild:', file.name, 'Original:', formatBytes(file.size));
+        const compressionResult = await compressImageForUpload(file);
+        file = compressionResult.file;
+        console.log('✅ Komprimiert:', formatBytes(file.size), 
+          'Ersparnis:', compressionResult.savingsPercent + '%'
+        );
+      }
+      
       const fileId = crypto.randomUUID();
       const ext = file.name.split('.').pop() || '';
       const isImage = file.type.startsWith('image/');
@@ -61,7 +75,7 @@ export function useProjectFiles(projectId?: string) {
         .insert({
           id: fileId,
           project_id: projectId,
-          name: file.name,
+          name: originalName, // Original-Name beibehalten
           storage_path: filePath,
           folder,
           is_image: isImage,
@@ -81,11 +95,23 @@ export function useProjectFiles(projectId?: string) {
       }
       
       console.log('✅ File uploaded successfully:', data.id);
-      return data;
+      return { data, originalSize, compressedSize: file.size };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['project_files', projectId] });
-      toast({ title: 'Datei hochgeladen' });
+      
+      const savedPercent = Math.round(
+        ((result.originalSize - result.compressedSize) / result.originalSize) * 100
+      );
+      
+      if (savedPercent > 30) {
+        toast({ 
+          title: 'Datei hochgeladen & komprimiert',
+          description: `${savedPercent}% Speicherplatz gespart (${formatBytes(result.originalSize)} → ${formatBytes(result.compressedSize)})`
+        });
+      } else {
+        toast({ title: 'Datei hochgeladen' });
+      }
     },
     onError: (error: any) => {
       console.error('Upload failed:', error);

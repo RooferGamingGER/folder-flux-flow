@@ -1874,17 +1874,17 @@ function ChatView({ project }: { project: Project }) {
       
       // Upload in Zielordner (Bilder oder Dokumente)
       uploadFile({ file, folder: targetFolder }, {
-        onSuccess: (data) => {
+        onSuccess: (result) => {
           // Chat-Nachricht mit Datei-Referenz erstellen
-          const fileUrl = getFileUrl(data);
+          const fileUrl = getFileUrl(result.data);
           sendMessage({
             type: isImage ? 'image' : 'file',
             content: {
               url: fileUrl,
               name: file.name,
-              ext: data.ext,
+              ext: result.data.ext,
               size: file.size,
-              fileId: data.id, // Referenz zur Datei in project_files
+              fileId: result.data.id, // Referenz zur Datei in project_files
             }
           });
         }
@@ -1896,14 +1896,14 @@ function ChatView({ project }: { project: Project }) {
     const file = new File([blob], `audio_${Date.now()}.webm`, { type: 'audio/webm' });
     
     uploadFile({ file, folder: 'Sprachnachrichten' }, {
-      onSuccess: (data) => {
-        const fileUrl = getFileUrl(data);
+      onSuccess: (result) => {
+        const fileUrl = getFileUrl(result.data);
         sendMessage({
           type: 'audio',
           content: {
             url: fileUrl,
             name: file.name,
-            fileId: data.id,
+            fileId: result.data.id,
           }
         });
       }
@@ -1914,14 +1914,14 @@ function ChatView({ project }: { project: Project }) {
     const file = new File([blob], `video_${Date.now()}.webm`, { type: 'video/webm' });
     
     uploadFile({ file, folder: 'Videos' }, {
-      onSuccess: (data) => {
-        const fileUrl = getFileUrl(data);
+      onSuccess: (result) => {
+        const fileUrl = getFileUrl(result.data);
         sendMessage({
           type: 'video',
           content: {
             url: fileUrl,
             name: file.name,
-            fileId: data.id,
+            fileId: result.data.id,
           }
         });
       }
