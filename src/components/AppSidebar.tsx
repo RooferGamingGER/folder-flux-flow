@@ -1,4 +1,4 @@
-import { LayoutDashboard, Calendar } from "lucide-react";
+import { LayoutDashboard, Calendar, ExternalLink } from "lucide-react";
 import { Sidebar, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
 
 interface AppSidebarProps {
@@ -15,7 +15,7 @@ export function AppSidebar({ onDashboardClick, onCalendarClick }: AppSidebarProp
             <SidebarMenuButton 
               onClick={onDashboardClick} 
               tooltip="Dashboard"
-              className="flex flex-col items-center justify-center h-20 gap-2 px-2 hover:bg-accent transition-colors"
+              className="flex flex-col items-center justify-center h-20 gap-2 px-2 hover:bg-accent active:bg-accent/70 transition-colors touch-manipulation"
             >
               <LayoutDashboard className="w-8 h-8" />
               <span className="text-xs text-center">Dashboard</span>
@@ -25,10 +25,26 @@ export function AppSidebar({ onDashboardClick, onCalendarClick }: AppSidebarProp
             <SidebarMenuButton 
               onClick={onCalendarClick} 
               tooltip="Kalender"
-              className="flex flex-col items-center justify-center h-20 gap-2 px-2 hover:bg-accent transition-colors"
+              className="flex flex-col items-center justify-center h-20 gap-2 px-2 hover:bg-accent active:bg-accent/70 transition-colors touch-manipulation"
             >
               <Calendar className="w-8 h-8" />
               <span className="text-xs text-center">Kalender</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              asChild
+              tooltip="App"
+              className="flex flex-col items-center justify-center h-20 gap-2 px-2 hover:bg-accent active:bg-accent/70 transition-colors touch-manipulation"
+            >
+              <a 
+                href="https://eu.jotform.com/app/build/240792512672357/publish" 
+                target="_blank" 
+                rel="noopener noreferrer"
+              >
+                <ExternalLink className="w-8 h-8" />
+                <span className="text-xs text-center">App</span>
+              </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

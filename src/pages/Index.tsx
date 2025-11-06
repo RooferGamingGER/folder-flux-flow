@@ -527,7 +527,7 @@ export default function Index() {
           />
         </div>
       ) : (
-        <SidebarProvider style={{ "--sidebar-width": "6rem" } as React.CSSProperties}>
+        <SidebarProvider style={{ "--sidebar-width": "6rem" } as React.CSSProperties} defaultOpen={false}>
           <div className="h-[calc(100vh-56px)] flex w-full">
             {/* App Sidebar (Icon-only sidebar) */}
             {canAccessDashboard && (
@@ -1861,7 +1861,7 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
   return (
     <div>
       <div className="sticky top-0 z-10 bg-card pl-1 pr-2 py-3 text-sm font-semibold border-b border-border flex items-center gap-2 group">
-        <button className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors flex-1 min-w-0 ${selectedFolderId === f.id ? "bg-card shadow-sm" : "hover:bg-card/50"}`} onClick={() => { setSelectedFolderId(f.id); setSelectedProjectId(null); }}>
+        <button className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors active:scale-[0.98] flex-1 min-w-0 ${selectedFolderId === f.id ? "bg-card shadow-sm" : "hover:bg-card/50 active:bg-card"}`} onClick={() => { setSelectedFolderId(f.id); setSelectedProjectId(null); }}>
           <span className="truncate">
             📁 {f.name}{f.archived ? " (Archiv)" : ""}
           </span>
@@ -1975,7 +1975,7 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenu
   const showMenu = canManageProjects;
   
   return (
-    <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 pl-2 pr-2 py-3 cursor-pointer transition-colors ${selected ? "bg-accent" : "hover:bg-accent/50"} group`}>
+    <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 pl-2 pr-2 py-3 cursor-pointer transition-colors active:scale-[0.98] ${selected ? "bg-accent" : "hover:bg-accent/50 active:bg-accent/70"} group`}>
       <div className={`w-1.5 h-full ${p.archived ? "bg-muted-foreground" : "bg-success"} rounded-full`} />
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium text-foreground truncate">
