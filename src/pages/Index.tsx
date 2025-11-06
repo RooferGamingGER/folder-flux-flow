@@ -30,7 +30,7 @@ import { FolderMembersDialog } from "@/components/FolderMembersDialog";
 import { UserRoleBadge } from "@/components/UserRoleBadge";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
-  Download, ArrowUpDown, Filter as FilterIcon, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder, Search
+  Download, ArrowUpDown, Filter as FilterIcon, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder, Search, Plus
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -48,6 +48,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { MediaUploadSheet } from "@/components/MediaUploadSheet";
 import { Button as ShadcnButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UPLOAD_LIMITS, formatFileSize, validateFileSize } from "@/lib/uploadConfig";
@@ -2031,6 +2033,7 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenu
 
 function ChatView({ project, fullWidth = false }: { project: Project; fullWidth?: boolean }) {
   const [text, setText] = useState("");
+  const [showUploadSheet, setShowUploadSheet] = useState(false);
   const { messages, sendMessage, deleteMessage } = useMessages(project.id);
   const { uploadFile, isUploading, getFileUrl } = useProjectFiles(project.id);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -2047,6 +2050,51 @@ function ChatView({ project, fullWidth = false }: { project: Project; fullWidth?
     if (!t) return;
     sendMessage({ type: "text", content: { text: t } });
     setText("");
+  };
+
+  // Helper function for time formatting
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Media upload handlers
+  const handleImageFromGallery = (files: FileList | null) => {
+    if (files) handleImageUpload(files);
+    setShowUploadSheet(false);
+  };
+  
+  const handleVideoFromGallery = (files: FileList | null) => {
+    if (files) handleImageUpload(files);
+    setShowUploadSheet(false);
+  };
+  
+  const handleAudioFromFiles = (files: FileList | null) => {
+    if (files && files[0]) {
+      handleAudioUpload(files[0]);
+      setShowUploadSheet(false);
+    }
+  };
+  
+  const handleFileSelect = (files: FileList | null) => {
+    if (files) handleImageUpload(files);
+    setShowUploadSheet(false);
+  };
+  
+  const handleCameraOpen = () => {
+    setShowUploadSheet(false);
+    // Camera input is handled through file input with capture attribute
+  };
+  
+  const handleVideoRecordStart = () => {
+    setShowUploadSheet(false);
+    videoRecorder.startRecording();
+  };
+  
+  const handleAudioRecordStart = () => {
+    setShowUploadSheet(false);
+    audioRecorder.startRecording();
   };
 
   const handleImageUpload = async (files: FileList | null) => {
@@ -2112,6 +2160,10 @@ function ChatView({ project, fullWidth = false }: { project: Project; fullWidth?
       }
     });
   };
+  
+  // Use recorder hooks (must be after handler functions)
+  const audioRecorder = useAudioRecorder(handleAudioUpload);
+  const videoRecorder = useVideoRecorder(handleVideoUpload);
 
   return (
     <div className={`h-full flex flex-col ${fullWidth ? 'max-w-5xl mx-auto' : ''}`}>
@@ -2133,37 +2185,114 @@ function ChatView({ project, fullWidth = false }: { project: Project; fullWidth?
 
       <div className="shrink-0 border-t border-border p-4 bg-card shadow-sm">
         <div className="flex items-center gap-2">
-          <input 
-            ref={imageInputRef}
-            type="file" 
-            accept="image/*,application/pdf,.pdf,video/*" 
-            multiple 
-            className="hidden" 
-            onChange={(e) => { 
-              handleImageUpload(e.target.files); 
-              e.target.value = ""; 
-            }} 
-          />
+          {/* Single Plus Button for All Uploads */}
           <button 
-            onClick={() => imageInputRef.current?.click()} 
-            className="p-2.5 rounded-lg border border-border bg-background hover:bg-accent transition-colors" 
-            title="Datei anhängen"
+            onClick={() => setShowUploadSheet(true)}
+            className="p-2.5 rounded-lg border border-border bg-background hover:bg-accent active:bg-accent/70 transition-colors touch-manipulation"
+            title="Medien anhängen"
             disabled={isUploading}
           >
-            📎
+            <Plus className="w-5 h-5" />
           </button>
-          <AudioRecorder onRecordingComplete={handleAudioUpload} />
-          <VideoRecorder onRecordingComplete={handleVideoUpload} />
-          <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); } }} placeholder="Eine Nachricht schreiben…" className="flex-1 bg-secondary rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" />
-          <button onClick={sendText} className="p-2.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground transition-all hover:scale-105 active:scale-95" title="Senden">➤</button>
+          
+          {/* Text Input - Now Has More Space! */}
+          <input 
+            value={text} 
+            onChange={(e) => setText(e.target.value)} 
+            onKeyDown={(e) => { 
+              if (e.key === "Enter" && !e.shiftKey) { 
+                e.preventDefault(); 
+                sendText(); 
+              } 
+            }} 
+            placeholder="Eine Nachricht schreiben…" 
+            className="flex-1 bg-secondary rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" 
+          />
+          
+          {/* Send Button - Now Clearly Visible! */}
+          <button 
+            onClick={sendText} 
+            className="p-2.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground transition-all hover:scale-105 active:scale-95 touch-manipulation" 
+            title="Senden"
+          >
+            ➤
+          </button>
         </div>
-        <div className="text-xs text-muted-foreground mt-2">Enter = senden, Shift + Enter = neue Zeile</div>
+        <div className="text-xs text-muted-foreground mt-2">
+          Enter = senden, Shift + Enter = neue Zeile
+        </div>
+        
+        {/* Recording UI Overlays */}
+        {audioRecorder.isRecording && (
+          <div className="fixed bottom-20 left-0 right-0 flex justify-center z-50">
+            <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-950/20 border border-red-500 rounded-lg shadow-lg">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                {formatTime(audioRecorder.recordingTime)}
+              </span>
+              <button
+                onClick={audioRecorder.stopRecording}
+                className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-medium transition-colors touch-manipulation"
+              >
+                Stoppen
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {videoRecorder.isRecording && (
+          <div className="fixed bottom-20 left-0 right-0 flex justify-center z-50">
+            <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-950/20 border border-red-500 rounded-lg shadow-lg">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                {formatTime(videoRecorder.recordingTime)}
+              </span>
+              <button
+                onClick={videoRecorder.stopRecording}
+                className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-medium transition-colors touch-manipulation"
+              >
+                Stoppen
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {videoRecorder.showPreview && (
+          <Modal onClose={videoRecorder.stopRecording} title="Video-Aufnahme">
+            <div className="relative">
+              <video
+                ref={videoRecorder.videoPreviewRef}
+                autoPlay
+                muted
+                className="w-full max-h-96 rounded-lg bg-black"
+              />
+              <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
+                <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                REC {formatTime(videoRecorder.recordingTime)}
+              </div>
+            </div>
+          </Modal>
+        )}
+        
+        {/* MediaUploadSheet */}
+        <MediaUploadSheet 
+          open={showUploadSheet}
+          onOpenChange={setShowUploadSheet}
+          onImageFromGallery={handleImageFromGallery}
+          onImageFromCamera={handleCameraOpen}
+          onVideoFromGallery={handleVideoFromGallery}
+          onVideoRecord={handleVideoRecordStart}
+          onAudioFromFiles={handleAudioFromFiles}
+          onAudioRecord={handleAudioRecordStart}
+          onFileSelect={handleFileSelect}
+        />
       </div>
     </div>
   );
 }
 
-function AudioRecorder({ onRecordingComplete }: { onRecordingComplete: (blob: Blob) => void }) {
+// Audio Recorder Hook
+function useAudioRecorder(onRecordingComplete: (blob: Blob) => void) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -2214,39 +2343,16 @@ function AudioRecorder({ onRecordingComplete }: { onRecordingComplete: (blob: Bl
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  return {
+    isRecording,
+    recordingTime,
+    startRecording,
+    stopRecording,
   };
-
-  return (
-    <div className="flex items-center gap-2">
-      {!isRecording ? (
-        <button
-          onClick={startRecording}
-          className="p-2.5 rounded-lg border border-border bg-background hover:bg-accent transition-colors"
-          title="Sprachnachricht aufnehmen"
-        >
-          🎤
-        </button>
-      ) : (
-        <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-950/20 border border-red-500 rounded-lg">
-          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-          <span className="text-sm font-medium text-red-600 dark:text-red-400">{formatTime(recordingTime)}</span>
-          <button
-            onClick={stopRecording}
-            className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-medium transition-colors"
-          >
-            Stoppen
-          </button>
-        </div>
-      )}
-    </div>
-  );
 }
 
-function VideoRecorder({ onRecordingComplete }: { onRecordingComplete: (blob: Blob) => void }) {
+// Video Recorder Hook
+function useVideoRecorder(onRecordingComplete: (blob: Blob) => void) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
@@ -2312,53 +2418,14 @@ function VideoRecorder({ onRecordingComplete }: { onRecordingComplete: (blob: Bl
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  return {
+    isRecording,
+    recordingTime,
+    showPreview,
+    videoPreviewRef,
+    startRecording,
+    stopRecording,
   };
-
-  return (
-    <>
-      {!isRecording ? (
-        <button
-          onClick={startRecording}
-          className="p-2.5 rounded-lg border border-border bg-background hover:bg-accent transition-colors"
-          title="Video aufnehmen"
-        >
-          🎥
-        </button>
-      ) : (
-        <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-950/20 border border-red-500 rounded-lg">
-          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-          <span className="text-sm font-medium text-red-600 dark:text-red-400">{formatTime(recordingTime)}</span>
-          <button
-            onClick={stopRecording}
-            className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-medium transition-colors"
-          >
-            Stoppen
-          </button>
-        </div>
-      )}
-
-      {showPreview && (
-        <Modal onClose={stopRecording} title="Video-Aufnahme">
-          <div className="relative">
-            <video
-              ref={videoPreviewRef}
-              autoPlay
-              muted
-              className="w-full max-h-96 rounded-lg bg-black"
-            />
-            <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-              REC {formatTime(recordingTime)}
-            </div>
-          </div>
-        </Modal>
-      )}
-    </>
-  );
 }
 
 const MessageBubble = memo(function MessageBubble({ msg, getFileUrl, onDelete }: { msg: any; getFileUrl?: any; onDelete?: (id: string) => void }) {
