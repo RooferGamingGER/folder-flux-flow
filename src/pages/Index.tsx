@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button as ShadcnButton } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { UPLOAD_LIMITS, formatFileSize, validateFileSize } from "@/lib/uploadConfig";
 import { FullDashboard } from "@/components/FullDashboard";
 import { FullCalendar } from "@/components/FullCalendar";
@@ -526,26 +527,25 @@ export default function Index() {
           />
         </div>
       ) : (
-        <div className="h-[calc(100vh-56px)] flex w-full">
-          {/* App Sidebar (Icon-only sidebar) */}
-          {canAccessDashboard && (
-            <SidebarProvider>
+        <SidebarProvider>
+          <div className="h-[calc(100vh-56px)] flex w-full">
+            {/* App Sidebar (Icon-only sidebar) */}
+            {canAccessDashboard && (
               <AppSidebar 
                 onDashboardClick={() => setShowDashboardDialog(true)}
                 onCalendarClick={() => setShowCalendarDialog(true)}
               />
-              <SidebarTrigger className="absolute top-2 left-2 z-10" />
-            </SidebarProvider>
-          )}
+            )}
 
-          {/* Main Grid Layout */}
-          <div className={`flex-1 grid ${
-            showDetailsSidebar 
-              ? 'grid-cols-1 md:grid-cols-[280px_1fr] xl:grid-cols-[280px_minmax(0,1fr)_280px]'
-              : 'grid-cols-1 md:grid-cols-[280px_1fr]'
-          }`}>
-            {/* Folder Sidebar (280px) */}
-            <aside className="border-r border-border bg-sidebar relative overflow-hidden flex flex-col">
+            {/* Main Grid Layout */}
+            <div className={cn(
+              "flex-1 grid",
+              showDetailsSidebar 
+                ? "grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_280px]"
+                : "grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)]"
+            )}>
+              {/* Folder Sidebar (280px) */}
+              <aside className="border-r border-border bg-card relative overflow-hidden flex flex-col">
               <div className="flex-1 overflow-auto">
                 {isLoading ? (
                   <div className="p-4 space-y-4">
@@ -763,14 +763,15 @@ export default function Index() {
               </div>
             </main>
 
-            {/* Details Sidebar (conditional, 280px) */}
-            {showDetailsSidebar && selectedProject && (
-              <aside className="hidden xl:flex flex-col w-[280px] border-l border-border bg-card">
-                <DetailsSidebar project={selectedProject} />
-              </aside>
-            )}
+              {/* Details Sidebar (conditional, 280px) */}
+              {showDetailsSidebar && selectedProject && (
+                <aside className="hidden xl:flex flex-col w-[280px] border-l border-border bg-card">
+                  <DetailsSidebar project={selectedProject} />
+                </aside>
+              )}
+            </div>
           </div>
-        </div>
+        </SidebarProvider>
       )}
 
       {showFolderDlg && (

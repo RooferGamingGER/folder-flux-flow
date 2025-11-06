@@ -1,5 +1,5 @@
 import { LayoutDashboard, Calendar } from "lucide-react";
-import { Sidebar, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger } from "@/components/ui/sidebar";
 
 interface AppSidebarProps {
   onDashboardClick: () => void;
@@ -8,7 +8,10 @@ interface AppSidebarProps {
 
 export function AppSidebar({ onDashboardClick, onCalendarClick }: AppSidebarProps) {
   return (
-    <Sidebar collapsible="icon" className="border-r border-border">
+    <Sidebar collapsible="offcanvas" className="border-r border-border bg-sidebar">
+      <div className="p-2 border-b border-border">
+        <SidebarTrigger />
+      </div>
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
