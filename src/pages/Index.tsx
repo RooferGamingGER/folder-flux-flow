@@ -527,7 +527,7 @@ export default function Index() {
           />
         </div>
       ) : (
-        <SidebarProvider>
+        <SidebarProvider style={{ "--sidebar-width": "6rem" } as React.CSSProperties}>
           <div className="h-[calc(100vh-56px)] flex w-full">
             {/* App Sidebar (Icon-only sidebar) */}
             {canAccessDashboard && (
