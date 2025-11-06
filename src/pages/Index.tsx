@@ -1689,10 +1689,11 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
   const [showFolderMembersDialog, setShowFolderMembersDialog] = useState(false);
   const { canManageProjects } = useUserRole();
   const { user } = useAuth();
-  const { leaveFolder } = useFolderMembers(f.id);
+  const { members, leaveFolder } = useFolderMembers(f.id);
   
   const isOwner = f.user_id === user?.id;
-  const canLeave = !canManageProjects && !isOwner;
+  const isDirectMember = members.some(m => m.user_id === user?.id);
+  const canLeave = !canManageProjects && !isOwner && isDirectMember;
   const showMenu = canManageProjects || canLeave;
   
   return (
