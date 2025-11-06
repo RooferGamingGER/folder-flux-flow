@@ -112,3 +112,28 @@ export function getProjectsForDate(
     );
   });
 }
+
+/**
+ * Gibt die relative Zeit zurück (z.B. "Vor 2 Stunden", "Gestern")
+ * Format: WhatsApp-ähnlich für deutsche Benutzer
+ */
+export function getRelativeTime(date: string | Date | null): string {
+  if (!date) return "Unbekannt";
+  
+  const now = new Date();
+  const past = new Date(date);
+  const diffMs = now.getTime() - past.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffMins < 1) return "Gerade eben";
+  if (diffMins < 60) return `Vor ${diffMins} Min.`;
+  if (diffHours < 24) return `Vor ${diffHours} Std.`;
+  if (diffDays === 1) return "Gestern";
+  if (diffDays === 2) return "Vorgestern";
+  if (diffDays < 7) return `Vor ${diffDays} Tagen`;
+  
+  // Format: "28. Okt." oder "5. Sept."
+  return format(past, 'd. MMM.', { locale: de });
+}

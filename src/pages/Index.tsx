@@ -24,19 +24,23 @@ import { exportProjectsToExcel, exportProjectToWord, exportProjectAsZip } from "
 import { PROJECT_STATUS_OPTIONS, STATUS_COLORS } from "@/lib/constants";
 import { format, isSameMonth, isSameDay } from "date-fns";
 import { de } from "date-fns/locale";
+import { getRelativeTime } from "@/lib/dateUtils";
 import { UserManagementDialog } from "@/components/UserManagementDialog";
 import { ProjectMembersDialog } from "@/components/ProjectMembersDialog";
 import { FolderMembersDialog } from "@/components/FolderMembersDialog";
 import { UserRoleBadge } from "@/components/UserRoleBadge";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
-  Download, ArrowUpDown, Filter as FilterIcon, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder, Search, Plus
+  Download, ArrowUpDown, Filter as FilterIcon, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder, Search, Plus,
+  ChevronDown, Settings, SlidersHorizontal, MoreVertical, Edit2, MessageSquare, Briefcase, FolderOpen, Folder as FolderIcon
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1312,7 +1316,7 @@ function MobileLayout({
   onCalendarClick: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { canAccessDashboard, hasFullAccess } = useUserRole();
+  const { canAccessDashboard, hasFullAccess, canManageProjects } = useUserRole();
   const { deletedProjects, restoreProject, permanentlyDeleteProject } = useDeletedProjects();
   const { deletedFolders, restoreFolder, permanentlyDeleteFolder } = useDeletedFolders();
   const [showTrashDialog, setShowTrashDialog] = useState(false);
@@ -1322,12 +1326,14 @@ function MobileLayout({
   if (mobileLevel === 'folders') {
     return (
       <div className="h-full flex flex-col bg-background">
-        {/* Header mit Hamburger Menu */}
-        <div className="h-14 border-b border-border px-4 flex items-center gap-3 bg-card">
+        {/* Header mit Dropdown-Button */}
+        <div className="h-14 border-b border-border px-4 flex items-center justify-between bg-card">
+          {/* Links: Dropdown-Button */}
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
-              <button className="p-2 hover:bg-accent rounded-lg transition-colors">
-                <Menu className="w-5 h-5" />
+              <button className="flex items-center gap-2 px-3 py-2 hover:bg-accent rounded-lg transition-colors">
+                <ChevronDown className="w-4 h-4" />
+                <span className="font-semibold text-base">Projekte</span>
               </button>
             </SheetTrigger>
             <SheetContent side="left">
@@ -1410,7 +1416,19 @@ function MobileLayout({
               </div>
             </SheetContent>
           </Sheet>
-          <h2 className="font-semibold text-lg">Ordner</h2>
+          
+          {/* Rechts: Icons */}
+          <div className="flex items-center gap-2">
+            <button className="p-2 hover:bg-accent rounded-lg transition-colors" title="Team">
+              <Users className="w-5 h-5" />
+            </button>
+            <button className="p-2 hover:bg-accent rounded-lg transition-colors relative" title="Benachrichtigungen">
+              <Bell className="w-5 h-5" />
+            </button>
+            <button className="p-2 hover:bg-accent rounded-lg transition-colors" title="Einstellungen">
+              <Settings className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <TrashDialog
@@ -1443,45 +1461,98 @@ function MobileLayout({
             />
           </div>
         ) : (
-          <div className="flex-1 overflow-auto p-4">
-            <h2 className="text-xl font-bold mb-4">Ordner</h2>
-            {isLoading ? (
-              <div className="space-y-4">
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-20 w-full" />
+          <>
+            {/* Suchleiste */}
+            <div className="border-b border-border p-4 bg-card/50">
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Suche"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <button className="p-2 border border-border rounded-lg hover:bg-accent">
+                  <ArrowUpDown className="w-5 h-5" />
+                </button>
+                <button className="p-2 border border-border rounded-lg hover:bg-accent">
+                  <SlidersHorizontal className="w-5 h-5" />
+                </button>
               </div>
-            ) : folders.filter(f => showArchived || !f.archived).length === 0 ? (
-              <div className="text-center text-muted-foreground py-12">
-                Noch keine Ordner vorhanden
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {folders.filter(f => showArchived || !f.archived).map(folder => (
-                  <button
-                    key={folder.id}
-                    onClick={() => {
-                      setSelectedFolderId(folder.id);
-                      setMobileLevel('projects');
-                    }}
-                    className="w-full p-4 bg-card border border-border rounded-lg text-left hover:bg-accent transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium">
-                          📁 {folder.name}
-                          {folder.archived && <span className="text-xs text-muted-foreground ml-2">(Archiv)</span>}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {folder.projects.filter(p => showArchived || !p.archived).length} Projekt{folder.projects.filter(p => showArchived || !p.archived).length !== 1 ? 'e' : ''}
-                        </div>
+            </div>
+            
+            <div className="flex-1 overflow-auto p-4">
+              {isLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                </div>
+              ) : folders.filter(f => showArchived || !f.archived).length === 0 ? (
+                <div className="text-center text-muted-foreground py-12">
+                  Noch keine Ordner vorhanden
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {folders.filter(f => showArchived || !f.archived).map(folder => {
+                    const lastUpdate = folder.id ? "Vor kurzem" : "Vor kurzem";
+                    
+                    return (
+                      <div key={folder.id} className="relative">
+                        <button
+                          onClick={() => {
+                            setSelectedFolderId(folder.id);
+                            setMobileLevel('projects');
+                          }}
+                          className="w-full p-4 bg-card border border-border rounded-lg text-left hover:bg-accent transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            {/* Farbiger Streifen */}
+                            <div className={`w-1 h-12 rounded-full ${folder.archived ? "bg-muted-foreground" : "bg-primary"}`} />
+                            
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <FolderIcon className="w-5 h-5 text-muted-foreground" />
+                                <span className="font-medium truncate">{folder.name}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {folder.projects.filter(p => showArchived || !p.archived).length} Projekt{folder.projects.filter(p => showArchived || !p.archived).length !== 1 ? 'e' : ''}
+                              </div>
+                            </div>
+                            
+                            {/* Zeitstempel */}
+                            <div className="text-xs text-muted-foreground whitespace-nowrap">
+                              {lastUpdate}
+                            </div>
+                          </div>
+                        </button>
+                        
+                        {/* Drei-Punkte-Menü */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button 
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute top-4 right-4 p-2 hover:bg-accent rounded-lg transition-colors"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>Bearbeiten</DropdownMenuItem>
+                            <DropdownMenuItem>Archivieren</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-destructive">Löschen</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
     );
@@ -1494,17 +1565,58 @@ function MobileLayout({
     return (
       <div className="h-full flex flex-col bg-background">
         {/* Header mit Zurück-Button */}
-        <div className="h-14 border-b border-border px-4 flex items-center gap-3 bg-card">
-          <button 
-            onClick={() => {
-              setMobileLevel('folders');
-              setSelectedFolderId(null);
-            }}
-            className="p-2 hover:bg-accent rounded-lg transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h2 className="font-semibold text-lg truncate">{selectedFolder.name}</h2>
+        <div className="h-14 border-b border-border px-4 flex items-center justify-between bg-card">
+          {/* Links: Zurück-Button + Ordner-Name */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <button 
+              onClick={() => {
+                setMobileLevel('folders');
+                setSelectedFolderId(null);
+              }}
+              className="p-2 hover:bg-accent rounded-lg transition-colors shrink-0"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <h2 className="font-semibold text-base truncate">{selectedFolder.name}</h2>
+          </div>
+          
+          {/* Rechts: Icons */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button 
+              className="p-2 hover:bg-accent rounded-lg transition-colors"
+              title="Team-Mitglieder"
+            >
+              <Users className="w-5 h-5" />
+            </button>
+            <button 
+              className="p-2 hover:bg-accent rounded-lg transition-colors"
+              title="Ordner bearbeiten"
+            >
+              <Edit2 className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        
+        {/* Suchleiste */}
+        <div className="border-b border-border p-4 bg-card/50">
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Suche"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <button className="p-2 border border-border rounded-lg hover:bg-accent">
+              <ArrowUpDown className="w-5 h-5" />
+            </button>
+            <button className="p-2 border border-border rounded-lg hover:bg-accent">
+              <SlidersHorizontal className="w-5 h-5" />
+            </button>
+          </div>
         </div>
         
         <div className="flex-1 overflow-auto p-4">
@@ -1514,38 +1626,90 @@ function MobileLayout({
             </div>
           ) : (
             <div className="space-y-2">
-              {projects.map(project => (
-                <button
-                  key={project.id}
-                  onClick={() => {
-                    setSelectedProjectId(project.id);
-                    setView('chat');
-                    setMobileLevel('project');
-                  }}
-                  className="w-full p-4 bg-card border border-border rounded-lg text-left hover:bg-accent transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-8 rounded-full ${project.archived ? "bg-muted-foreground" : "bg-success"}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">
-                        {project.title}
-                        {project.auftragsnummer && (
-                          <span className="text-xs text-muted-foreground ml-2">
-                            ({project.auftragsnummer})
-                          </span>
-                        )}
+              {projects.map(project => {
+                const lastUpdate = getRelativeTime(project.created_at || null);
+                
+                return (
+                  <div key={project.id} className="relative">
+                    <button
+                      onClick={() => {
+                        setSelectedProjectId(project.id);
+                        setView('chat');
+                        setMobileLevel('project');
+                      }}
+                      className="w-full p-4 bg-card border border-border rounded-lg text-left hover:bg-accent transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        {/* Farbiger Streifen */}
+                        <div className={`w-1 h-16 rounded-full ${
+                          project.archived ? "bg-muted-foreground" : 
+                          project.projektstatus === "Abgeschlossen" ? "bg-success" :
+                          project.projektstatus === "In Bearbeitung" ? "bg-primary" :
+                          "bg-warning"
+                        }`} />
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{project.title}</div>
+                          {project.auftragsnummer && (
+                            <div className="text-sm text-muted-foreground mt-1">
+                              {project.auftragsnummer}
+                            </div>
+                          )}
+                          {project.projektstatus && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {project.projektstatus}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Zeitstempel */}
+                        <div className="text-xs text-muted-foreground whitespace-nowrap">
+                          {lastUpdate}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {project.projektstatus || "Kein Status"}
-                      </div>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                    </button>
+                    
+                    {/* Drei-Punkte-Menü */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button 
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute top-4 right-4 p-2 hover:bg-accent rounded-lg transition-colors"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem>Details bearbeiten</DropdownMenuItem>
+                        <DropdownMenuItem>Archivieren</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive">Löschen</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                </button>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
+        
+        {/* FAB Button */}
+        {canManageProjects && (
+          <div className="fixed right-4 bottom-20 z-50">
+            <button 
+              onClick={() => {
+                toast({
+                  title: "Neues Projekt",
+                  description: "Diese Funktion wird bald verfügbar sein.",
+                });
+              }}
+              className="w-14 h-14 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground text-2xl shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95" 
+              title="Neues Projekt"
+            >
+              +
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -1554,95 +1718,41 @@ function MobileLayout({
   if (mobileLevel === 'project' && selectedProject) {
     return (
       <div className="h-full flex flex-col bg-background">
-        {/* Header mit Hamburger Menu und Zurück-Button */}
-        <div className="h-14 border-b border-border px-4 flex items-center gap-3 bg-card">
-          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-            <SheetTrigger asChild>
-              <button className="p-2 hover:bg-accent rounded-lg transition-colors">
-                <Menu className="w-5 h-5" />
-              </button>
-            </SheetTrigger>
-            <SheetContent side="left">
-              <SheetHeader>
-                <SheetTitle>Navigation</SheetTitle>
-              </SheetHeader>
-              <div className="mt-6 space-y-2">
-                <button
-                  onClick={() => {
-                    setMobileLevel('folders');
-                    setSelectedFolderId(null);
-                    setSelectedProjectId(null);
-                    setMenuOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
-                >
-                  <span className="text-lg">🏠</span>
-                  <span className="font-medium">Ordner-Übersicht</span>
-                </button>
-                {canAccessDashboard && (
-                  <>
-                    <button
-                      onClick={() => {
-                        // Future: Navigate to dashboard view
-                        setMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
-                    >
-                      <span className="text-lg">📊</span>
-                      <span className="font-medium">Dashboard</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        // Future: Navigate to calendar view
-                        setMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
-                    >
-                      <span className="text-lg">📅</span>
-                      <span className="font-medium">Kalender</span>
-                    </button>
-                  </>
-                )}
-                <button
-                  onClick={() => {
-                    setShowTrashDialog(true);
-                    setMenuOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
-                >
-                  <Trash2 className="w-5 h-5" />
-                  <span className="font-medium">Papierkorb</span>
-                  {deletedProjects.length > 0 && (
-                    <span className="ml-auto text-xs bg-destructive text-destructive-foreground px-2 py-0.5 rounded-full">
-                      {deletedProjects.length}
-                    </span>
-                  )}
-                </button>
-                {hasFullAccess && (
-                  <button
-                    onClick={() => {
-                      setShowDeletedItems(true);
-                      setMenuOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
-                  >
-                    <RotateCcw className="w-5 h-5" />
-                    <span className="font-medium">Gelöschte Inhalte</span>
-                  </button>
-                )}
-              </div>
-            </SheetContent>
-          </Sheet>
-          <button 
-            onClick={() => {
-              setMobileLevel('projects');
-              setSelectedProjectId(null);
-            }}
-            className="p-2 hover:bg-accent rounded-lg transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h2 className="font-semibold text-base truncate">{selectedProject.title}</h2>
+        {/* Header mit X-Button */}
+        <div className="h-14 border-b border-border px-4 flex items-center justify-between bg-card">
+          {/* Links: X-Button (Schließen) + Projekt-Name */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <button 
+              onClick={() => {
+                setMobileLevel('projects');
+                setSelectedProjectId(null);
+              }}
+              className="p-2 hover:bg-accent rounded-lg transition-colors shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="font-semibold text-sm truncate">
+              {selectedProject.title.length > 20 
+                ? selectedProject.title.substring(0, 20) + '...' 
+                : selectedProject.title}
+            </h2>
+          </div>
+          
+          {/* Rechts: Icons */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button 
+              className="p-2 hover:bg-accent rounded-lg transition-colors"
+              title="Team-Mitglieder"
+            >
+              <Users className="w-5 h-5" />
+            </button>
+            <button 
+              className="p-2 hover:bg-accent rounded-lg transition-colors"
+              title="Projekt bearbeiten"
+            >
+              <Edit2 className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <TrashDialog
@@ -1673,39 +1783,44 @@ function MobileLayout({
         </div>
         
         {/* Bottom Tab Bar */}
-        <div className="h-16 border-t border-border bg-card flex items-center justify-around px-4">
+        <div className="h-16 border-t border-border bg-card flex items-center justify-around px-4 relative">
           <button
             onClick={() => setView('chat')}
-            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${
+            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors relative ${
               view === 'chat' 
-                ? 'bg-primary/10 text-primary' 
+                ? 'text-primary' 
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <span className="text-xl">💬</span>
+            <MessageSquare className="w-5 h-5" />
             <span className="text-xs font-medium">Chat</span>
+            {view === 'chat' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-12 bg-primary rounded-full" />}
           </button>
-          <button
-            onClick={() => setView('files')}
-            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${
-              view === 'files' 
-                ? 'bg-primary/10 text-primary' 
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span className="text-xl">📁</span>
-            <span className="text-xs font-medium">Dateien</span>
-          </button>
+          
           <button
             onClick={() => setView('details')}
-            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${
+            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors relative ${
               view === 'details' 
-                ? 'bg-primary/10 text-primary' 
+                ? 'text-primary' 
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <span className="text-xl">📋</span>
-            <span className="text-xs font-medium">Details</span>
+            <Briefcase className="w-5 h-5" />
+            <span className="text-xs font-medium">Arbeitsbereich</span>
+            {view === 'details' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-12 bg-primary rounded-full" />}
+          </button>
+          
+          <button
+            onClick={() => setView('files')}
+            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors relative ${
+              view === 'files' 
+                ? 'text-primary' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <FolderOpen className="w-5 h-5" />
+            <span className="text-xs font-medium">Dateien</span>
+            {view === 'files' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-12 bg-primary rounded-full" />}
           </button>
         </div>
       </div>
