@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PROJECT_STATUS_OPTIONS, STATUS_COLORS } from '@/lib/constants';
 import { isProjectOverdue } from '@/lib/dateUtils';
+import { useStorageStats } from '@/hooks/useStorageStats';
+import { HardDrive, Image, FileText } from 'lucide-react';
 
 interface Project {
   id: string;
@@ -40,6 +42,7 @@ interface FullDashboardProps {
 
 export function FullDashboard({ allProjects }: FullDashboardProps) {
   const activeProjects = allProjects.filter(({ project }) => !project.archived);
+  const { data: storageStats, isLoading: storageLoading } = useStorageStats();
   
   const stats = useMemo(() => {
     const today = new Date();
@@ -70,6 +73,89 @@ export function FullDashboard({ allProjects }: FullDashboardProps) {
   
   return (
     <div className="space-y-6">
+      {/* Speicherverbrauchs-Übersicht */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <HardDrive className="w-5 h-5" />
+            Speicherverbrauch
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {storageLoading ? (
+            <div className="text-sm text-muted-foreground">Lade Statistiken...</div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <HardDrive className="w-4 h-4" />
+                    Gesamt
+                  </div>
+                  <div className="text-2xl font-bold">
+                    {storageStats?.totalMB || 0} MB
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {storageStats?.totalFiles || 0} Dateien in {storageStats?.projectsWithFiles || 0} Projekten
+                  </div>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Image className="w-4 h-4" />
+                    Bilder
+                  </div>
+                  <div className="text-2xl font-bold">
+                    {storageStats?.imageMB || 0} MB
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {storageStats?.totalImages || 0} Bilder ({storageStats?.totalBytes ? Math.round((storageStats?.imageBytes || 0) / storageStats.totalBytes * 100) : 0}%)
+                  </div>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileText className="w-4 h-4" />
+                    Dokumente
+                  </div>
+                  <div className="text-2xl font-bold">
+                    {storageStats?.documentMB || 0} MB
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {storageStats?.totalDocuments || 0} Dateien
+                  </div>
+                </div>
+              </div>
+              
+              {/* Speicher-Fortschrittsbalken */}
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Verwendeter Speicher</span>
+                  <span className="font-medium">
+                    {storageStats?.totalMB || 0} MB / 1024 MB (Free Tier)
+                  </span>
+                </div>
+                <div className="w-full bg-secondary rounded-full h-3">
+                  <div 
+                    className={`h-3 rounded-full transition-all ${
+                      (parseFloat(storageStats?.totalMB || '0') / 1024) > 0.8 
+                        ? 'bg-red-500' 
+                        : (parseFloat(storageStats?.totalMB || '0') / 1024) > 0.5 
+                        ? 'bg-yellow-500' 
+                        : 'bg-green-500'
+                    }`}
+                    style={{ width: `${Math.min((parseFloat(storageStats?.totalMB || '0') / 1024) * 100, 100)}%` }}
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  ℹ️ Bildkompression spart durchschnittlich 70-90% Speicherplatz
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Statistik-Karten */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard title="Aktive Projekte" value={stats.total} />

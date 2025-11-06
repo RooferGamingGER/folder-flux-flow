@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { PROJECT_STATUS_OPTIONS, STATUS_COLORS } from '@/lib/constants';
+import { useStorageStats } from '@/hooks/useStorageStats';
 
 type Project = {
   id: string;
@@ -19,6 +20,8 @@ export function CompactDashboard({
 }: { 
   allProjects: { folderId: string; folder: Folder; project: Project }[] 
 }) {
+  const { data: storageStats } = useStorageStats();
+  
   const stats = useMemo(() => {
     const activeProjects = allProjects.filter(({ project }) => !project.archived);
     
@@ -38,6 +41,20 @@ export function CompactDashboard({
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">📊 Dashboard</h3>
         <span className="text-xs text-muted-foreground">{stats.total} Projekte</span>
+      </div>
+      
+      {/* Speicher-Anzeige */}
+      <div className="p-2 bg-muted/50 rounded-lg space-y-1">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">💾 Speicher</span>
+          <span className="font-medium">{storageStats?.totalMB || 0} MB</span>
+        </div>
+        <div className="w-full bg-secondary rounded-full h-1.5">
+          <div 
+            className="h-1.5 rounded-full bg-primary transition-all"
+            style={{ width: `${Math.min((parseFloat(storageStats?.totalMB || '0') / 1024) * 100, 100)}%` }}
+          />
+        </div>
       </div>
       
       <div className="space-y-2">
