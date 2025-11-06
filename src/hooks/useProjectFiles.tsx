@@ -34,6 +34,11 @@ export function useProjectFiles(projectId?: string) {
     mutationFn: async ({ file, folder }: { file: File; folder: string }) => {
       if (!user || !projectId) throw new Error('Not authenticated or no project');
       
+      // Server-seitige Validierung als Fallback
+      if (file.size > 50 * 1024 * 1024) {
+        throw new Error(`Datei zu groß: ${file.name} (${formatBytes(file.size)}). Maximum: 50 MB`);
+      }
+      
       const originalSize = file.size;
       const originalName = file.name;
       

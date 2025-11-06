@@ -33,8 +33,19 @@ import {
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button as ShadcnButton } from "@/components/ui/button";
+import { UPLOAD_LIMITS, formatFileSize, validateFileSize } from "@/lib/uploadConfig";
 import { FullDashboard } from "@/components/FullDashboard";
 import { FullCalendar } from "@/components/FullCalendar";
 import { TrashDialog } from "@/components/TrashDialog";
@@ -2343,6 +2354,13 @@ function FilesView({ project }: { project: Project }) {
   const [newDirName, setNewDirName] = useState("");
   const [preview, setPreview] = useState<{ url: string; mime: string; name: string; __temp: boolean } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [showUploadWarning, setShowUploadWarning] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<{
+    files: File[];
+    warnings: Array<{ name: string; size: string }>;
+    errors: Array<{ name: string; size: string }>;
+    totalSize: string;
+  } | null>(null);
   
   const { files: dbFiles, uploadFile, isUploading, getFileUrl, deleteFile, moveFile: dbMoveFile } = useProjectFiles(project.id);
   const { directories, createDirectory, renameDirectory, deleteDirectory } = useProjectDirectories(project.id);
@@ -2376,9 +2394,7 @@ function FilesView({ project }: { project: Project }) {
   const uniqueStandardDirs = standardDirs.filter(std => !customDirs.includes(std));
   const listDirs = [...uniqueStandardDirs, ...customDirs];
 
-  const addFiles = async (files: FileList | null, forceImage = false) => {
-    if (!files || files.length === 0) return;
-    
+  const performUpload = async (files: File[]) => {
     const totalFiles = files.length;
     setUploadProgress({ current: 0, total: totalFiles });
     
@@ -2407,6 +2423,61 @@ function FilesView({ project }: { project: Project }) {
     
     // Nach 2 Sekunden Progress ausblenden
     setTimeout(() => setUploadProgress(null), 2000);
+  };
+
+  const addFiles = async (fileList: FileList | null, forceImage = false) => {
+    if (!fileList || fileList.length === 0) return;
+    
+    const files = Array.from(fileList);
+    
+    // Validierung
+    const warnings: Array<{ name: string; size: string }> = [];
+    const errors: Array<{ name: string; size: string }> = [];
+    let totalSize = 0;
+    
+    files.forEach(file => {
+      totalSize += file.size;
+      const validation = validateFileSize(file);
+      
+      if (validation === 'error') {
+        errors.push({ 
+          name: file.name, 
+          size: formatFileSize(file.size) 
+        });
+      } else if (validation === 'warning') {
+        warnings.push({ 
+          name: file.name, 
+          size: formatFileSize(file.size) 
+        });
+      }
+    });
+    
+    // Fehler: Dateien zu groß (>50 MB)
+    if (errors.length > 0) {
+      setPendingFiles({
+        files,
+        warnings,
+        errors,
+        totalSize: formatFileSize(totalSize),
+      });
+      setShowUploadWarning(true);
+      return; // Upload blockieren
+    }
+    
+    // Warnung: Große Dateien (10-50 MB) oder viele Dateien
+    if (warnings.length > 0 || totalSize > UPLOAD_LIMITS.WARNING_SIZE) {
+      setPendingFiles({
+        files,
+        warnings,
+        errors,
+        totalSize: formatFileSize(totalSize),
+      });
+      setShowUploadWarning(true);
+      return; // Auf Bestätigung warten
+    }
+    
+    // Keine Probleme -> Direkt hochladen
+    await performUpload(files);
   };
 
   const makeDir = () => {
@@ -2719,6 +2790,87 @@ function FilesView({ project }: { project: Project }) {
           <div className="mt-4 flex justify-end"><a href={preview.url} download className="px-4 py-2 rounded-lg border border-border bg-background hover:bg-accent transition-colors">⬇️ Download</a></div>
         </Modal>
       )}
+      
+      {/* Upload-Warnung Dialog */}
+      <AlertDialog open={showUploadWarning} onOpenChange={setShowUploadWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {pendingFiles?.errors.length ? '🚫' : '⚠️'} 
+              {pendingFiles?.errors.length ? 'Upload blockiert' : 'Große Dateien erkannt'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-left">
+                {pendingFiles?.errors.length ? (
+                  <>
+                    <p className="text-destructive font-medium">
+                      Die folgenden Dateien sind zu groß (Limit: 50 MB):
+                    </p>
+                    <ul className="space-y-1 text-sm">
+                      {pendingFiles.errors.map((file, i) => (
+                        <li key={i} className="flex justify-between bg-destructive/10 p-2 rounded">
+                          <span className="truncate flex-1">{file.name}</span>
+                          <span className="font-mono text-destructive ml-2">{file.size}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-sm text-muted-foreground">
+                      💡 <strong>Tipp:</strong> Komprimiere die Dateien oder lade sie als ZIP-Archiv hoch.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      Du versuchst <strong>{pendingFiles?.files.length} Datei(en)</strong> mit einer Gesamtgröße von <strong>{pendingFiles?.totalSize}</strong> hochzuladen.
+                    </p>
+                    
+                    {pendingFiles?.warnings.length > 0 && (
+                      <>
+                        <p className="text-yellow-600 dark:text-yellow-500 font-medium">
+                          Große Dateien (&gt;10 MB):
+                        </p>
+                        <ul className="space-y-1 text-sm">
+                          {pendingFiles.warnings.map((file, i) => (
+                            <li key={i} className="flex justify-between bg-yellow-500/10 p-2 rounded">
+                              <span className="truncate flex-1">{file.name}</span>
+                              <span className="font-mono ml-2">{file.size}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                    
+                    <p className="text-sm text-muted-foreground">
+                      ℹ️ Große Uploads können einige Sekunden dauern. Bilder werden automatisch komprimiert.
+                    </p>
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setPendingFiles(null);
+              setShowUploadWarning(false);
+            }}>
+              Abbrechen
+            </AlertDialogCancel>
+            
+            {!pendingFiles?.errors.length && (
+              <AlertDialogAction onClick={() => {
+                setShowUploadWarning(false);
+                if (pendingFiles?.files) {
+                  performUpload(pendingFiles.files);
+                }
+                setPendingFiles(null);
+              }}>
+                Trotzdem hochladen
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
