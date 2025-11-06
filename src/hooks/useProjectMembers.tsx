@@ -53,7 +53,7 @@ export function useProjectMembers(projectId?: string) {
         isOwner,
         hasFullAccess,
         hasFolderAccess,
-        canLeave: !isOwner && !hasFullAccess && !hasFolderAccess
+        canLeave: !isOwner && !hasFullAccess
       };
     },
     enabled: !!projectId && !!user,

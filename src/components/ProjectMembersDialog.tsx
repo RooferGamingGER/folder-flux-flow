@@ -120,7 +120,12 @@ export function ProjectMembersDialog({
           </div>
 
           {canLeave && (
-            <div className="border-t pt-4">
+            <div className="border-t pt-4 space-y-2">
+              {accessInfo?.hasFolderAccess && (
+                <div className="text-xs text-muted-foreground bg-yellow-50 dark:bg-yellow-950 p-2 rounded border border-yellow-200 dark:border-yellow-800">
+                  ℹ️ <strong>Hinweis:</strong> Nach dem Verlassen hast du weiterhin Zugriff über den zugeordneten Ordner.
+                </div>
+              )}
               <Button 
                 variant="outline" 
                 className="w-full text-orange-600 hover:text-orange-700"
