@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Bell, FolderIcon, FileText, MessageSquare } from "lucide-react";
 import { getRelativeTime } from "@/lib/dateUtils";
@@ -17,8 +18,9 @@ interface MobileNotificationsSheetProps {
 }
 
 export function MobileNotificationsSheet({ open, onClose }: MobileNotificationsSheetProps) {
-  // TODO: Später aus Datenbank laden
-  const notifications: Notification[] = [
+  // TODO: Später Benachrichtigungen aus der Datenbank laden
+  // und über Supabase Realtime auf neue Benachrichtigungen hören
+  const [notifications, setNotifications] = useState<Notification[]>([
     {
       id: '1',
       type: 'project',
@@ -35,7 +37,14 @@ export function MobileNotificationsSheet({ open, onClose }: MobileNotificationsS
       timestamp: new Date(Date.now() - 7200000).toISOString(),
       read: true,
     },
-  ];
+  ]);
+
+  // Alle als gelesen markieren beim Öffnen
+  useEffect(() => {
+    if (open && notifications.some(n => !n.read)) {
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    }
+  }, [open, notifications]);
 
   const getIcon = (type: Notification['type']) => {
     switch (type) {

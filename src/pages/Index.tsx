@@ -236,6 +236,7 @@ export default function Index() {
   const [showProjectMembers, setShowProjectMembers] = useState(false);
   const [showFolderMembers, setShowFolderMembers] = useState(false);
   const [selectedFolderForMembers, setSelectedFolderForMembers] = useState<string | null>(null);
+  const [selectedProjectForMembers, setSelectedProjectForMembers] = useState<string | null>(null);
   
   // Dashboard & Calendar Dialog states
   const [showDashboardDialog, setShowDashboardDialog] = useState(false);
@@ -564,11 +565,35 @@ export default function Index() {
             toggleArchiveProject={toggleArchiveProject}
             sortBy={sortBy}
             setSortBy={setSortBy}
-            sortOrder={sortOrder}
-            setSortOrder={setSortOrder}
-            filterStatus={filterStatus}
-            setFilterStatus={setFilterStatus}
-          />
+          sortOrder={sortOrder}
+          setSortOrder={setSortOrder}
+          filterStatus={filterStatus}
+          setFilterStatus={setFilterStatus}
+          showUserManagement={showUserManagement}
+          setShowUserManagement={setShowUserManagement}
+          showFolderMembers={showFolderMembers}
+          setShowFolderMembers={setShowFolderMembers}
+          showProjectMembers={showProjectMembers}
+          setShowProjectMembers={setShowProjectMembers}
+          selectedFolderForMembers={selectedFolderForMembers}
+          setSelectedFolderForMembers={setSelectedFolderForMembers}
+          selectedProjectForMembers={selectedProjectForMembers}
+          setSelectedProjectForMembers={setSelectedProjectForMembers}
+          showMobileSettings={showMobileSettings}
+          setShowMobileSettings={setShowMobileSettings}
+          showMobileNotifications={showMobileNotifications}
+          setShowMobileNotifications={setShowMobileNotifications}
+          user={user}
+          signOut={signOut}
+          deletedProjects={deletedProjects}
+          deletedFolders={deletedFolders}
+          restoreProject={restoreProject}
+          restoreFolder={restoreFolder}
+          permanentlyDeleteProject={permanentlyDeleteProject}
+          permanentlyDeleteFolder={permanentlyDeleteFolder}
+          hasFullAccess={hasFullAccess}
+          canManageProjects={canManageProjects}
+        />
         </div>
       ) : (
         <SidebarProvider style={{ "--sidebar-width": "6rem" } as React.CSSProperties} defaultOpen={true}>
@@ -1353,6 +1378,30 @@ function MobileLayout({
   setSortOrder,
   filterStatus,
   setFilterStatus,
+  showUserManagement,
+  setShowUserManagement,
+  showFolderMembers,
+  setShowFolderMembers,
+  showProjectMembers,
+  setShowProjectMembers,
+  selectedFolderForMembers,
+  setSelectedFolderForMembers,
+  selectedProjectForMembers,
+  setSelectedProjectForMembers,
+  showMobileSettings,
+  setShowMobileSettings,
+  showMobileNotifications,
+  setShowMobileNotifications,
+  user,
+  signOut,
+  deletedProjects,
+  deletedFolders,
+  restoreProject,
+  restoreFolder,
+  permanentlyDeleteProject,
+  permanentlyDeleteFolder,
+  hasFullAccess,
+  canManageProjects,
 }: {
   mobileLevel: 'folders' | 'projects' | 'project';
   setMobileLevel: (level: 'folders' | 'projects' | 'project') => void;
@@ -1392,30 +1441,41 @@ function MobileLayout({
   setSortOrder: (order: 'asc' | 'desc') => void;
   filterStatus: string | null;
   setFilterStatus: (status: string | null) => void;
+  showUserManagement: boolean;
+  setShowUserManagement: (show: boolean) => void;
+  showFolderMembers: boolean;
+  setShowFolderMembers: (show: boolean) => void;
+  showProjectMembers: boolean;
+  setShowProjectMembers: (show: boolean) => void;
+  selectedFolderForMembers: string | null;
+  setSelectedFolderForMembers: (id: string | null) => void;
+  selectedProjectForMembers: string | null;
+  setSelectedProjectForMembers: (id: string | null) => void;
+  showMobileSettings: boolean;
+  setShowMobileSettings: (show: boolean) => void;
+  showMobileNotifications: boolean;
+  setShowMobileNotifications: (show: boolean) => void;
+  user: any;
+  signOut: () => Promise<void>;
+  deletedProjects: any[];
+  deletedFolders: any[];
+  restoreProject: (id: string) => void;
+  restoreFolder: (id: string) => void;
+  permanentlyDeleteProject: (id: string) => void;
+  permanentlyDeleteFolder: (id: string) => void;
+  hasFullAccess: boolean;
+  canManageProjects: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { canAccessDashboard, hasFullAccess, canManageProjects } = useUserRole();
-  const { deletedProjects, restoreProject, permanentlyDeleteProject } = useDeletedProjects();
-  const { deletedFolders, restoreFolder, permanentlyDeleteFolder } = useDeletedFolders();
+  const { canAccessDashboard } = useUserRole();
   const [showTrashDialog, setShowTrashDialog] = useState(false);
   const [showDeletedItems, setShowDeletedItems] = useState(false);
   
-  // Mobile Settings & Notifications
-  const [showMobileSettings, setShowMobileSettings] = useState(false);
-  const [showMobileNotifications, setShowMobileNotifications] = useState(false);
   const [mobileFabOpen, setMobileFabOpen] = useState(false);
-  const [showUserManagement, setShowUserManagement] = useState(false);
-  const [showFolderMembers, setShowFolderMembers] = useState(false);
-  const [showProjectMembers, setShowProjectMembers] = useState(false);
-  const [selectedFolderForMembers, setSelectedFolderForMembers] = useState<string | null>(null);
-  const [selectedProjectForMembers, setSelectedProjectForMembers] = useState<string | null>(null);
   
   // Filter & Sort States
   const [showSortSheet, setShowSortSheet] = useState(false);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
-  
-  // Get user and signOut from auth
-  const { user, signOut } = useAuth();
   
   // Helper functions to open dialogs
   const openFolderDialog = () => {
@@ -1541,7 +1601,8 @@ function MobileLayout({
               title="Benachrichtigungen"
             >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
+              {/* TODO: Unread count aus der Datenbank laden */}
+              {/* <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" /> */}
             </button>
             <button 
               onClick={() => setShowMobileSettings(true)}
