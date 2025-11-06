@@ -8,7 +8,7 @@ interface AppSidebarProps {
 
 export function AppSidebar({ onDashboardClick, onCalendarClick }: AppSidebarProps) {
   return (
-    <Sidebar collapsible="offcanvas" className="border-r border-border bg-sidebar">
+    <Sidebar collapsible="offcanvas" className="border-r border-border bg-sidebar w-14 data-[state=expanded]:w-48">
       <div className="p-2 border-b border-border">
         <SidebarTrigger />
       </div>

@@ -33,7 +33,7 @@ import {
   Download, ArrowUpDown, Filter as FilterIcon, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder, Search
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -50,6 +50,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button as ShadcnButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
 import { UPLOAD_LIMITS, formatFileSize, validateFileSize } from "@/lib/uploadConfig";
 import { FullDashboard } from "@/components/FullDashboard";
 import { FullCalendar } from "@/components/FullCalendar";
@@ -536,6 +537,9 @@ export default function Index() {
                 onCalendarClick={() => setShowCalendarDialog(true)}
               />
             )}
+            
+            {/* Floating Trigger when Sidebar is collapsed */}
+            {canAccessDashboard && <FloatingSidebarTrigger />}
 
             {/* Main Grid Layout */}
             <div className={cn(
@@ -561,9 +565,29 @@ export default function Index() {
                   </div>
                 ) : (
                   <div className="pb-20">
-                    {folders.filter((f) => showArchived || !f.archived).map((f) => (
-                      <FolderBlock key={f.id} f={f} selectedFolderId={selectedFolderId} selectedProjectId={selectedProjectId} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} showArchived={showArchived} onDelete={deleteFolder} onArchiveToggle={toggleArchiveFolder} onMoveProject={openMoveProject} onDeleteProject={deleteProject} onArchiveProject={toggleArchiveProject} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
-                    ))}
+                    {/* Aktive Ordner */}
+                    {folders.filter(f => !f.archived).length > 0 && (
+                      <div>
+                        <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30 sticky top-0 z-10">
+                          Aktive Ordner
+                        </div>
+                        {folders.filter(f => !f.archived).map((f) => (
+                          <FolderBlock key={f.id} f={f} selectedFolderId={selectedFolderId} selectedProjectId={selectedProjectId} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} showArchived={showArchived} onDelete={deleteFolder} onArchiveToggle={toggleArchiveFolder} onMoveProject={openMoveProject} onDeleteProject={deleteProject} onArchiveProject={toggleArchiveProject} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Archivierte Ordner (nur wenn showArchived aktiv) */}
+                    {showArchived && folders.filter(f => f.archived).length > 0 && (
+                      <div className="mt-8">
+                        <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-amber-50 dark:bg-amber-950/20 sticky top-0 z-10 border-y border-amber-200 dark:border-amber-800">
+                          📦 Archivierte Ordner
+                        </div>
+                        {folders.filter(f => f.archived).map((f) => (
+                          <FolderBlock key={f.id} f={f} selectedFolderId={selectedFolderId} selectedProjectId={selectedProjectId} setSelectedFolderId={setSelectedFolderId} setSelectedProjectId={setSelectedProjectId} showArchived={showArchived} onDelete={deleteFolder} onArchiveToggle={toggleArchiveFolder} onMoveProject={openMoveProject} onDeleteProject={deleteProject} onArchiveProject={toggleArchiveProject} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1824,6 +1848,18 @@ function HeaderBtn({ label, onClick, active }: { label: string; onClick: () => v
   );
 }
 
+function FloatingSidebarTrigger() {
+  const { open } = useSidebar();
+  
+  if (open) return null;
+  
+  return (
+    <div className="fixed top-20 left-4 z-50">
+      <SidebarTrigger />
+    </div>
+  );
+}
+
 function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolderId, setSelectedProjectId, showArchived, onDelete, onArchiveToggle, onMoveProject, onDeleteProject, onArchiveProject, openMenuId, setOpenMenuId }: { f: Folder; selectedFolderId: string | null; selectedProjectId: string | null; setSelectedFolderId: (id: string) => void; setSelectedProjectId: (id: string | null) => void; showArchived: boolean; onDelete: (id: string) => void; onArchiveToggle: (id: string) => void; onMoveProject: (fid: string, pid: string) => void; onDeleteProject: (fid: string, pid: string) => void; onArchiveProject: (fid: string, pid: string) => void; openMenuId: string | null; setOpenMenuId: (id: string | null) => void }) {
   const menuId = `folder-${f.id}`;
   const isMenuOpen = openMenuId === menuId;
@@ -1840,8 +1876,10 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
   return (
     <div>
       <div className="sticky top-0 z-10 bg-sidebar-accent px-4 py-3 text-sm font-semibold border-y border-sidebar-border flex items-center gap-2 group">
-        <button className={`px-3 py-1.5 rounded-md transition-colors ${selectedFolderId === f.id ? "bg-card shadow-sm" : "hover:bg-card/50"}`} onClick={() => { setSelectedFolderId(f.id); setSelectedProjectId(null); }}>
-          📁 {f.name}{f.archived ? " (Archiv)" : ""}
+        <button className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors flex-1 min-w-0 ${selectedFolderId === f.id ? "bg-card shadow-sm" : "hover:bg-card/50"}`} onClick={() => { setSelectedFolderId(f.id); setSelectedProjectId(null); }}>
+          <span className="truncate">
+            📁 {f.name}{f.archived ? " (Archiv)" : ""}
+          </span>
         </button>
         {canManageProjects && (
           <button 
@@ -1905,15 +1943,36 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
         onClose={() => setShowFolderMembersDialog(false)}
       />
       {selectedFolderId === f.id && (
-        <ul className="divide-y divide-border">
-          {f.projects.filter((p) => (showArchived || !p.archived)).length === 0 ? (
-            <li className="px-4 py-4 text-sm text-muted-foreground">Keine Projekte vorhanden</li>
-          ) : (
-            f.projects.filter((p) => (showArchived || !p.archived)).map((p) => (
-              <ProjectRow key={p.id} p={p} onOpen={() => { setSelectedProjectId(p.id); }} onMove={() => onMoveProject(f.id, p.id)} onDelete={() => onDeleteProject(f.id, p.id)} onArchive={() => onArchiveProject(f.id, p.id)} selected={!!selectedProjectId && p.id === selectedProjectId} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} onLeave={() => setSelectedProjectId(null)} />
-            ))
+        <div>
+          {/* Aktive Projekte */}
+          {f.projects.filter(p => !p.archived).length > 0 && (
+            <ul className="divide-y divide-border">
+              {f.projects.filter(p => !p.archived).map((p) => (
+                <ProjectRow key={p.id} p={p} onOpen={() => { setSelectedProjectId(p.id); }} onMove={() => onMoveProject(f.id, p.id)} onDelete={() => onDeleteProject(f.id, p.id)} onArchive={() => onArchiveProject(f.id, p.id)} selected={!!selectedProjectId && p.id === selectedProjectId} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} onLeave={() => setSelectedProjectId(null)} />
+              ))}
+            </ul>
           )}
-        </ul>
+          
+          {f.projects.filter(p => !p.archived).length === 0 && !showArchived && (
+            <div className="px-4 py-4 text-sm text-muted-foreground">
+              Keine aktiven Projekte vorhanden
+            </div>
+          )}
+          
+          {/* Archivierte Projekte (nur wenn showArchived aktiv) */}
+          {showArchived && f.projects.filter(p => p.archived).length > 0 && (
+            <>
+              <div className="px-4 py-2 text-xs font-semibold text-muted-foreground bg-amber-50 dark:bg-amber-950/20 border-y border-amber-200 dark:border-amber-800">
+                📦 Archivierte Projekte
+              </div>
+              <ul className="divide-y divide-border bg-amber-50/30 dark:bg-amber-950/10">
+                {f.projects.filter(p => p.archived).map((p) => (
+                  <ProjectRow key={p.id} p={p} onOpen={() => { setSelectedProjectId(p.id); }} onMove={() => onMoveProject(f.id, p.id)} onDelete={() => onDeleteProject(f.id, p.id)} onArchive={() => onArchiveProject(f.id, p.id)} selected={!!selectedProjectId && p.id === selectedProjectId} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} onLeave={() => setSelectedProjectId(null)} />
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
@@ -1933,7 +1992,7 @@ function ProjectRow({ p, onOpen, onMove, onDelete, onArchive, selected, openMenu
   return (
     <li onClick={onOpen} className={`grid grid-cols-[6px_1fr_auto] gap-3 px-4 py-3 cursor-pointer transition-colors ${selected ? "bg-accent" : "hover:bg-accent/50"} group`}>
       <div className={`w-1.5 h-full ${p.archived ? "bg-muted-foreground" : "bg-success"} rounded-full`} />
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="text-sm font-medium text-foreground truncate">
           {p.title}
           {p.auftragsnummer && (
