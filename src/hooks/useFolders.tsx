@@ -106,11 +106,32 @@ export function useFolders() {
     mutationFn: async ({ id, archived }: { id: string; archived: boolean }) => {
       if (!user) throw new Error('Not authenticated');
       
-      const folder = { id, archived: !archived, updated_at: new Date().toISOString() };
-      return await syncService.syncFolder(folder);
+      if (navigator.onLine) {
+        const { data, error } = await supabase
+          .from('folders')
+          .update({ 
+            archived: !archived, 
+            updated_at: new Date().toISOString() 
+          })
+          .eq('id', id)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
+      } else {
+        await offlineStorage.addToSyncQueue({
+          id: crypto.randomUUID(),
+          operation: 'update',
+          table: 'folders',
+          data: { id, archived: !archived, updated_at: new Date().toISOString() },
+        });
+        return { id, archived: !archived };
+      }
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
+      toast({ title: variables.archived ? 'Ordner wiederhergestellt' : 'Ordner archiviert' });
     },
   });
 

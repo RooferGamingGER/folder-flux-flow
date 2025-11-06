@@ -134,13 +134,28 @@ export function useProjects(folderId?: string) {
     mutationFn: async ({ id, archived }: { id: string; archived: boolean }) => {
       if (!user) throw new Error('Not authenticated');
       
-      const project = { 
-        id, 
-        archived: !archived, 
-        updated_at: new Date().toISOString(),
-        user_id: user.id  // ✅ FIX: user_id hinzufügen für RLS
-      };
-      return await syncService.syncProject(project);
+      if (navigator.onLine) {
+        const { data, error } = await supabase
+          .from('projects')
+          .update({ 
+            archived: !archived, 
+            updated_at: new Date().toISOString() 
+          })
+          .eq('id', id)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
+      } else {
+        await offlineStorage.addToSyncQueue({
+          id: crypto.randomUUID(),
+          operation: 'update',
+          table: 'projects',
+          data: { id, archived: !archived, updated_at: new Date().toISOString() },
+        });
+        return { id, archived: !archived };
+      }
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });

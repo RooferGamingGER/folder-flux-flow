@@ -132,6 +132,12 @@ export function FolderMembersDialog({
               </Button>
             </div>
           )}
+
+          {!isMember && !canManage && (
+            <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded border">
+              ℹ️ Du hast indirekten Zugriff auf diesen Ordner (z.B. über ein Projekt). Ein direktes Verlassen ist nicht möglich.
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

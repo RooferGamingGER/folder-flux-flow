@@ -130,6 +130,12 @@ export function ProjectMembersDialog({
               </Button>
             </div>
           )}
+
+          {!isMember && !canManage && (
+            <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded border">
+              ℹ️ Du hast Zugriff über einen Ordner. Um den Zugriff zu entfernen, verlasse den entsprechenden Ordner.
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
