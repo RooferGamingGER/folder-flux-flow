@@ -90,6 +90,52 @@ export function useProjectMembers(projectId?: string) {
     enabled: !!projectId && !!user,
   });
 
+  // Query for folder members (indirect access)
+  const { data: folderMembers = [] } = useQuery({
+    queryKey: ['project-folder-members', projectId],
+    queryFn: async () => {
+      if (!projectId) return [];
+      
+      // 1. Get folder_id of the project
+      const { data: project } = await supabase
+        .from('projects')
+        .select('folder_id')
+        .eq('id', projectId)
+        .maybeSingle();
+      
+      if (!project?.folder_id) return [];
+      
+      // 2. Get all folder members
+      const { data, error } = await supabase
+        .from('folder_members')
+        .select('user_id, added_at')
+        .eq('folder_id', project.folder_id);
+      
+      if (error) throw error;
+      
+      // 3. Load profiles separately
+      const memberData = await Promise.all(
+        (data || []).map(async (member: any) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id, first_name, last_name, email')
+            .eq('id', member.user_id)
+            .maybeSingle();
+          
+          return { 
+            ...member, 
+            profile,
+            isFromFolder: true,
+            id: `folder-${member.user_id}`
+          };
+        })
+      );
+
+      return memberData;
+    },
+    enabled: !!projectId && !!user,
+  });
+
   const addMember = useMutation({
     mutationFn: async (userId: string) => {
       if (!projectId) throw new Error('Keine Projekt-ID');
@@ -210,7 +256,9 @@ export function useProjectMembers(projectId?: string) {
   });
 
   return {
-    members,
+    members: [...members, ...folderMembers],
+    directMembers: members,
+    folderMembers: folderMembers,
     isLoading,
     accessInfo,
     addMember: addMember.mutate,

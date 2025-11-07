@@ -1,10 +1,15 @@
-import { useState, useMemo } from 'react';
-import { Calendar } from '@/components/ui/calendar';
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { isProjectOverdue, isProjectUpcoming, getProjectsForDate } from '@/lib/dateUtils';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { 
+  getUpcomingProjects, 
+  getActiveProjects, 
+  getOverdueProjects,
+  formatDate 
+} from '@/lib/dateUtils';
 import { STATUS_COLORS } from '@/lib/constants';
+import { CalendarDays, Rocket, AlertTriangle } from 'lucide-react';
 
 interface FullCalendarProps {
   allProjects: {
@@ -22,6 +27,7 @@ interface FullCalendarProps {
         ansprechpartner?: string;
         startdatum?: string;
         enddatum?: string;
+        auftragsnummer?: string;
       };
     };
   }[];
@@ -29,219 +35,251 @@ interface FullCalendarProps {
 }
 
 export function FullCalendar({ allProjects, onProjectClick }: FullCalendarProps) {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  
   // Nur aktive Projekte
   const activeProjects = useMemo(() => 
     allProjects.filter(({ project }) => !project.archived),
     [allProjects]
   );
-  
-  // Projekte für ausgewähltes Datum
-  const projectsOnDate = useMemo(() => {
-    if (!selectedDate) return [];
-    return getProjectsForDate(activeProjects, selectedDate);
-  }, [activeProjects, selectedDate]);
-  
-  // Datum-Modifiers für Kalender
-  const modifiers = useMemo(() => {
-    return {
-      projectStart: (date: Date) => {
-        const dateStr = date.toISOString().split('T')[0];
-        return activeProjects.some(({ project }) => 
-          project.details?.startdatum?.split('T')[0] === dateStr
-        );
-      },
-      projectEnd: (date: Date) => {
-        const dateStr = date.toISOString().split('T')[0];
-        return activeProjects.some(({ project }) => 
-          project.details?.enddatum?.split('T')[0] === dateStr
-        );
-      },
-      overdue: (date: Date) => {
-        const dateStr = date.toISOString().split('T')[0];
-        return activeProjects.some(({ project }) => {
-          const endDateStr = project.details?.enddatum?.split('T')[0];
-          return endDateStr === dateStr && 
-                 isProjectOverdue(project.details?.enddatum) &&
-                 (project.details?.projektstatus || project.projektstatus) !== 'Abgeschlossen';
-        });
-      },
-      upcoming: (date: Date) => {
-        const dateStr = date.toISOString().split('T')[0];
-        return activeProjects.some(({ project }) => {
-          const startDateStr = project.details?.startdatum?.split('T')[0];
-          return startDateStr === dateStr && 
-                 isProjectUpcoming(project.details?.startdatum, 7);
-        });
-      },
-    };
-  }, [activeProjects]);
-  
-  return (
-    <Tabs defaultValue="projects" className="w-full">
-      <TabsList className="grid w-full grid-cols-2 mb-4">
-        <TabsTrigger value="projects">📅 Projekt-Kalender</TabsTrigger>
-        <TabsTrigger value="baustellen">🏗️ Baustellenkalender</TabsTrigger>
-      </TabsList>
-      
-      {/* Tab 1: Projekt-Kalender */}
-      <TabsContent value="projects" className="space-y-4">
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr,1fr] gap-6">
-          {/* Kalender */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Projekttermine</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={setSelectedDate}
-                className="rounded-md border w-full pointer-events-auto"
-                modifiers={modifiers}
-                modifiersStyles={{
-                  projectStart: {
-                    backgroundColor: 'hsl(var(--primary) / 0.2)',
-                    fontWeight: 'bold',
-                    borderLeft: '3px solid hsl(var(--primary))',
-                  },
-                  projectEnd: {
-                    backgroundColor: 'hsl(var(--primary) / 0.2)',
-                    fontWeight: 'bold',
-                    borderRight: '3px solid hsl(var(--primary))',
-                  },
-                  overdue: {
-                    backgroundColor: 'hsl(var(--destructive) / 0.3)',
-                    fontWeight: 'bold',
-                    color: 'white',
-                    border: '2px solid hsl(var(--destructive))',
-                  },
-                  upcoming: {
-                    backgroundColor: 'hsl(var(--warning) / 0.8)',
-                    fontWeight: 'bold',
-                    color: 'white',
-                  },
-                }}
-              />
-              
-              {/* Legende */}
-              <div className="mt-4 space-y-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded border-l-4 border-primary bg-primary/20" />
-                  <span>Projektstart</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded border-r-4 border-primary bg-primary/20" />
-                  <span>Projektende</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded border-2 border-destructive bg-destructive/30" />
-                  <span>Überfällig</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-warning/80" />
-                  <span>Startet in 7 Tagen</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* Projekt-Liste für ausgewähltes Datum */}
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {selectedDate 
-                  ? `Projekte am ${selectedDate.toLocaleDateString('de-DE')}`
-                  : 'Wähle ein Datum'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {projectsOnDate.length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-8">
-                  Keine Projekte an diesem Datum
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {projectsOnDate.map(({ project, folder }) => {
-                    const details = project.details || {};
-                    const isOverdue = isProjectOverdue(details.enddatum) && 
-                                     (details.projektstatus || project.projektstatus) !== 'Abgeschlossen';
-                    
-                    return (
-                      <div 
-                        key={project.id}
-                        onClick={() => onProjectClick?.(project.id)}
-                        className="p-3 border border-border rounded-lg hover:bg-accent transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-sm truncate">
-                              {details.projektname || project.title}
-                            </div>
-                            <div className="text-xs text-muted-foreground truncate">
-                              {details.auftragsnummer || project.auftragsnummer || '—'}
-                            </div>
-                          </div>
-                          <div className="flex flex-col gap-1 items-end">
-                            <Badge 
-                              style={{ 
-                                backgroundColor: STATUS_COLORS[details.projektstatus || project.projektstatus || ''] || '#888',
-                                color: 'white',
-                                fontSize: '10px',
-                              }}
-                            >
-                              {details.projektstatus || project.projektstatus || 'Kein Status'}
-                            </Badge>
-                            {isOverdue && (
-                              <Badge variant="destructive" className="text-xs">
-                                Verzug
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="text-xs text-muted-foreground space-y-1">
-                          <div>📁 {folder.name}</div>
-                          {details.ansprechpartner && (
-                            <div>👤 {details.ansprechpartner}</div>
-                          )}
-                          <div>
-                            📅 {details.startdatum 
-                              ? new Date(details.startdatum).toLocaleDateString('de-DE')
-                              : '—'} 
-                            {' → '}
-                            {details.enddatum
-                              ? new Date(details.enddatum).toLocaleDateString('de-DE')
-                              : '—'}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+
+  // Kategorien berechnen
+  const upcomingProjects = useMemo(() => 
+    getUpcomingProjects(activeProjects, 14).sort((a, b) => {
+      const dateA = new Date(a.project.details?.startdatum || 0);
+      const dateB = new Date(b.project.details?.startdatum || 0);
+      return dateA.getTime() - dateB.getTime();
+    }),
+    [activeProjects]
+  );
+
+  const runningProjects = useMemo(() => 
+    getActiveProjects(activeProjects).sort((a, b) => {
+      const dateA = new Date(a.project.details?.enddatum || 0);
+      const dateB = new Date(b.project.details?.enddatum || 0);
+      return dateA.getTime() - dateB.getTime();
+    }),
+    [activeProjects]
+  );
+
+  const overdueProjects = useMemo(() => 
+    getOverdueProjects(activeProjects).sort((a, b) => {
+      const dateA = new Date(a.project.details?.enddatum || 0);
+      const dateB = new Date(b.project.details?.enddatum || 0);
+      return dateA.getTime() - dateB.getTime();
+    }),
+    [activeProjects]
+  );
+
+  // Projekt-Card Component
+  const ProjectCard = ({ project, folder, showEndDate = false }: any) => {
+    const details = project.details || {};
+    const status = details.projektstatus || project.projektstatus;
+    
+    return (
+      <div 
+        onClick={() => onProjectClick?.(project.id)}
+        className="p-4 border border-border rounded-lg hover:bg-accent transition-colors cursor-pointer"
+      >
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-base mb-1">
+              {details.projektname || project.title}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {details.auftragsnummer || project.auftragsnummer || 'Keine Auftragsnummer'}
+            </div>
+          </div>
+          <Badge 
+            style={{ 
+              backgroundColor: STATUS_COLORS[status || ''] || '#888',
+              color: 'white',
+            }}
+          >
+            {status || 'Kein Status'}
+          </Badge>
         </div>
-      </TabsContent>
-      
-      {/* Tab 2: Baustellenkalender (Google Calendar) */}
-      <TabsContent value="baustellen">
+        
+        <div className="space-y-1 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span>📁</span>
+            <span className="truncate">{folder.name}</span>
+          </div>
+          {details.ansprechpartner && (
+            <div className="flex items-center gap-2">
+              <span>👤</span>
+              <span>{details.ansprechpartner}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <span>📅</span>
+            <span>
+              {details.startdatum ? formatDate(details.startdatum) : '—'}
+              {showEndDate && details.enddatum && (
+                <> → {formatDate(details.enddatum)}</>
+              )}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="w-full space-y-6">
+      {/* Statistik-Header */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <CardHeader>
-            <CardTitle>🏗️ Baustellenkalender</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-blue-500" />
+              Anstehend
+            </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <iframe
-              src="https://calendar.google.com/calendar/embed?src=baustellen.nobis%40gmail.com&ctz=Europe%2FBerlin&mode=DAY&showTitle=0&showNav=1&showDate=1&showPrint=0&showTabs=0&showCalendars=0"
-              className="w-full h-[600px] border-0 rounded-b-lg"
-              frameBorder="0"
-              title="Baustellenkalender"
-            />
+          <CardContent>
+            <div className="text-3xl font-bold text-blue-500">
+              {upcomingProjects.length}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              In den nächsten 14 Tagen
+            </p>
           </CardContent>
         </Card>
-      </TabsContent>
-    </Tabs>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Rocket className="w-4 h-4 text-green-500" />
+              Laufend
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-green-500">
+              {runningProjects.length}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Aktive Projekte
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-500" />
+              Überfällig
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-red-500">
+              {overdueProjects.length}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Deadline überschritten
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Projekt-Listen */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Anstehende Projekte */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-blue-500" />
+              Anstehende Projekte
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Starten in den nächsten 14 Tagen
+            </p>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ScrollArea className="h-[600px]">
+              {upcomingProjects.length === 0 ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  Keine anstehenden Projekte
+                </div>
+              ) : (
+                <div className="p-4 space-y-3">
+                  {upcomingProjects.map(({ project, folder }) => (
+                    <ProjectCard 
+                      key={project.id} 
+                      project={project} 
+                      folder={folder}
+                      showEndDate={true}
+                    />
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        {/* Laufende Projekte */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Rocket className="w-5 h-5 text-green-500" />
+              Laufende Projekte
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Bereits gestartet, noch nicht beendet
+            </p>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ScrollArea className="h-[600px]">
+              {runningProjects.length === 0 ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  Keine laufenden Projekte
+                </div>
+              ) : (
+                <div className="p-4 space-y-3">
+                  {runningProjects.map(({ project, folder }) => (
+                    <ProjectCard 
+                      key={project.id} 
+                      project={project} 
+                      folder={folder}
+                      showEndDate={true}
+                    />
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        {/* Überfällige Projekte */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              Überfällige Projekte
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Deadline überschritten
+            </p>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ScrollArea className="h-[600px]">
+              {overdueProjects.length === 0 ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  ✅ Keine überfälligen Projekte
+                </div>
+              ) : (
+                <div className="p-4 space-y-3">
+                  {overdueProjects.map(({ project, folder }) => (
+                    <ProjectCard 
+                      key={project.id} 
+                      project={project} 
+                      folder={folder}
+                      showEndDate={true}
+                    />
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }

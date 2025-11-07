@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback, memo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useThemePreference } from "@/hooks/useThemePreference";
 import { useFolders } from "@/hooks/useFolders";
 import { useProjects } from "@/hooks/useProjects";
 import { useDeletedProjects } from "@/hooks/useDeletedProjects";
@@ -24,19 +25,23 @@ import { exportProjectsToExcel, exportProjectToWord, exportProjectAsZip } from "
 import { PROJECT_STATUS_OPTIONS, STATUS_COLORS } from "@/lib/constants";
 import { format, isSameMonth, isSameDay } from "date-fns";
 import { de } from "date-fns/locale";
+import { getRelativeTime } from "@/lib/dateUtils";
 import { UserManagementDialog } from "@/components/UserManagementDialog";
 import { ProjectMembersDialog } from "@/components/ProjectMembersDialog";
 import { FolderMembersDialog } from "@/components/FolderMembersDialog";
 import { UserRoleBadge } from "@/components/UserRoleBadge";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
-  Download, ArrowUpDown, Filter as FilterIcon, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder, Search, Plus
+  Download, ArrowUpDown, Filter as FilterIcon, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder, Search, Plus,
+  ChevronDown, Settings, SlidersHorizontal, MoreVertical, Edit2, MessageSquare, Briefcase, FolderOpen, Folder as FolderIcon, Moon, Sun, Calendar as CalendarIcon
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,8 +60,11 @@ import { cn } from "@/lib/utils";
 import { UPLOAD_LIMITS, formatFileSize, validateFileSize } from "@/lib/uploadConfig";
 import { FullDashboard } from "@/components/FullDashboard";
 import { FullCalendar } from "@/components/FullCalendar";
+import { ConstructionCalendar } from "@/components/ConstructionCalendar";
 import { TrashDialog } from "@/components/TrashDialog";
 import { DeletedItemsDialog } from "@/components/DeletedItemsDialog";
+import { MobileSettingsSheet } from "@/components/MobileSettingsSheet";
+import { MobileNotificationsSheet } from "@/components/MobileNotificationsSheet";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
 
@@ -198,6 +206,7 @@ type Folder = {
 
 export default function Index() {
   const { user, signOut } = useAuth();
+  const { theme, setTheme, isLoading: themeLoading } = useThemePreference();
   const { role, isAdmin, canManageProjects, canViewProjectContent, hasFullAccess, canAccessDashboard, loading: roleLoading } = useUserRole();
   const { folders: dbFolders, isLoading: foldersLoading, createFolder: dbCreateFolder, deleteFolder: dbDeleteFolder, toggleArchive: dbToggleArchive } = useFolders();
   const { projects: dbProjects, isLoading: projectsLoading, createProject: dbCreateProject, deleteProject: dbDeleteProject, toggleArchive: dbToggleProjectArchive } = useProjects();
@@ -209,12 +218,14 @@ export default function Index() {
   useEffect(() => {
     console.log('🎯 [Index] Current permissions:', {
       role,
+      isAdmin,
       hasFullAccess,
       canManageProjects,
+      canAccessDashboard,
       roleLoading,
       userId: user?.id
     });
-  }, [role, hasFullAccess, canManageProjects, roleLoading, user]);
+  }, [role, isAdmin, hasFullAccess, canManageProjects, canAccessDashboard, roleLoading, user]);
   
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -228,16 +239,25 @@ export default function Index() {
   const [showProjectMembers, setShowProjectMembers] = useState(false);
   const [showFolderMembers, setShowFolderMembers] = useState(false);
   const [selectedFolderForMembers, setSelectedFolderForMembers] = useState<string | null>(null);
+  const [selectedProjectForMembers, setSelectedProjectForMembers] = useState<string | null>(null);
   
   // Dashboard & Calendar Dialog states
   const [showDashboardDialog, setShowDashboardDialog] = useState(false);
-  const [showCalendarDialog, setShowCalendarDialog] = useState(false);
+  const [showProjectCalendarDialog, setShowProjectCalendarDialog] = useState(false);
+  const [showConstructionCalendarDialog, setShowConstructionCalendarDialog] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   
   // Mobile states
   const isMobile = useIsMobile();
   const [mobileLevel, setMobileLevel] = useState<'folders' | 'projects' | 'project'>('folders');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Mobile Settings & Notifications
+  const [showMobileSettings, setShowMobileSettings] = useState(false);
+  const [showMobileNotifications, setShowMobileNotifications] = useState(false);
+  
+  // FAB Menu für Mobile
+  const [mobileFabOpen, setMobileFabOpen] = useState(false);
   
   // Details sidebar toggle
   const [showDetailsSidebar, setShowDetailsSidebar] = useState(true);
@@ -443,7 +463,9 @@ export default function Index() {
 
   return (
     <div className="h-screen w-full bg-background text-foreground">
-      <header className="h-14 border-b border-border bg-card flex items-center pl-28 pr-4 gap-3 shadow-sm">
+      {/* Header - NUR auf Desktop */}
+      {!isMobile && (
+        <header className="h-14 border-b border-border bg-card flex items-center pl-28 pr-4 gap-3 shadow-sm">
         <div className="flex items-center gap-3 min-w-[180px]">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">🏗️</div>
           <div className="text-base font-semibold">Aktuelle Baustellen</div>
@@ -483,6 +505,22 @@ export default function Index() {
             </>
           )}
           
+          <button
+            onClick={() => {
+              const newTheme = theme === 'dark' ? 'light' : 'dark';
+              setTheme(newTheme);
+            }}
+            disabled={themeLoading}
+            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-card hover:bg-accent transition-colors disabled:opacity-50"
+            title={theme === 'dark' ? 'Zu Hell-Modus wechseln' : 'Zu Dunkel-Modus wechseln'}
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+          </button>
+          
           <UserRoleBadge />
           {isAdmin && (
             <button
@@ -508,6 +546,7 @@ export default function Index() {
           </button>
         </div>
       </header>
+      )}
 
       {isMobile ? (
         <div className="h-[calc(100vh-56px)]">
@@ -527,8 +566,73 @@ export default function Index() {
             searchResults={searchResults}
             setSearch={setSearch}
             onDashboardClick={() => setShowDashboardDialog(true)}
-            onCalendarClick={() => setShowCalendarDialog(true)}
-          />
+            onProjectCalendarClick={() => setShowProjectCalendarDialog(true)}
+            onConstructionCalendarClick={() => setShowConstructionCalendarDialog(true)}
+            showFolderDlg={showFolderDlg}
+            setShowFolderDlg={setShowFolderDlg}
+            folderName={folderName}
+            setFolderName={setFolderName}
+            showProjectDlg={showProjectDlg}
+            setShowProjectDlg={setShowProjectDlg}
+            projectTitle={projectTitle}
+            setProjectTitle={setProjectTitle}
+            projectFolderId={projectFolderId}
+            setProjectFolderId={setProjectFolderId}
+            createFolder={createFolder}
+            createProject={createProject}
+            deleteFolder={deleteFolder}
+            toggleArchiveFolder={toggleArchiveFolder}
+            deleteProject={deleteProject}
+            toggleArchiveProject={toggleArchiveProject}
+            sortBy={sortBy}
+            setSortBy={setSortBy}
+          sortOrder={sortOrder}
+          setSortOrder={setSortOrder}
+          filterStatus={filterStatus}
+          setFilterStatus={setFilterStatus}
+          showUserManagement={showUserManagement}
+          setShowUserManagement={setShowUserManagement}
+          showFolderMembers={showFolderMembers}
+          setShowFolderMembers={setShowFolderMembers}
+          showProjectMembers={showProjectMembers}
+          setShowProjectMembers={setShowProjectMembers}
+          selectedFolderForMembers={selectedFolderForMembers}
+          setSelectedFolderForMembers={setSelectedFolderForMembers}
+          selectedProjectForMembers={selectedProjectForMembers}
+          setSelectedProjectForMembers={setSelectedProjectForMembers}
+          showMobileSettings={showMobileSettings}
+          setShowMobileSettings={setShowMobileSettings}
+          showMobileNotifications={showMobileNotifications}
+          setShowMobileNotifications={setShowMobileNotifications}
+          user={user}
+          signOut={signOut}
+          deletedProjects={deletedProjects}
+          deletedFolders={deletedFolders}
+          restoreProject={restoreProject}
+          restoreFolder={restoreFolder}
+          permanentlyDeleteProject={permanentlyDeleteProject}
+          permanentlyDeleteFolder={permanentlyDeleteFolder}
+          hasFullAccess={hasFullAccess}
+          canManageProjects={canManageProjects}
+        />
+        <MobileLayoutSheets
+          showMobileSettings={showMobileSettings}
+          setShowMobileSettings={setShowMobileSettings}
+          showMobileNotifications={showMobileNotifications}
+          setShowMobileNotifications={setShowMobileNotifications}
+          showUserManagement={showUserManagement}
+          setShowUserManagement={setShowUserManagement}
+          showFolderMembers={showFolderMembers}
+          setShowFolderMembers={setShowFolderMembers}
+          selectedFolderForMembers={selectedFolderForMembers}
+          setSelectedFolderForMembers={setSelectedFolderForMembers}
+          showProjectMembers={showProjectMembers}
+          setShowProjectMembers={setShowProjectMembers}
+          selectedProjectForMembers={selectedProjectForMembers}
+          setSelectedProjectForMembers={setSelectedProjectForMembers}
+          user={user}
+          signOut={signOut}
+        />
         </div>
       ) : (
         <SidebarProvider style={{ "--sidebar-width": "6rem" } as React.CSSProperties} defaultOpen={true}>
@@ -536,7 +640,8 @@ export default function Index() {
             {/* App Sidebar (Icon-only sidebar) */}
         <AppSidebar 
           onDashboardClick={() => setShowDashboardDialog(true)}
-          onCalendarClick={() => setShowCalendarDialog(true)}
+          onProjectCalendarClick={() => setShowProjectCalendarDialog(true)}
+          onConstructionCalendarClick={() => setShowConstructionCalendarDialog(true)}
           canAccessDashboard={canAccessDashboard}
         />
 
@@ -548,7 +653,7 @@ export default function Index() {
                 : "grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)]"
             )}>
               {/* Folder Sidebar (280px) */}
-              <aside className="border-r border-border bg-card relative overflow-hidden flex flex-col">
+              <aside className="border-r border-border bg-card relative flex flex-col">
               <div className="flex-1 overflow-auto">
                 {isLoading ? (
                   <div className="p-4 space-y-4">
@@ -592,7 +697,7 @@ export default function Index() {
               </div>
 
               {canManageProjects && (
-                <div className="absolute right-4 bottom-4">
+                <div className="absolute right-4 bottom-4 z-50">
                   <div className="relative">
                     {fabOpen && (
                       <div className="absolute bottom-16 right-0 w-60 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1 z-20">
@@ -916,14 +1021,14 @@ export default function Index() {
         </div>
       )}
 
-      {/* Calendar Dialog */}
-      {showCalendarDialog && (
+      {/* Projekt-Kalender Dialog */}
+      {showProjectCalendarDialog && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-card rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-card rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-border">
-              <h2 className="text-lg font-semibold">Kalender</h2>
+              <h2 className="text-lg font-semibold">📅 Projekt-Kalender</h2>
               <button
-                onClick={() => setShowCalendarDialog(false)}
+                onClick={() => setShowProjectCalendarDialog(false)}
                 className="p-2 hover:bg-accent rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -933,7 +1038,7 @@ export default function Index() {
               <FullCalendar 
                 allProjects={allProjects}
                 onProjectClick={(projectId) => {
-                  setShowCalendarDialog(false);
+                  setShowProjectCalendarDialog(false);
                   setSelectedProjectId(projectId);
                   
                   // Finde den Ordner des Projekts
@@ -943,6 +1048,26 @@ export default function Index() {
                   }
                 }}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Baustellenkalender Dialog */}
+      {showConstructionCalendarDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h2 className="text-lg font-semibold">🏗️ Baustellenkalender</h2>
+              <button
+                onClick={() => setShowConstructionCalendarDialog(false)}
+                className="p-2 hover:bg-accent rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <ConstructionCalendar />
             </div>
           </div>
         </div>
@@ -1290,7 +1415,54 @@ function MobileLayout({
   searchResults,
   setSearch,
   onDashboardClick,
-  onCalendarClick,
+  onProjectCalendarClick,
+  onConstructionCalendarClick,
+  showFolderDlg,
+  setShowFolderDlg,
+  folderName,
+  setFolderName,
+  showProjectDlg,
+  setShowProjectDlg,
+  projectTitle,
+  setProjectTitle,
+  projectFolderId,
+  setProjectFolderId,
+  createFolder,
+  createProject,
+  deleteFolder,
+  toggleArchiveFolder,
+  deleteProject,
+  toggleArchiveProject,
+  sortBy,
+  setSortBy,
+  sortOrder,
+  setSortOrder,
+  filterStatus,
+  setFilterStatus,
+  showUserManagement,
+  setShowUserManagement,
+  showFolderMembers,
+  setShowFolderMembers,
+  showProjectMembers,
+  setShowProjectMembers,
+  selectedFolderForMembers,
+  setSelectedFolderForMembers,
+  selectedProjectForMembers,
+  setSelectedProjectForMembers,
+  showMobileSettings,
+  setShowMobileSettings,
+  showMobileNotifications,
+  setShowMobileNotifications,
+  user,
+  signOut,
+  deletedProjects,
+  deletedFolders,
+  restoreProject,
+  restoreFolder,
+  permanentlyDeleteProject,
+  permanentlyDeleteFolder,
+  hasFullAccess,
+  canManageProjects,
 }: {
   mobileLevel: 'folders' | 'projects' | 'project';
   setMobileLevel: (level: 'folders' | 'projects' | 'project') => void;
@@ -1307,25 +1479,92 @@ function MobileLayout({
   searchResults: any[];
   setSearch: (search: string) => void;
   onDashboardClick: () => void;
-  onCalendarClick: () => void;
+  onProjectCalendarClick: () => void;
+  onConstructionCalendarClick: () => void;
+  showFolderDlg: boolean;
+  setShowFolderDlg: (show: boolean) => void;
+  folderName: string;
+  setFolderName: (name: string) => void;
+  showProjectDlg: boolean;
+  setShowProjectDlg: (show: boolean) => void;
+  projectTitle: string;
+  setProjectTitle: (title: string) => void;
+  projectFolderId: string;
+  setProjectFolderId: (id: string) => void;
+  createFolder: () => void;
+  createProject: () => void;
+  deleteFolder: (folderId: string) => void;
+  toggleArchiveFolder: (folderId: string) => void;
+  deleteProject: (folderId: string, projectId: string) => void;
+  toggleArchiveProject: (folderId: string, projectId: string) => void;
+  sortBy: 'title' | 'auftragsnummer' | 'projektstatus' | 'created_at';
+  setSortBy: (sort: 'title' | 'auftragsnummer' | 'projektstatus' | 'created_at') => void;
+  sortOrder: 'asc' | 'desc';
+  setSortOrder: (order: 'asc' | 'desc') => void;
+  filterStatus: string | null;
+  setFilterStatus: (status: string | null) => void;
+  showUserManagement: boolean;
+  setShowUserManagement: (show: boolean) => void;
+  showFolderMembers: boolean;
+  setShowFolderMembers: (show: boolean) => void;
+  showProjectMembers: boolean;
+  setShowProjectMembers: (show: boolean) => void;
+  selectedFolderForMembers: string | null;
+  setSelectedFolderForMembers: (id: string | null) => void;
+  selectedProjectForMembers: string | null;
+  setSelectedProjectForMembers: (id: string | null) => void;
+  showMobileSettings: boolean;
+  setShowMobileSettings: (show: boolean) => void;
+  showMobileNotifications: boolean;
+  setShowMobileNotifications: (show: boolean) => void;
+  user: any;
+  signOut: () => Promise<void>;
+  deletedProjects: any[];
+  deletedFolders: any[];
+  restoreProject: (id: string) => void;
+  restoreFolder: (id: string) => void;
+  permanentlyDeleteProject: (id: string) => void;
+  permanentlyDeleteFolder: (id: string) => void;
+  hasFullAccess: boolean;
+  canManageProjects: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { canAccessDashboard, hasFullAccess } = useUserRole();
-  const { deletedProjects, restoreProject, permanentlyDeleteProject } = useDeletedProjects();
-  const { deletedFolders, restoreFolder, permanentlyDeleteFolder } = useDeletedFolders();
+  const { canAccessDashboard } = useUserRole();
   const [showTrashDialog, setShowTrashDialog] = useState(false);
   const [showDeletedItems, setShowDeletedItems] = useState(false);
+  
+  const [mobileFabOpen, setMobileFabOpen] = useState(false);
+  
+  // Filter & Sort States
+  const [showSortSheet, setShowSortSheet] = useState(false);
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
+  
+  // Helper functions to open dialogs
+  const openFolderDialog = () => {
+    setShowFolderDlg(true);
+  };
+  
+  const openProjectDialog = () => {
+    if (folders.length === 0) {
+      toast({ title: "Kein Ordner", description: "Bitte erst einen Ordner erstellen." });
+      return;
+    }
+    setProjectFolderId(selectedFolder?.id || folders[0]?.id || '');
+    setShowProjectDlg(true);
+  };
   
   // Level 1: Ordner-Liste
   if (mobileLevel === 'folders') {
     return (
       <div className="h-full flex flex-col bg-background">
-        {/* Header mit Hamburger Menu */}
-        <div className="h-14 border-b border-border px-4 flex items-center gap-3 bg-card">
+        {/* Header mit Dropdown-Button */}
+        <div className="h-14 border-b border-border px-4 flex items-center justify-between bg-card">
+          {/* Links: Dropdown-Button */}
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
-              <button className="p-2 hover:bg-accent rounded-lg transition-colors">
-                <Menu className="w-5 h-5" />
+              <button className="flex items-center gap-2 px-3 py-2 hover:bg-accent rounded-lg transition-colors">
+                <ChevronDown className="w-4 h-4" />
+                <span className="font-semibold text-base">Projekte</span>
               </button>
             </SheetTrigger>
             <SheetContent side="left">
@@ -1357,13 +1596,23 @@ function MobileLayout({
                     </button>
                     <button
                       onClick={() => {
-                        onCalendarClick();
+                        onProjectCalendarClick();
                         setMenuOpen(false);
                       }}
                       className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
                     >
                       <span className="text-lg">📅</span>
-                      <span className="font-medium">Kalender</span>
+                      <span className="font-medium">Projekt-Kalender</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        onConstructionCalendarClick();
+                        setMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                    >
+                      <span className="text-lg">🏗️</span>
+                      <span className="font-medium">Baustellenkalender</span>
                     </button>
                   </>
                 )}
@@ -1408,7 +1657,33 @@ function MobileLayout({
               </div>
             </SheetContent>
           </Sheet>
-          <h2 className="font-semibold text-lg">Ordner</h2>
+          
+          {/* Rechts: Icons */}
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowUserManagement(true)}
+              className="p-2 hover:bg-accent rounded-lg transition-colors" 
+              title="Team"
+            >
+              <Users className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => setShowMobileNotifications(true)}
+              className="p-2 hover:bg-accent rounded-lg transition-colors relative" 
+              title="Benachrichtigungen"
+            >
+              <Bell className="w-5 h-5" />
+              {/* TODO: Unread count aus der Datenbank laden */}
+              {/* <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" /> */}
+            </button>
+            <button 
+              onClick={() => setShowMobileSettings(true)}
+              className="p-2 hover:bg-accent rounded-lg transition-colors" 
+              title="Einstellungen"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <TrashDialog
@@ -1441,44 +1716,173 @@ function MobileLayout({
             />
           </div>
         ) : (
-          <div className="flex-1 overflow-auto p-4">
-            <h2 className="text-xl font-bold mb-4">Ordner</h2>
-            {isLoading ? (
-              <div className="space-y-4">
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-20 w-full" />
+          <>
+            {/* Suchleiste */}
+            <div className="border-b border-border p-4 bg-card/50">
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Suche"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                  />
+            </div>
+            <button 
+              onClick={() => setShowSortSheet(true)}
+              className="p-2 border border-border rounded-lg hover:bg-accent"
+              title="Sortieren"
+            >
+              <ArrowUpDown className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => setShowFilterSheet(true)}
+              className="p-2 border border-border rounded-lg hover:bg-accent"
+              title="Filtern"
+            >
+              <SlidersHorizontal className="w-5 h-5" />
+            </button>
               </div>
-            ) : folders.filter(f => showArchived || !f.archived).length === 0 ? (
-              <div className="text-center text-muted-foreground py-12">
-                Noch keine Ordner vorhanden
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {folders.filter(f => showArchived || !f.archived).map(folder => (
-                  <button
-                    key={folder.id}
-                    onClick={() => {
-                      setSelectedFolderId(folder.id);
-                      setMobileLevel('projects');
-                    }}
-                    className="w-full p-4 bg-card border border-border rounded-lg text-left hover:bg-accent transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium">
-                          📁 {folder.name}
-                          {folder.archived && <span className="text-xs text-muted-foreground ml-2">(Archiv)</span>}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {folder.projects.filter(p => showArchived || !p.archived).length} Projekt{folder.projects.filter(p => showArchived || !p.archived).length !== 1 ? 'e' : ''}
-                        </div>
+            </div>
+            
+            <div className="flex-1 overflow-auto p-4">
+              {isLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                </div>
+              ) : folders.filter(f => showArchived || !f.archived).length === 0 ? (
+                <div className="text-center text-muted-foreground py-12">
+                  Noch keine Ordner vorhanden
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {folders.filter(f => showArchived || !f.archived).map(folder => {
+                    const lastUpdate = folder.id ? "Vor kurzem" : "Vor kurzem";
+                    
+                    return (
+                      <div key={folder.id} className="relative">
+                        <button
+                          onClick={() => {
+                            setSelectedFolderId(folder.id);
+                            setMobileLevel('projects');
+                          }}
+                          className="w-full p-4 bg-card border border-border rounded-lg text-left hover:bg-accent transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            {/* Farbiger Streifen */}
+                            <div className={`w-1 h-12 rounded-full ${folder.archived ? "bg-muted-foreground" : "bg-primary"}`} />
+                            
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <FolderIcon className="w-5 h-5 text-muted-foreground" />
+                                <span className="font-medium truncate">{folder.name}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {folder.projects.filter(p => showArchived || !p.archived).length} Projekt{folder.projects.filter(p => showArchived || !p.archived).length !== 1 ? 'e' : ''}
+                              </div>
+                            </div>
+                            
+                            {/* Zeitstempel */}
+                            <div className="text-xs text-muted-foreground whitespace-nowrap">
+                              {lastUpdate}
+                            </div>
+                          </div>
+                        </button>
+                        
+                        {/* Drei-Punkte-Menü */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button 
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute top-4 right-4 p-2 hover:bg-accent rounded-lg transition-colors"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              toast({ title: "Ordner bearbeiten", description: "Diese Funktion wird bald verfügbar sein." });
+                            }}>
+                              Bearbeiten
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              toggleArchiveFolder(folder.id);
+                              toast({ 
+                                title: folder.archived ? "Ordner wiederhergestellt" : "Ordner archiviert",
+                                description: folder.archived ? `"${folder.name}" wurde wiederhergestellt.` : `"${folder.name}" wurde archiviert.`
+                              });
+                            }}>
+                              {folder.archived ? "Wiederherstellen" : "Archivieren"}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              className="text-destructive" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`Ordner "${folder.name}" wirklich löschen?`)) {
+                                  deleteFolder(folder.id);
+                                  toast({ title: "Ordner gelöscht", description: `"${folder.name}" wurde gelöscht.` });
+                                }
+                              }}
+                            >
+                              Löschen
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+        
+        {/* FAB Button für Level 1 */}
+        {canManageProjects && (
+          <div className="fixed right-4 bottom-4 z-50">
+            <div className="relative">
+              {mobileFabOpen && (
+                <div className="absolute bottom-16 right-0 w-60 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1 z-20">
+                  <button 
+                    onClick={() => { 
+                      openFolderDialog(); 
+                      setMobileFabOpen(false); 
+                    }} 
+                    className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors"
+                  >
+                    📁 Neuen Ordner erstellen
                   </button>
-                ))}
-              </div>
-            )}
+                  <button 
+                    onClick={() => { 
+                      openProjectDialog(); 
+                      setMobileFabOpen(false); 
+                    }} 
+                    className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+                    disabled={folders.length === 0}
+                  >
+                    🏗️ Neues Projekt anlegen
+                  </button>
+                  {folders.length === 0 && (
+                    <div className="px-4 pb-1 text-xs text-muted-foreground">
+                      Erst einen Ordner anlegen
+                    </div>
+                  )}
+                </div>
+              )}
+              <button 
+                onClick={() => setMobileFabOpen((v) => !v)} 
+                className="w-14 h-14 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground text-2xl shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95" 
+                title="Neu"
+              >
+                +
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -1487,22 +1891,113 @@ function MobileLayout({
   
   // Level 2: Projekt-Liste
   if (mobileLevel === 'projects' && selectedFolder) {
-    const projects = selectedFolder.projects.filter(p => showArchived || !p.archived);
+    // Filter und sortieren
+    let projects = selectedFolder.projects.filter(p => showArchived || !p.archived);
+    
+    // Filter nach Status
+    if (filterStatus) {
+      projects = projects.filter(p => p.projektstatus === filterStatus);
+    }
+    
+    // Sortieren
+    projects = projects.sort((a, b) => {
+      let compareA: any, compareB: any;
+      
+      switch (sortBy) {
+        case 'title':
+          compareA = a.title?.toLowerCase() || '';
+          compareB = b.title?.toLowerCase() || '';
+          break;
+        case 'auftragsnummer':
+          compareA = a.auftragsnummer || '';
+          compareB = b.auftragsnummer || '';
+          break;
+        case 'projektstatus':
+          compareA = a.projektstatus || '';
+          compareB = b.projektstatus || '';
+          break;
+        case 'created_at':
+        default:
+          compareA = new Date(a.created_at || 0).getTime();
+          compareB = new Date(b.created_at || 0).getTime();
+          break;
+      }
+      
+      if (compareA < compareB) return sortOrder === 'asc' ? -1 : 1;
+      if (compareA > compareB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
     
     return (
       <div className="h-full flex flex-col bg-background">
         {/* Header mit Zurück-Button */}
-        <div className="h-14 border-b border-border px-4 flex items-center gap-3 bg-card">
-          <button 
-            onClick={() => {
-              setMobileLevel('folders');
-              setSelectedFolderId(null);
-            }}
-            className="p-2 hover:bg-accent rounded-lg transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h2 className="font-semibold text-lg truncate">{selectedFolder.name}</h2>
+        <div className="h-14 border-b border-border px-4 flex items-center justify-between bg-card">
+          {/* Links: Zurück-Button + Ordner-Name */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <button 
+              onClick={() => {
+                setMobileLevel('folders');
+                setSelectedFolderId(null);
+              }}
+              className="p-2 hover:bg-accent rounded-lg transition-colors shrink-0"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <h2 className="font-semibold text-base truncate">{selectedFolder.name}</h2>
+          </div>
+          
+          {/* Rechts: Icons */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button 
+              onClick={() => {
+                setSelectedFolderForMembers(selectedFolder?.id || null); 
+                setShowFolderMembers(true);
+              }}
+              className="p-2 hover:bg-accent rounded-lg transition-colors" 
+              title="Team-Mitglieder"
+            >
+              <Users className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => {
+                toast({ title: "Ordner bearbeiten", description: "Diese Funktion wird bald verfügbar sein." });
+              }}
+              className="p-2 hover:bg-accent rounded-lg transition-colors" 
+              title="Ordner bearbeiten"
+            >
+              <Edit2 className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        
+        {/* Suchleiste */}
+        <div className="border-b border-border p-4 bg-card/50">
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Suche"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <button 
+              onClick={() => setShowSortSheet(true)}
+              className="p-2 border border-border rounded-lg hover:bg-accent"
+              title="Sortieren"
+            >
+              <ArrowUpDown className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => setShowFilterSheet(true)}
+              className="p-2 border border-border rounded-lg hover:bg-accent"
+              title="Filtern"
+            >
+              <SlidersHorizontal className="w-5 h-5" />
+            </button>
+          </div>
         </div>
         
         <div className="flex-1 overflow-auto p-4">
@@ -1512,38 +2007,242 @@ function MobileLayout({
             </div>
           ) : (
             <div className="space-y-2">
-              {projects.map(project => (
-                <button
-                  key={project.id}
-                  onClick={() => {
-                    setSelectedProjectId(project.id);
-                    setView('chat');
-                    setMobileLevel('project');
-                  }}
-                  className="w-full p-4 bg-card border border-border rounded-lg text-left hover:bg-accent transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-8 rounded-full ${project.archived ? "bg-muted-foreground" : "bg-success"}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">
-                        {project.title}
-                        {project.auftragsnummer && (
-                          <span className="text-xs text-muted-foreground ml-2">
-                            ({project.auftragsnummer})
-                          </span>
-                        )}
+              {projects.map(project => {
+                const lastUpdate = getRelativeTime(project.created_at || null);
+                
+                return (
+                  <div key={project.id} className="relative">
+                    <button
+                      onClick={() => {
+                        setSelectedProjectId(project.id);
+                        setView('chat');
+                        setMobileLevel('project');
+                      }}
+                      className="w-full p-4 bg-card border border-border rounded-lg text-left hover:bg-accent transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        {/* Farbiger Streifen */}
+                        <div className={`w-1 h-16 rounded-full ${
+                          project.archived ? "bg-muted-foreground" : 
+                          project.projektstatus === "Abgeschlossen" ? "bg-success" :
+                          project.projektstatus === "In Bearbeitung" ? "bg-primary" :
+                          "bg-warning"
+                        }`} />
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{project.title}</div>
+                          {project.auftragsnummer && (
+                            <div className="text-sm text-muted-foreground mt-1">
+                              {project.auftragsnummer}
+                            </div>
+                          )}
+                          {project.projektstatus && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {project.projektstatus}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Zeitstempel */}
+                        <div className="text-xs text-muted-foreground whitespace-nowrap">
+                          {lastUpdate}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {project.projektstatus || "Kein Status"}
-                      </div>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                    </button>
+                    
+                    {/* Drei-Punkte-Menü */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button 
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute top-4 right-4 p-2 hover:bg-accent rounded-lg transition-colors"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation();
+                          toast({ title: "Projekt bearbeiten", description: "Diese Funktion wird bald verfügbar sein." });
+                        }}>
+                          Details bearbeiten
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation();
+                          toggleArchiveProject(selectedFolder.id, project.id);
+                          toast({ 
+                            title: project.archived ? "Projekt wiederhergestellt" : "Projekt archiviert",
+                            description: project.archived ? `"${project.title}" wurde wiederhergestellt.` : `"${project.title}" wurde archiviert.`
+                          });
+                        }}>
+                          {project.archived ? "Wiederherstellen" : "Archivieren"}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          className="text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`Projekt "${project.title}" wirklich löschen?`)) {
+                              deleteProject(selectedFolder.id, project.id);
+                              toast({ title: "Projekt gelöscht", description: `"${project.title}" wurde gelöscht.` });
+                            }
+                          }}
+                        >
+                          Löschen
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                </button>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
+        
+        {/* FAB Button für Level 2 */}
+        {canManageProjects && (
+          <div className="fixed right-4 bottom-4 z-50">
+            <div className="relative">
+              {mobileFabOpen && (
+                <div className="absolute bottom-16 right-0 w-60 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1 z-20">
+                  <button 
+                    onClick={() => { 
+                      openFolderDialog(); 
+                      setMobileFabOpen(false); 
+                    }} 
+                    className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors"
+                  >
+                    📁 Neuen Ordner erstellen
+                  </button>
+                  <button 
+                    onClick={() => { 
+                      openProjectDialog(); 
+                      setMobileFabOpen(false); 
+                    }} 
+                    className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors"
+                  >
+                    🏗️ Neues Projekt anlegen
+                  </button>
+                  {selectedFolder && (
+                  <button 
+                    onClick={() => { 
+                      setSelectedFolderForMembers(selectedFolder?.id || null); 
+                      setShowFolderMembers(true); 
+                      setMobileFabOpen(false); 
+                    }}
+                      className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors border-t border-border"
+                    >
+                      <Users className="w-4 h-4 inline mr-2" />
+                      Ordner-Mitglieder
+                    </button>
+                  )}
+                </div>
+              )}
+              <button 
+                onClick={() => setMobileFabOpen((v) => !v)} 
+                className="w-14 h-14 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground text-2xl shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95" 
+                title="Neu"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* Sort Sheet */}
+        <Sheet open={showSortSheet} onOpenChange={setShowSortSheet}>
+          <SheetContent side="bottom">
+            <SheetHeader>
+              <SheetTitle>Sortieren nach</SheetTitle>
+            </SheetHeader>
+            <div className="mt-6 space-y-2">
+              <button
+                onClick={() => {
+                  setSortBy('created_at');
+                  setSortOrder(sortBy === 'created_at' && sortOrder === 'desc' ? 'asc' : 'desc');
+                  setShowSortSheet(false);
+                }}
+                className={`w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors ${
+                  sortBy === 'created_at' ? 'bg-accent' : ''
+                }`}
+              >
+                📅 Erstellungsdatum {sortBy === 'created_at' && (sortOrder === 'desc' ? '↓' : '↑')}
+              </button>
+              <button
+                onClick={() => {
+                  setSortBy('title');
+                  setSortOrder(sortBy === 'title' && sortOrder === 'desc' ? 'asc' : 'desc');
+                  setShowSortSheet(false);
+                }}
+                className={`w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors ${
+                  sortBy === 'title' ? 'bg-accent' : ''
+                }`}
+              >
+                🔤 Name {sortBy === 'title' && (sortOrder === 'desc' ? '↓' : '↑')}
+              </button>
+              <button
+                onClick={() => {
+                  setSortBy('auftragsnummer');
+                  setSortOrder(sortBy === 'auftragsnummer' && sortOrder === 'desc' ? 'asc' : 'desc');
+                  setShowSortSheet(false);
+                }}
+                className={`w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors ${
+                  sortBy === 'auftragsnummer' ? 'bg-accent' : ''
+                }`}
+              >
+                🔢 Auftragsnummer {sortBy === 'auftragsnummer' && (sortOrder === 'desc' ? '↓' : '↑')}
+              </button>
+              <button
+                onClick={() => {
+                  setSortBy('projektstatus');
+                  setSortOrder(sortBy === 'projektstatus' && sortOrder === 'desc' ? 'asc' : 'desc');
+                  setShowSortSheet(false);
+                }}
+                className={`w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors ${
+                  sortBy === 'projektstatus' ? 'bg-accent' : ''
+                }`}
+              >
+                📊 Status {sortBy === 'projektstatus' && (sortOrder === 'desc' ? '↓' : '↑')}
+              </button>
+            </div>
+          </SheetContent>
+        </Sheet>
+        
+        {/* Filter Sheet */}
+        <Sheet open={showFilterSheet} onOpenChange={setShowFilterSheet}>
+          <SheetContent side="bottom">
+            <SheetHeader>
+              <SheetTitle>Filtern nach Status</SheetTitle>
+            </SheetHeader>
+            <div className="mt-6 space-y-2">
+              <button
+                onClick={() => {
+                  setFilterStatus(null);
+                  setShowFilterSheet(false);
+                }}
+                className={`w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors ${
+                  filterStatus === null ? 'bg-accent' : ''
+                }`}
+              >
+                ✨ Alle anzeigen
+              </button>
+              {PROJECT_STATUS_OPTIONS.map((status) => (
+                <button
+                  key={status}
+                  onClick={() => {
+                    setFilterStatus(status);
+                    setShowFilterSheet(false);
+                  }}
+                  className={`w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors ${
+                    filterStatus === status ? 'bg-accent' : ''
+                  }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     );
   }
@@ -1552,95 +2251,51 @@ function MobileLayout({
   if (mobileLevel === 'project' && selectedProject) {
     return (
       <div className="h-full flex flex-col bg-background">
-        {/* Header mit Hamburger Menu und Zurück-Button */}
-        <div className="h-14 border-b border-border px-4 flex items-center gap-3 bg-card">
-          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-            <SheetTrigger asChild>
-              <button className="p-2 hover:bg-accent rounded-lg transition-colors">
-                <Menu className="w-5 h-5" />
-              </button>
-            </SheetTrigger>
-            <SheetContent side="left">
-              <SheetHeader>
-                <SheetTitle>Navigation</SheetTitle>
-              </SheetHeader>
-              <div className="mt-6 space-y-2">
-                <button
-                  onClick={() => {
-                    setMobileLevel('folders');
-                    setSelectedFolderId(null);
-                    setSelectedProjectId(null);
-                    setMenuOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
-                >
-                  <span className="text-lg">🏠</span>
-                  <span className="font-medium">Ordner-Übersicht</span>
-                </button>
-                {canAccessDashboard && (
-                  <>
-                    <button
-                      onClick={() => {
-                        // Future: Navigate to dashboard view
-                        setMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
-                    >
-                      <span className="text-lg">📊</span>
-                      <span className="font-medium">Dashboard</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        // Future: Navigate to calendar view
-                        setMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
-                    >
-                      <span className="text-lg">📅</span>
-                      <span className="font-medium">Kalender</span>
-                    </button>
-                  </>
-                )}
-                <button
-                  onClick={() => {
-                    setShowTrashDialog(true);
-                    setMenuOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
-                >
-                  <Trash2 className="w-5 h-5" />
-                  <span className="font-medium">Papierkorb</span>
-                  {deletedProjects.length > 0 && (
-                    <span className="ml-auto text-xs bg-destructive text-destructive-foreground px-2 py-0.5 rounded-full">
-                      {deletedProjects.length}
-                    </span>
-                  )}
-                </button>
-                {hasFullAccess && (
-                  <button
-                    onClick={() => {
-                      setShowDeletedItems(true);
-                      setMenuOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
-                  >
-                    <RotateCcw className="w-5 h-5" />
-                    <span className="font-medium">Gelöschte Inhalte</span>
-                  </button>
-                )}
-              </div>
-            </SheetContent>
-          </Sheet>
-          <button 
-            onClick={() => {
-              setMobileLevel('projects');
-              setSelectedProjectId(null);
-            }}
-            className="p-2 hover:bg-accent rounded-lg transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h2 className="font-semibold text-base truncate">{selectedProject.title}</h2>
+        {/* Header mit X-Button */}
+        <div className="h-14 border-b border-border px-4 flex items-center justify-between bg-card">
+          {/* Links: X-Button (Schließen) + Projekt-Name */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <button 
+              onClick={() => {
+                setMobileLevel('projects');
+                setSelectedProjectId(null);
+              }}
+              className="p-2 hover:bg-accent rounded-lg transition-colors shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="font-semibold text-sm truncate">
+              {selectedProject.title.length > 20 
+                ? selectedProject.title.substring(0, 20) + '...' 
+                : selectedProject.title}
+            </h2>
+          </div>
+          
+          {/* Rechts: Icons */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button 
+              onClick={() => {
+                setSelectedProjectForMembers(selectedProject?.id || null);
+                setShowProjectMembers(true);
+              }}
+              className="p-2 hover:bg-accent rounded-lg transition-colors"
+              title="Team-Mitglieder"
+            >
+              <Users className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => {
+                toast({ 
+                  title: "Projekt bearbeiten", 
+                  description: "Diese Funktion wird bald verfügbar sein." 
+                });
+              }}
+              className="p-2 hover:bg-accent rounded-lg transition-colors"
+              title="Projekt bearbeiten"
+            >
+              <Edit2 className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <TrashDialog
@@ -1671,46 +2326,134 @@ function MobileLayout({
         </div>
         
         {/* Bottom Tab Bar */}
-        <div className="h-16 border-t border-border bg-card flex items-center justify-around px-4">
+        <div className="h-16 border-t border-border bg-card flex items-center justify-around px-4 relative">
           <button
             onClick={() => setView('chat')}
-            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${
+            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors relative ${
               view === 'chat' 
-                ? 'bg-primary/10 text-primary' 
+                ? 'text-primary' 
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <span className="text-xl">💬</span>
+            <MessageSquare className="w-5 h-5" />
             <span className="text-xs font-medium">Chat</span>
+            {view === 'chat' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-12 bg-primary rounded-full" />}
           </button>
-          <button
-            onClick={() => setView('files')}
-            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${
-              view === 'files' 
-                ? 'bg-primary/10 text-primary' 
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span className="text-xl">📁</span>
-            <span className="text-xs font-medium">Dateien</span>
-          </button>
+          
           <button
             onClick={() => setView('details')}
-            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${
+            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors relative ${
               view === 'details' 
-                ? 'bg-primary/10 text-primary' 
+                ? 'text-primary' 
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <span className="text-xl">📋</span>
-            <span className="text-xs font-medium">Details</span>
+            <Briefcase className="w-5 h-5" />
+            <span className="text-xs font-medium">Arbeitsbereich</span>
+            {view === 'details' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-12 bg-primary rounded-full" />}
+          </button>
+          
+          <button
+            onClick={() => setView('files')}
+            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors relative ${
+              view === 'files' 
+                ? 'text-primary' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <FolderOpen className="w-5 h-5" />
+            <span className="text-xs font-medium">Dateien</span>
+            {view === 'files' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-12 bg-primary rounded-full" />}
           </button>
         </div>
       </div>
     );
   }
-  
+
   return null;
+}
+
+// Globale Sheets für Mobile Layout (funktionieren in allen Levels)
+function MobileLayoutSheets({ 
+  showMobileSettings,
+  setShowMobileSettings,
+  showMobileNotifications,
+  setShowMobileNotifications,
+  showUserManagement,
+  setShowUserManagement,
+  showFolderMembers,
+  setShowFolderMembers,
+  selectedFolderForMembers,
+  setSelectedFolderForMembers,
+  showProjectMembers,
+  setShowProjectMembers,
+  selectedProjectForMembers,
+  setSelectedProjectForMembers,
+  user,
+  signOut
+}: {
+  showMobileSettings: boolean;
+  setShowMobileSettings: (show: boolean) => void;
+  showMobileNotifications: boolean;
+  setShowMobileNotifications: (show: boolean) => void;
+  showUserManagement: boolean;
+  setShowUserManagement: (show: boolean) => void;
+  showFolderMembers: boolean;
+  setShowFolderMembers: (show: boolean) => void;
+  selectedFolderForMembers: string | null;
+  setSelectedFolderForMembers: (id: string | null) => void;
+  showProjectMembers: boolean;
+  setShowProjectMembers: (show: boolean) => void;
+  selectedProjectForMembers: string | null;
+  setSelectedProjectForMembers: (id: string | null) => void;
+  user: any;
+  signOut: () => Promise<void>;
+}) {
+  return (
+    <>
+      <MobileSettingsSheet 
+        open={showMobileSettings} 
+        onClose={() => setShowMobileSettings(false)}
+        onSignOut={async () => {
+          await signOut();
+          toast({ title: "Abgemeldet", description: "Sie wurden erfolgreich abgemeldet." });
+        }}
+        userEmail={user?.email}
+      />
+
+      <MobileNotificationsSheet 
+        open={showMobileNotifications} 
+        onClose={() => setShowMobileNotifications(false)}
+      />
+      
+      <UserManagementDialog 
+        open={showUserManagement} 
+        onClose={() => setShowUserManagement(false)} 
+      />
+      
+      {selectedFolderForMembers && (
+        <FolderMembersDialog 
+          folderId={selectedFolderForMembers} 
+          open={showFolderMembers} 
+          onClose={() => {
+            setShowFolderMembers(false);
+            setSelectedFolderForMembers(null);
+          }} 
+        />
+      )}
+      
+      {selectedProjectForMembers && (
+        <ProjectMembersDialog 
+          projectId={selectedProjectForMembers} 
+          open={showProjectMembers} 
+          onClose={() => {
+            setShowProjectMembers(false);
+            setSelectedProjectForMembers(null);
+          }} 
+        />
+      )}
+    </>
+  );
 }
 
 function DashboardView({ 
@@ -1908,36 +2651,44 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
           </button>
         )}
         {showMenu && (
-          <div className="ml-auto relative">
-            <button className="px-2.5 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors" onClick={() => setOpenMenuId(isMenuOpen ? null : menuId)}>⋯</button>
-            {isMenuOpen && (
-              <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 text-sm min-w-[180px]">
-                {canManageProjects && (
-                  <>
-                    <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={() => { setOpenMenuId(null); onArchiveToggle(f.id); }}>
-                      {f.archived ? "📤 Aus Archiv holen" : "📥 In Archiv"}
-                    </button>
-                    <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" onClick={() => { setOpenMenuId(null); onDelete(f.id); }}>
-                      🗑️ Ordner löschen
-                    </button>
-                  </>
-                )}
-                {canLeave && (
-                  <button
-                    className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-orange-600 rounded-b-lg"
-                    onClick={() => {
-                      setOpenMenuId(null);
-                      if (confirm(`Möchtest du den Ordner "${f.name}" wirklich verlassen? Du verlierst den Zugriff auf alle Projekte in diesem Ordner (außer du bist direkt Projekt-Mitglied).`)) {
-                        leaveFolder();
-                      }
-                    }}
+          <Popover open={isMenuOpen} onOpenChange={(open) => setOpenMenuId(open ? menuId : null)}>
+            <PopoverTrigger asChild>
+              <button className="px-2.5 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors">
+                ⋯
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[180px] p-0">
+              {canManageProjects && (
+                <>
+                  <button 
+                    className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" 
+                    onClick={() => { setOpenMenuId(null); onArchiveToggle(f.id); }}
                   >
-                    🚪 Ordner verlassen
+                    {f.archived ? "📤 Aus Archiv holen" : "📥 In Archiv"}
                   </button>
-                )}
-              </div>
-            )}
-          </div>
+                  <button 
+                    className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" 
+                    onClick={() => { setOpenMenuId(null); onDelete(f.id); }}
+                  >
+                    🗑️ Ordner löschen
+                  </button>
+                </>
+              )}
+              {canLeave && (
+                <button
+                  className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-orange-600 rounded-b-lg"
+                  onClick={() => {
+                    setOpenMenuId(null);
+                    if (confirm(`Möchtest du den Ordner "${f.name}" wirklich verlassen? Du verlierst den Zugriff auf alle Projekte in diesem Ordner (außer du bist direkt Projekt-Mitglied).`)) {
+                      leaveFolder();
+                    }
+                  }}
+                >
+                  🚪 Ordner verlassen
+                </button>
+              )}
+            </PopoverContent>
+          </Popover>
         )}
       </div>
       <FolderMembersDialog 

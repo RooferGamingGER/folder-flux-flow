@@ -112,3 +112,90 @@ export function getProjectsForDate(
     );
   });
 }
+
+/**
+ * Gibt die relative Zeit zurück (z.B. "Vor 2 Stunden", "Gestern")
+ * Format: WhatsApp-ähnlich für deutsche Benutzer
+ */
+export function getRelativeTime(date: string | Date | null): string {
+  if (!date) return "Unbekannt";
+  
+  const now = new Date();
+  const past = new Date(date);
+  const diffMs = now.getTime() - past.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffMins < 1) return "Gerade eben";
+  if (diffMins < 60) return `Vor ${diffMins} Min.`;
+  if (diffHours < 24) return `Vor ${diffHours} Std.`;
+  if (diffDays === 1) return "Gestern";
+  if (diffDays === 2) return "Vorgestern";
+  if (diffDays < 7) return `Vor ${diffDays} Tagen`;
+  
+  // Format: "28. Okt." oder "5. Sept."
+  return format(past, 'd. MMM.', { locale: de });
+}
+
+/**
+ * Gibt alle Projekte zurück, die in den nächsten X Tagen starten
+ */
+export function getUpcomingProjects(projects: any[], daysAhead: number = 14): any[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const futureDate = addDays(today, daysAhead);
+
+  return projects.filter(({ project }) => {
+    const startdatum = project.details?.startdatum;
+    if (!startdatum) return false;
+    
+    const startDate = new Date(startdatum);
+    startDate.setHours(0, 0, 0, 0);
+    
+    return isAfter(startDate, today) && isBefore(startDate, futureDate);
+  });
+}
+
+/**
+ * Gibt alle laufenden Projekte zurück (gestartet, aber noch nicht beendet)
+ */
+export function getActiveProjects(projects: any[]): any[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return projects.filter(({ project }) => {
+    const startdatum = project.details?.startdatum;
+    const enddatum = project.details?.enddatum;
+    
+    if (!startdatum || !enddatum) return false;
+    
+    const startDate = new Date(startdatum);
+    const endDate = new Date(enddatum);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+    
+    return (isBefore(startDate, today) || isSameDay(startDate, today)) && 
+           (isAfter(endDate, today) || isSameDay(endDate, today));
+  });
+}
+
+/**
+ * Gibt alle überfälligen Projekte zurück (Enddatum überschritten, Status ≠ Abgeschlossen)
+ */
+export function getOverdueProjects(projects: any[]): any[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return projects.filter(({ project }) => {
+    const enddatum = project.details?.enddatum;
+    const status = project.details?.projektstatus || project.projektstatus;
+    
+    if (!enddatum || status === 'Abgeschlossen') return false;
+    
+    const endDate = new Date(enddatum);
+    endDate.setHours(0, 0, 0, 0);
+    
+    return isBefore(endDate, today);
+  });
+}
