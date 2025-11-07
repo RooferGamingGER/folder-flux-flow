@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback, memo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useTheme } from "next-themes";
 import { useFolders } from "@/hooks/useFolders";
 import { useProjects } from "@/hooks/useProjects";
 import { useDeletedProjects } from "@/hooks/useDeletedProjects";
@@ -32,7 +33,7 @@ import { UserRoleBadge } from "@/components/UserRoleBadge";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
   Download, ArrowUpDown, Filter as FilterIcon, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder, Search, Plus,
-  ChevronDown, Settings, SlidersHorizontal, MoreVertical, Edit2, MessageSquare, Briefcase, FolderOpen, Folder as FolderIcon
+  ChevronDown, Settings, SlidersHorizontal, MoreVertical, Edit2, MessageSquare, Briefcase, FolderOpen, Folder as FolderIcon, Moon, Sun, Calendar as CalendarIcon
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -59,6 +60,7 @@ import { cn } from "@/lib/utils";
 import { UPLOAD_LIMITS, formatFileSize, validateFileSize } from "@/lib/uploadConfig";
 import { FullDashboard } from "@/components/FullDashboard";
 import { FullCalendar } from "@/components/FullCalendar";
+import { ConstructionCalendar } from "@/components/ConstructionCalendar";
 import { TrashDialog } from "@/components/TrashDialog";
 import { DeletedItemsDialog } from "@/components/DeletedItemsDialog";
 import { MobileSettingsSheet } from "@/components/MobileSettingsSheet";
@@ -204,6 +206,7 @@ type Folder = {
 
 export default function Index() {
   const { user, signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
   const { role, isAdmin, canManageProjects, canViewProjectContent, hasFullAccess, canAccessDashboard, loading: roleLoading } = useUserRole();
   const { folders: dbFolders, isLoading: foldersLoading, createFolder: dbCreateFolder, deleteFolder: dbDeleteFolder, toggleArchive: dbToggleArchive } = useFolders();
   const { projects: dbProjects, isLoading: projectsLoading, createProject: dbCreateProject, deleteProject: dbDeleteProject, toggleArchive: dbToggleProjectArchive } = useProjects();
@@ -240,7 +243,8 @@ export default function Index() {
   
   // Dashboard & Calendar Dialog states
   const [showDashboardDialog, setShowDashboardDialog] = useState(false);
-  const [showCalendarDialog, setShowCalendarDialog] = useState(false);
+  const [showProjectCalendarDialog, setShowProjectCalendarDialog] = useState(false);
+  const [showConstructionCalendarDialog, setShowConstructionCalendarDialog] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   
   // Mobile states
@@ -501,6 +505,25 @@ export default function Index() {
             </>
           )}
           
+          <button
+            onClick={() => {
+              const newTheme = theme === 'dark' ? 'light' : 'dark';
+              setTheme(newTheme);
+              toast({ 
+                title: `${newTheme === 'dark' ? '🌙 Dunkel' : '☀️ Hell'}-Modus aktiviert`,
+                duration: 1500 
+              });
+            }}
+            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-card hover:bg-accent transition-colors"
+            title={theme === 'dark' ? 'Zu Hell-Modus wechseln' : 'Zu Dunkel-Modus wechseln'}
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+          </button>
+          
           <UserRoleBadge />
           {isAdmin && (
             <button
@@ -546,7 +569,8 @@ export default function Index() {
             searchResults={searchResults}
             setSearch={setSearch}
             onDashboardClick={() => setShowDashboardDialog(true)}
-            onCalendarClick={() => setShowCalendarDialog(true)}
+            onProjectCalendarClick={() => setShowProjectCalendarDialog(true)}
+            onConstructionCalendarClick={() => setShowConstructionCalendarDialog(true)}
             showFolderDlg={showFolderDlg}
             setShowFolderDlg={setShowFolderDlg}
             folderName={folderName}
@@ -619,7 +643,8 @@ export default function Index() {
             {/* App Sidebar (Icon-only sidebar) */}
         <AppSidebar 
           onDashboardClick={() => setShowDashboardDialog(true)}
-          onCalendarClick={() => setShowCalendarDialog(true)}
+          onProjectCalendarClick={() => setShowProjectCalendarDialog(true)}
+          onConstructionCalendarClick={() => setShowConstructionCalendarDialog(true)}
           canAccessDashboard={canAccessDashboard}
         />
 
@@ -999,14 +1024,14 @@ export default function Index() {
         </div>
       )}
 
-      {/* Calendar Dialog */}
-      {showCalendarDialog && (
+      {/* Projekt-Kalender Dialog */}
+      {showProjectCalendarDialog && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-card rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-card rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-border">
-              <h2 className="text-lg font-semibold">Kalender</h2>
+              <h2 className="text-lg font-semibold">📅 Projekt-Kalender</h2>
               <button
-                onClick={() => setShowCalendarDialog(false)}
+                onClick={() => setShowProjectCalendarDialog(false)}
                 className="p-2 hover:bg-accent rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -1016,7 +1041,7 @@ export default function Index() {
               <FullCalendar 
                 allProjects={allProjects}
                 onProjectClick={(projectId) => {
-                  setShowCalendarDialog(false);
+                  setShowProjectCalendarDialog(false);
                   setSelectedProjectId(projectId);
                   
                   // Finde den Ordner des Projekts
@@ -1026,6 +1051,26 @@ export default function Index() {
                   }
                 }}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Baustellenkalender Dialog */}
+      {showConstructionCalendarDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h2 className="text-lg font-semibold">🏗️ Baustellenkalender</h2>
+              <button
+                onClick={() => setShowConstructionCalendarDialog(false)}
+                className="p-2 hover:bg-accent rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <ConstructionCalendar />
             </div>
           </div>
         </div>
@@ -1373,7 +1418,8 @@ function MobileLayout({
   searchResults,
   setSearch,
   onDashboardClick,
-  onCalendarClick,
+  onProjectCalendarClick,
+  onConstructionCalendarClick,
   showFolderDlg,
   setShowFolderDlg,
   folderName,
@@ -1436,7 +1482,8 @@ function MobileLayout({
   searchResults: any[];
   setSearch: (search: string) => void;
   onDashboardClick: () => void;
-  onCalendarClick: () => void;
+  onProjectCalendarClick: () => void;
+  onConstructionCalendarClick: () => void;
   showFolderDlg: boolean;
   setShowFolderDlg: (show: boolean) => void;
   folderName: string;
@@ -1552,13 +1599,23 @@ function MobileLayout({
                     </button>
                     <button
                       onClick={() => {
-                        onCalendarClick();
+                        onProjectCalendarClick();
                         setMenuOpen(false);
                       }}
                       className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
                     >
                       <span className="text-lg">📅</span>
-                      <span className="font-medium">Kalender</span>
+                      <span className="font-medium">Projekt-Kalender</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        onConstructionCalendarClick();
+                        setMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-accent transition-colors flex items-center gap-3"
+                    >
+                      <span className="text-lg">🏗️</span>
+                      <span className="font-medium">Baustellenkalender</span>
                     </button>
                   </>
                 )}
@@ -2597,36 +2654,44 @@ function FolderBlock({ f, selectedFolderId, selectedProjectId, setSelectedFolder
           </button>
         )}
         {showMenu && (
-          <div className="ml-auto relative">
-            <button className="px-2.5 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors" onClick={() => setOpenMenuId(isMenuOpen ? null : menuId)}>⋯</button>
-            {isMenuOpen && (
-              <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 text-sm min-w-[180px]">
-                {canManageProjects && (
-                  <>
-                    <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" onClick={() => { setOpenMenuId(null); onArchiveToggle(f.id); }}>
-                      {f.archived ? "📤 Aus Archiv holen" : "📥 In Archiv"}
-                    </button>
-                    <button className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" onClick={() => { setOpenMenuId(null); onDelete(f.id); }}>
-                      🗑️ Ordner löschen
-                    </button>
-                  </>
-                )}
-                {canLeave && (
-                  <button
-                    className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-orange-600 rounded-b-lg"
-                    onClick={() => {
-                      setOpenMenuId(null);
-                      if (confirm(`Möchtest du den Ordner "${f.name}" wirklich verlassen? Du verlierst den Zugriff auf alle Projekte in diesem Ordner (außer du bist direkt Projekt-Mitglied).`)) {
-                        leaveFolder();
-                      }
-                    }}
+          <Popover open={isMenuOpen} onOpenChange={(open) => setOpenMenuId(open ? menuId : null)}>
+            <PopoverTrigger asChild>
+              <button className="px-2.5 py-1 rounded-md border border-sidebar-border bg-card hover:bg-accent transition-colors">
+                ⋯
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[180px] p-0">
+              {canManageProjects && (
+                <>
+                  <button 
+                    className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors rounded-t-lg" 
+                    onClick={() => { setOpenMenuId(null); onArchiveToggle(f.id); }}
                   >
-                    🚪 Ordner verlassen
+                    {f.archived ? "📤 Aus Archiv holen" : "📥 In Archiv"}
                   </button>
-                )}
-              </div>
-            )}
-          </div>
+                  <button 
+                    className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-destructive rounded-b-lg" 
+                    onClick={() => { setOpenMenuId(null); onDelete(f.id); }}
+                  >
+                    🗑️ Ordner löschen
+                  </button>
+                </>
+              )}
+              {canLeave && (
+                <button
+                  className="block w-full text-left px-4 py-2.5 hover:bg-accent transition-colors text-orange-600 rounded-b-lg"
+                  onClick={() => {
+                    setOpenMenuId(null);
+                    if (confirm(`Möchtest du den Ordner "${f.name}" wirklich verlassen? Du verlierst den Zugriff auf alle Projekte in diesem Ordner (außer du bist direkt Projekt-Mitglied).`)) {
+                      leaveFolder();
+                    }
+                  }}
+                >
+                  🚪 Ordner verlassen
+                </button>
+              )}
+            </PopoverContent>
+          </Popover>
         )}
       </div>
       <FolderMembersDialog 
