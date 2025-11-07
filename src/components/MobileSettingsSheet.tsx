@@ -1,6 +1,6 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Moon, Sun, LogOut, User } from "lucide-react";
-import { useTheme } from "next-themes";
+import { useThemePreference } from "@/hooks/useThemePreference";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
@@ -12,7 +12,7 @@ interface MobileSettingsSheetProps {
 }
 
 export function MobileSettingsSheet({ open, onClose, onSignOut, userEmail }: MobileSettingsSheetProps) {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, isLoading } = useThemePreference();
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -46,6 +46,7 @@ export function MobileSettingsSheet({ open, onClose, onSignOut, userEmail }: Mob
                 variant={theme === "light" ? "default" : "outline"}
                 className="flex-1"
                 onClick={() => setTheme("light")}
+                disabled={isLoading}
               >
                 <Sun className="w-4 h-4 mr-2" />
                 Hell
@@ -54,6 +55,7 @@ export function MobileSettingsSheet({ open, onClose, onSignOut, userEmail }: Mob
                 variant={theme === "dark" ? "default" : "outline"}
                 className="flex-1"
                 onClick={() => setTheme("dark")}
+                disabled={isLoading}
               >
                 <Moon className="w-4 h-4 mr-2" />
                 Dunkel

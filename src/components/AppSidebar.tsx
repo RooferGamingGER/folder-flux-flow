@@ -39,14 +39,14 @@ export function AppSidebar({ onDashboardClick, onProjectCalendarClick, onConstru
           )}
           {canAccessDashboard && (
             <SidebarMenuItem>
-              <SidebarMenuButton 
-                onClick={onConstructionCalendarClick} 
-                tooltip="Baustellenkalender"
-                className="flex flex-col items-center justify-center h-20 gap-2 px-2 hover:bg-accent active:bg-accent/70 transition-colors touch-manipulation"
-              >
-                <Briefcase className="w-8 h-8" />
-                <span className="text-xs text-center">Baustellen-Kalender</span>
-              </SidebarMenuButton>
+      <SidebarMenuButton 
+        onClick={onConstructionCalendarClick} 
+        tooltip="Baustellenkalender"
+        className="flex flex-col items-center justify-center h-20 gap-2 px-2 hover:bg-accent active:bg-accent/70 transition-colors touch-manipulation"
+      >
+        <Briefcase className="w-8 h-8" />
+        <span className="text-[10px] text-center leading-tight">Baustellen-Kalender</span>
+      </SidebarMenuButton>
             </SidebarMenuItem>
           )}
           <SidebarMenuItem>

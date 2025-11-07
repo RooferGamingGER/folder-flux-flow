@@ -137,3 +137,65 @@ export function getRelativeTime(date: string | Date | null): string {
   // Format: "28. Okt." oder "5. Sept."
   return format(past, 'd. MMM.', { locale: de });
 }
+
+/**
+ * Gibt alle Projekte zurück, die in den nächsten X Tagen starten
+ */
+export function getUpcomingProjects(projects: any[], daysAhead: number = 14): any[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const futureDate = addDays(today, daysAhead);
+
+  return projects.filter(({ project }) => {
+    const startdatum = project.details?.startdatum;
+    if (!startdatum) return false;
+    
+    const startDate = new Date(startdatum);
+    startDate.setHours(0, 0, 0, 0);
+    
+    return isAfter(startDate, today) && isBefore(startDate, futureDate);
+  });
+}
+
+/**
+ * Gibt alle laufenden Projekte zurück (gestartet, aber noch nicht beendet)
+ */
+export function getActiveProjects(projects: any[]): any[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return projects.filter(({ project }) => {
+    const startdatum = project.details?.startdatum;
+    const enddatum = project.details?.enddatum;
+    
+    if (!startdatum || !enddatum) return false;
+    
+    const startDate = new Date(startdatum);
+    const endDate = new Date(enddatum);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+    
+    return (isBefore(startDate, today) || isSameDay(startDate, today)) && 
+           (isAfter(endDate, today) || isSameDay(endDate, today));
+  });
+}
+
+/**
+ * Gibt alle überfälligen Projekte zurück (Enddatum überschritten, Status ≠ Abgeschlossen)
+ */
+export function getOverdueProjects(projects: any[]): any[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return projects.filter(({ project }) => {
+    const enddatum = project.details?.enddatum;
+    const status = project.details?.projektstatus || project.projektstatus;
+    
+    if (!enddatum || status === 'Abgeschlossen') return false;
+    
+    const endDate = new Date(enddatum);
+    endDate.setHours(0, 0, 0, 0);
+    
+    return isBefore(endDate, today);
+  });
+}

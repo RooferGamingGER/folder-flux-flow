@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback, memo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { useTheme } from "next-themes";
+import { useThemePreference } from "@/hooks/useThemePreference";
 import { useFolders } from "@/hooks/useFolders";
 import { useProjects } from "@/hooks/useProjects";
 import { useDeletedProjects } from "@/hooks/useDeletedProjects";
@@ -206,7 +206,7 @@ type Folder = {
 
 export default function Index() {
   const { user, signOut } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, isLoading: themeLoading } = useThemePreference();
   const { role, isAdmin, canManageProjects, canViewProjectContent, hasFullAccess, canAccessDashboard, loading: roleLoading } = useUserRole();
   const { folders: dbFolders, isLoading: foldersLoading, createFolder: dbCreateFolder, deleteFolder: dbDeleteFolder, toggleArchive: dbToggleArchive } = useFolders();
   const { projects: dbProjects, isLoading: projectsLoading, createProject: dbCreateProject, deleteProject: dbDeleteProject, toggleArchive: dbToggleProjectArchive } = useProjects();
@@ -509,12 +509,9 @@ export default function Index() {
             onClick={() => {
               const newTheme = theme === 'dark' ? 'light' : 'dark';
               setTheme(newTheme);
-              toast({ 
-                title: `${newTheme === 'dark' ? '🌙 Dunkel' : '☀️ Hell'}-Modus aktiviert`,
-                duration: 1500 
-              });
             }}
-            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-card hover:bg-accent transition-colors"
+            disabled={themeLoading}
+            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-card hover:bg-accent transition-colors disabled:opacity-50"
             title={theme === 'dark' ? 'Zu Hell-Modus wechseln' : 'Zu Dunkel-Modus wechseln'}
           >
             {theme === 'dark' ? (

@@ -239,6 +239,7 @@ export type Database = {
           last_name: string
           must_change_password: boolean | null
           organization_id: string | null
+          theme_preference: string | null
           updated_at: string | null
         }
         Insert: {
@@ -249,6 +250,7 @@ export type Database = {
           last_name: string
           must_change_password?: boolean | null
           organization_id?: string | null
+          theme_preference?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -259,6 +261,7 @@ export type Database = {
           last_name?: string
           must_change_password?: boolean | null
           organization_id?: string | null
+          theme_preference?: string | null
           updated_at?: string | null
         }
         Relationships: [
