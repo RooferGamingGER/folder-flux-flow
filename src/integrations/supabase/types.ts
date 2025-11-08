@@ -412,9 +412,13 @@ export type Database = {
           deleted_at: string | null
           ext: string | null
           folder: string | null
+          gps_accuracy: number | null
+          gps_altitude: number | null
           id: string
           is_image: boolean | null
+          latitude: number | null
           local_blob_url: string | null
+          longitude: number | null
           mime: string | null
           modified: string | null
           name: string
@@ -429,9 +433,13 @@ export type Database = {
           deleted_at?: string | null
           ext?: string | null
           folder?: string | null
+          gps_accuracy?: number | null
+          gps_altitude?: number | null
           id?: string
           is_image?: boolean | null
+          latitude?: number | null
           local_blob_url?: string | null
+          longitude?: number | null
           mime?: string | null
           modified?: string | null
           name: string
@@ -446,9 +454,13 @@ export type Database = {
           deleted_at?: string | null
           ext?: string | null
           folder?: string | null
+          gps_accuracy?: number | null
+          gps_altitude?: number | null
           id?: string
           is_image?: boolean | null
+          latitude?: number | null
           local_blob_url?: string | null
+          longitude?: number | null
           mime?: string | null
           modified?: string | null
           name?: string
