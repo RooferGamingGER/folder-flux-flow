@@ -65,6 +65,7 @@ import { TrashDialog } from "@/components/TrashDialog";
 import { DeletedItemsDialog } from "@/components/DeletedItemsDialog";
 import { MobileSettingsSheet } from "@/components/MobileSettingsSheet";
 import { MobileNotificationsSheet } from "@/components/MobileNotificationsSheet";
+import { ProjectPhotoMap } from "@/components/ProjectPhotoMap";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
 
@@ -3369,6 +3370,8 @@ function FilesView({ project }: { project: Project }) {
     errors: Array<{ name: string; size: string }>;
     totalSize: string;
   } | null>(null);
+  const [showOverview, setShowOverview] = useState(true);
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   
   const { files: dbFiles, uploadFile, isUploading, getFileUrl, deleteFile, moveFile: dbMoveFile } = useProjectFiles(project.id);
   const { directories, createDirectory, renameDirectory, deleteDirectory } = useProjectDirectories(project.id);
@@ -3630,7 +3633,37 @@ function FilesView({ project }: { project: Project }) {
       modified: f.modified || '',
       takenAt: f.taken_at || '',
       created_by: f.created_by,
+      latitude: f.latitude,
+      longitude: f.longitude,
+      gps_altitude: f.gps_altitude,
     }));
+  
+  const allFiles = dbFiles.map((f) => ({
+    id: f.id,
+    name: f.name,
+    url: getFileUrl(f),
+    thumbUrl: getFileUrl(f),
+    isImage: f.is_image,
+    mime: f.mime || '',
+    ext: f.ext || '',
+    size: f.size || '',
+    folder: f.folder || '',
+    modified: f.modified || '',
+    takenAt: f.taken_at || '',
+    created_by: f.created_by,
+    latitude: f.latitude,
+    longitude: f.longitude,
+    gps_altitude: f.gps_altitude,
+  }));
+  
+  const georefPhotos = allFiles.filter(
+    f => f.isImage && f.latitude != null && f.longitude != null
+  );
+  
+  const folderCounts = listDirs.reduce((acc, dir) => {
+    acc[dir] = dbFiles.filter(f => (f.folder || "") === dir).length;
+    return acc;
+  }, {} as Record<string, number>);
     
   const openPreview = async (file: ProjectFile) => {
     try {
@@ -3650,23 +3683,142 @@ function FilesView({ project }: { project: Project }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <div className="flex items-center justify-between p-4 border-b border-border bg-card shadow-sm">
-        <div className="flex items-center gap-3">
-          <strong className="text-sm">Verzeichnis:</strong>
-          <select className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" value={currentDir} onChange={(e) => setCurrentDir(e.target.value)}>
-            {listDirs.map((d) => (<option key={d} value={d}>{d}</option>))}
-          </select>
-          {canManageProjects && (
-            <button className="ml-2 px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors" onClick={() => setShowNewDir(true)}>+ Neuer Ordner</button>
-          )}
+      {showOverview ? (
+        // Dokument-Übersicht
+        <div className="flex-1 flex flex-col">
+          <div className="p-4 border-b border-border bg-card shadow-sm">
+            <h3 className="text-lg font-semibold">Dokumente</h3>
+          </div>
+          
+          <div className="flex-1 overflow-auto p-6">
+            <div className="max-w-4xl mx-auto space-y-4">
+              {/* Alle Dokumente */}
+              <div 
+                onClick={() => {
+                  setShowOverview(false);
+                  setCurrentDir("Bilder");
+                }}
+                className="p-6 rounded-lg border border-border bg-card hover:bg-accent/50 cursor-pointer transition-all group"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="text-4xl">📁</div>
+                    <div>
+                      <h4 className="text-lg font-semibold group-hover:text-primary transition-colors">
+                        Alle Dokumente
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        {allFiles.length} Datei{allFiles.length !== 1 ? 'en' : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                </div>
+              </div>
+              
+              {/* Ordner-Liste */}
+              <div className="grid gap-3">
+                {listDirs.map((dir) => {
+                  const count = folderCounts[dir] || 0;
+                  const isProtected = PROTECTED_FOLDERS.includes(dir);
+                  
+                  return (
+                    <div
+                      key={dir}
+                      onClick={() => {
+                        setShowOverview(false);
+                        setCurrentDir(dir);
+                      }}
+                      className="p-4 rounded-lg border border-border bg-card hover:bg-accent/50 cursor-pointer transition-all group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="text-2xl">
+                            {dir === "Bilder" && "🖼️"}
+                            {dir === "Dokumente" && "📄"}
+                            {dir === "Chat" && "💬"}
+                            {dir === "Sprachnachrichten" && "🎤"}
+                            {dir === "Videos" && "🎬"}
+                            {!["Bilder", "Dokumente", "Chat", "Sprachnachrichten", "Videos"].includes(dir) && "📁"}
+                          </div>
+                          <div>
+                            <h4 className="font-medium group-hover:text-primary transition-colors">
+                              {dir} {isProtected && "🔒"}
+                            </h4>
+                            <p className="text-xs text-muted-foreground">
+                              {count} Datei{count !== 1 ? 'en' : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { addFiles(e.target.files, true); e.target.value = ""; }} />
-          <input ref={uploadRef} type="file" multiple accept="image/*,application/pdf,.pdf,application/*,text/*" className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
-          <button onClick={() => cameraRef.current?.click()} className="px-4 py-2 rounded-lg border border-border bg-background hover:bg-accent transition-colors">📷 Kamera</button>
-          <button onClick={() => uploadRef.current?.click()} className="px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground transition-all">📤 Dateien hochladen</button>
-        </div>
-      </div>
+      ) : (
+        // Ordner-Ansicht
+        <>
+          <div className="flex items-center justify-between p-4 border-b border-border bg-card shadow-sm">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setShowOverview(true)}
+                className="px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center gap-2"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Zurück
+              </button>
+              <strong className="text-sm">Verzeichnis:</strong>
+              <select className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-all" value={currentDir} onChange={(e) => setCurrentDir(e.target.value)}>
+                {listDirs.map((d) => (<option key={d} value={d}>{d}</option>))}
+              </select>
+              {canManageProjects && (
+                <button className="ml-2 px-3 py-2 text-sm rounded-lg border border-border bg-background hover:bg-accent transition-colors" onClick={() => setShowNewDir(true)}>+ Neuer Ordner</button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {/* View Mode Tabs */}
+              <div className="flex gap-1 border border-border rounded-lg p-1 bg-background">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`px-3 py-1.5 rounded text-sm transition-all flex items-center gap-2 ${
+                    viewMode === 'list' 
+                      ? 'bg-primary text-primary-foreground font-medium' 
+                      : 'hover:bg-accent text-muted-foreground'
+                  }`}
+                >
+                  <span>📋</span> Liste
+                </button>
+                <button
+                  onClick={() => setViewMode('map')}
+                  className={`px-3 py-1.5 rounded text-sm transition-all flex items-center gap-2 ${
+                    viewMode === 'map' 
+                      ? 'bg-primary text-primary-foreground font-medium' 
+                      : 'hover:bg-accent text-muted-foreground'
+                  }`}
+                >
+                  <span>🗺️</span> Karte
+                  {georefPhotos.length > 0 && (
+                    <span className="bg-primary-foreground text-primary px-1.5 py-0.5 rounded-full text-xs font-semibold">
+                      {georefPhotos.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+              
+              {viewMode === 'list' && (
+                <>
+                  <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { addFiles(e.target.files, true); e.target.value = ""; }} />
+                  <input ref={uploadRef} type="file" multiple accept="image/*,application/pdf,.pdf,application/*,text/*" className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+                  <button onClick={() => cameraRef.current?.click()} className="px-4 py-2 rounded-lg border border-border bg-background hover:bg-accent transition-colors">📷 Kamera</button>
+                  <button onClick={() => uploadRef.current?.click()} className="px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground transition-all">📤 Dateien hochladen</button>
+                </>
+              )}
+            </div>
+          </div>
 
       {uploadProgress && (
         <div className="px-6 py-3 bg-card border-b border-border">
@@ -3685,7 +3837,8 @@ function FilesView({ project }: { project: Project }) {
         </div>
       )}
 
-      <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-border bg-secondary/50">
+          {viewMode === 'list' && (
+            <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-border bg-secondary/50">
         {listDirs.map((d) => {
           const isProtected = PROTECTED_FOLDERS.includes(d);
           const isCustom = !isProtected;
@@ -3743,18 +3896,31 @@ function FilesView({ project }: { project: Project }) {
             </div>
           );
         })}
-      </div>
+            </div>
+          )}
 
-      <div className="flex-1 overflow-auto p-6">
+          {viewMode === 'list' ? (
+            <div className="flex-1 overflow-auto p-6">
         <h4 className="font-semibold mb-4 text-lg">📂 {currentDir}</h4>
-        {filesInDir(currentDir).length === 0 ? (
-          <div className="text-sm text-muted-foreground text-center py-12">Keine Dateien im Verzeichnis vorhanden.</div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {filesInDir(currentDir).map((f) => (<FileCard key={f.id} file={f} dirs={listDirs} onMove={moveFile} onOpen={() => openPreview(f)} onDelete={deleteFile} canDelete={canDeleteFile(f)} />))}
-          </div>
-        )}
-      </div>
+              {filesInDir(currentDir).length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-12">Keine Dateien im Verzeichnis vorhanden.</div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {filesInDir(currentDir).map((f) => (<FileCard key={f.id} file={f} dirs={listDirs} onMove={moveFile} onOpen={() => openPreview(f)} onDelete={deleteFile} canDelete={canDeleteFile(f)} />))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <ProjectPhotoMap 
+              photos={georefPhotos}
+              onPhotoClick={(photo) => {
+                const file = allFiles.find(f => f.id === photo.id);
+                if (file) openPreview(file);
+              }}
+            />
+          )}
+        </>
+      )}
 
       {showNewDir && (
         <Modal title="Neues Verzeichnis" onClose={() => { setShowNewDir(false); setNewDirName(""); }}>

@@ -42,6 +42,18 @@ export function useProjectFiles(projectId?: string) {
       const originalSize = file.size;
       const originalName = file.name;
       
+      // GPS-Daten extrahieren VOR der Kompression (da EXIF-Daten verloren gehen können)
+      let gpsData: { latitude?: number; longitude?: number; altitude?: number; accuracy?: number } | null = null;
+      
+      if (file.type.startsWith('image/')) {
+        try {
+          const { extractGPSFromImage } = await import('@/lib/exifUtils');
+          gpsData = await extractGPSFromImage(file);
+        } catch (error) {
+          console.log('⚠️ GPS-Extraktion fehlgeschlagen:', error);
+        }
+      }
+      
       // Bildkompression vor Upload
       if (shouldCompressImage(file)) {
         console.log('🖼️ Komprimiere Bild:', file.name, 'Original:', formatBytes(file.size));
@@ -88,6 +100,10 @@ export function useProjectFiles(projectId?: string) {
           ext,
           mime: file.type,
           modified: new Date().toISOString(),
+          latitude: gpsData?.latitude,
+          longitude: gpsData?.longitude,
+          gps_altitude: gpsData?.altitude,
+          gps_accuracy: gpsData?.accuracy,
         })
         .select()
         .single();
@@ -102,14 +118,26 @@ export function useProjectFiles(projectId?: string) {
       console.log('✅ File uploaded successfully:', data.id);
       return { data, originalSize, compressedSize: file.size };
     },
-    onSuccess: (result) => {
+    onSuccess: (result, variables) => {
       queryClient.invalidateQueries({ queryKey: ['project_files', projectId] });
       
       const savedPercent = Math.round(
         ((result.originalSize - result.compressedSize) / result.originalSize) * 100
       );
       
-      if (savedPercent > 30) {
+      const hasGPS = result.data.latitude && result.data.longitude;
+      
+      if (hasGPS && savedPercent > 30) {
+        toast({ 
+          title: '📍 Datei mit GPS hochgeladen',
+          description: `GPS-Daten gefunden • ${savedPercent}% Speicherplatz gespart`
+        });
+      } else if (hasGPS) {
+        toast({ 
+          title: '📍 Datei hochgeladen',
+          description: 'GPS-Daten erfolgreich extrahiert'
+        });
+      } else if (savedPercent > 30) {
         toast({ 
           title: 'Datei hochgeladen & komprimiert',
           description: `${savedPercent}% Speicherplatz gespart (${formatBytes(result.originalSize)} → ${formatBytes(result.compressedSize)})`
