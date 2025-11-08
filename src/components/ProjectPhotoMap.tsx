@@ -22,6 +22,7 @@ export function ProjectPhotoMap({ photos, onPhotoClick }: ProjectPhotoMapProps) 
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<mapboxgl.Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   // Mapbox initialisieren
   useEffect(() => {
@@ -31,34 +32,48 @@ export function ProjectPhotoMap({ photos, onPhotoClick }: ProjectPhotoMapProps) 
     
     if (!token) {
       console.error('❌ VITE_MAPBOX_PUBLIC_TOKEN nicht konfiguriert');
+      setMapError('Mapbox Access Token fehlt');
       return;
     }
 
+    console.log('🗺️ Initialisiere Mapbox mit Token...');
     mapboxgl.accessToken = token;
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/satellite-streets-v12',
-      center: [10.447683, 51.163375], // Deutschland Zentrum
-      zoom: 6,
-      pitch: 0,
-    });
+    try {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+        center: [10.447683, 51.163375], // Deutschland Zentrum
+        zoom: 6,
+        pitch: 0,
+      });
 
-    map.current.addControl(
-      new mapboxgl.NavigationControl({
-        visualizePitch: true,
-      }),
-      'top-right'
-    );
+      map.current.addControl(
+        new mapboxgl.NavigationControl({
+          visualizePitch: true,
+        }),
+        'top-right'
+      );
 
-    map.current.addControl(
-      new mapboxgl.FullscreenControl(),
-      'top-right'
-    );
+      map.current.addControl(
+        new mapboxgl.FullscreenControl(),
+        'top-right'
+      );
 
-    map.current.on('load', () => {
-      setMapReady(true);
-    });
+      map.current.on('load', () => {
+        console.log('✅ Mapbox erfolgreich geladen');
+        setMapReady(true);
+      });
+
+      map.current.on('error', (e) => {
+        console.error('❌ Mapbox-Fehler:', e);
+        setMapError('Fehler beim Laden der Karte');
+      });
+
+    } catch (error) {
+      console.error('❌ Fehler bei Mapbox-Initialisierung:', error);
+      setMapError('Fehler bei der Karten-Initialisierung');
+    }
 
     return () => {
       map.current?.remove();
@@ -69,6 +84,8 @@ export function ProjectPhotoMap({ photos, onPhotoClick }: ProjectPhotoMapProps) 
   // Marker aktualisieren wenn Fotos sich ändern
   useEffect(() => {
     if (!map.current || !mapReady || photos.length === 0) return;
+
+    console.log('📍 Füge', photos.length, 'Marker zur Karte hinzu');
 
     // Alte Marker entfernen
     markers.current.forEach(marker => marker.remove());
@@ -171,6 +188,31 @@ export function ProjectPhotoMap({ photos, onPhotoClick }: ProjectPhotoMapProps) 
     }
 
   }, [photos, mapReady, onPhotoClick]);
+
+  // Fehler-Fallback wenn Token fehlt oder Karte nicht lädt
+  if (mapError) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="text-center space-y-4 max-w-md">
+          <div className="text-6xl">🗺️</div>
+          <h3 className="text-xl font-semibold text-destructive">
+            Karten-Konfiguration fehlt
+          </h3>
+          <p className="text-muted-foreground">
+            {mapError}: VITE_MAPBOX_PUBLIC_TOKEN
+          </p>
+          <div className="pt-4 text-sm bg-muted rounded-lg p-4 text-left space-y-2">
+            <p className="font-semibold">So richten Sie Mapbox ein:</p>
+            <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+              <li>Erstellen Sie ein kostenloses Konto auf <a href="https://mapbox.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">mapbox.com</a></li>
+              <li>Kopieren Sie Ihren Public Token (beginnt mit "pk.")</li>
+              <li>Fügen Sie den Token in den Projekt-Einstellungen hinzu</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Fallback wenn keine GPS-Daten
   if (photos.length === 0) {
