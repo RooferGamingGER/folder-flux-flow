@@ -46,12 +46,21 @@ export function useProjectFiles(projectId?: string) {
       let gpsData: { latitude?: number; longitude?: number; altitude?: number; accuracy?: number } | null = null;
       
       if (file.type.startsWith('image/')) {
+        console.log('🖼️ Bild erkannt, starte GPS-Extraktion...');
         try {
-          const { extractGPSFromImage } = await import('@/lib/exifUtils');
-          gpsData = await extractGPSFromImage(file);
+          const { extractGPSFromImageWithFallback } = await import('@/lib/exifUtils');
+          gpsData = await extractGPSFromImageWithFallback(file);
+          
+          if (gpsData) {
+            console.log('✅ GPS-Daten erfolgreich extrahiert:', gpsData);
+          } else {
+            console.warn('⚠️ Keine GPS-Daten im Bild gefunden');
+          }
         } catch (error) {
-          console.log('⚠️ GPS-Extraktion fehlgeschlagen:', error);
+          console.error('❌ GPS-Extraktion fehlgeschlagen:', error);
         }
+      } else {
+        console.log('ℹ️ Kein Bild, überspringe GPS-Extraktion');
       }
       
       // Bildkompression vor Upload
@@ -127,15 +136,31 @@ export function useProjectFiles(projectId?: string) {
       
       const hasGPS = result.data.latitude && result.data.longitude;
       
+      console.log('📊 Upload-Ergebnis:', {
+        hasGPS,
+        latitude: result.data.latitude,
+        longitude: result.data.longitude,
+        savedPercent
+      });
+
       if (hasGPS && savedPercent > 30) {
         toast({ 
-          title: '📍 Datei mit GPS hochgeladen',
-          description: `GPS-Daten gefunden • ${savedPercent}% Speicherplatz gespart`
+          title: '✅ Datei mit GPS hochgeladen',
+          description: `📍 GPS-Daten gefunden (${result.data.latitude.toFixed(4)}, ${result.data.longitude.toFixed(4)}) • ${savedPercent}% Speicherplatz gespart`,
+          duration: 5000
         });
       } else if (hasGPS) {
         toast({ 
-          title: '📍 Datei hochgeladen',
-          description: 'GPS-Daten erfolgreich extrahiert'
+          title: '✅ Datei hochgeladen',
+          description: `📍 GPS-Daten erfolgreich extrahiert: ${result.data.latitude.toFixed(4)}, ${result.data.longitude.toFixed(4)}`,
+          duration: 5000
+        });
+      } else if (variables.file.type.startsWith('image/')) {
+        // Explizite Warnung wenn Bild OHNE GPS hochgeladen wurde
+        toast({ 
+          title: '⚠️ Bild ohne GPS-Daten',
+          description: 'Das Foto enthält keine Standortinformationen. Aktivieren Sie den Standort in Ihrer Kamera-App.',
+          duration: 6000
         });
       } else if (savedPercent > 30) {
         toast({ 

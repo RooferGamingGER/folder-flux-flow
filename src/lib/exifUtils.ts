@@ -11,14 +11,24 @@ export interface GPSData {
  * Extrahiert GPS-Daten aus einem Bild
  */
 export async function extractGPSFromImage(file: File): Promise<GPSData | null> {
+  console.log('🔍 Starte GPS-Extraktion für:', file.name, 'Type:', file.type, 'Size:', file.size);
+  
   try {
-    // EXIF-Daten lesen
+    // EXIF-Daten lesen mit ausführlicher Konfiguration
     const exif = await exifr.parse(file, {
       gps: true,
-      pick: ['latitude', 'longitude', 'GPSAltitude', 'GPSHPositioningError']
+      pick: ['latitude', 'longitude', 'GPSAltitude', 'GPSHPositioningError', 'GPSLatitude', 'GPSLongitude']
     });
 
-    if (!exif || !exif.latitude || !exif.longitude) {
+    console.log('📊 EXIF-Rohdaten:', exif);
+
+    if (!exif) {
+      console.warn('⚠️ Keine EXIF-Daten gefunden in:', file.name);
+      return null;
+    }
+
+    if (!exif.latitude || !exif.longitude) {
+      console.warn('⚠️ GPS-Koordinaten fehlen:', { exif });
       return null;
     }
 
@@ -38,7 +48,7 @@ export async function extractGPSFromImage(file: File): Promise<GPSData | null> {
       gpsData.accuracy = exif.GPSHPositioningError;
     }
 
-    console.log('📍 GPS-Daten extrahiert:', {
+    console.log('✅ GPS-Daten erfolgreich extrahiert:', {
       file: file.name,
       lat: gpsData.latitude.toFixed(6),
       lng: gpsData.longitude.toFixed(6),
@@ -48,9 +58,63 @@ export async function extractGPSFromImage(file: File): Promise<GPSData | null> {
 
     return gpsData;
   } catch (error) {
-    console.log('ℹ️ Keine GPS-Daten gefunden:', file.name);
+    console.error('❌ GPS-Extraktion fehlgeschlagen:', file.name, error);
     return null;
   }
+}
+
+/**
+ * Alternative GPS-Extraktion mit mehreren Fallback-Methoden
+ */
+export async function extractGPSFromImageWithFallback(file: File): Promise<GPSData | null> {
+  console.log('🔍 Versuche GPS-Extraktion mit Fallback-Methoden für:', file.name);
+  
+  // Methode 1: Vollständiger EXIF-Parse (ausführlich)
+  try {
+    const allExif = await exifr.parse(file, { 
+      gps: true,
+      tiff: true,
+      xmp: true,
+      icc: true,
+      iptc: true,
+      jfif: true
+    });
+    
+    console.log('📊 Vollständige EXIF-Daten:', allExif);
+    
+    if (allExif?.latitude && allExif?.longitude) {
+      console.log('✅ GPS via Methode 1 gefunden');
+      return {
+        latitude: allExif.latitude,
+        longitude: allExif.longitude,
+        altitude: allExif.GPSAltitude,
+        accuracy: allExif.GPSHPositioningError
+      };
+    }
+  } catch (error) {
+    console.warn('⚠️ Methode 1 fehlgeschlagen:', error);
+  }
+  
+  // Methode 2: Nur GPS-Segment
+  try {
+    const gpsOnly = await exifr.gps(file);
+    console.log('📊 GPS-Only Daten:', gpsOnly);
+    
+    if (gpsOnly?.latitude && gpsOnly?.longitude) {
+      console.log('✅ GPS via Methode 2 gefunden');
+      return {
+        latitude: gpsOnly.latitude,
+        longitude: gpsOnly.longitude,
+        altitude: undefined,
+        accuracy: undefined
+      };
+    }
+  } catch (error) {
+    console.warn('⚠️ Methode 2 fehlgeschlagen:', error);
+  }
+  
+  console.log('❌ Keine GPS-Daten mit allen Methoden gefunden');
+  return null;
 }
 
 /**
