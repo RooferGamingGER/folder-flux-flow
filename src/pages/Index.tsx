@@ -3708,7 +3708,7 @@ function FilesView({ project }: { project: Project }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* View-Mode-Tabs - immer sichtbar für berechtigte Rollen */}
       {canAccessDashboard && (
         <div className="p-3 border-b border-border bg-card">
@@ -3747,7 +3747,7 @@ function FilesView({ project }: { project: Project }) {
 
       {viewMode === 'map' ? (
         // Karten-Ansicht mit Info-Banner
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-h-0">
           {georefPhotos.length > 0 && (
             <div className="p-3 bg-primary/10 border-b border-border">
               <div className="max-w-4xl mx-auto flex items-center gap-2 text-sm">

@@ -236,7 +236,7 @@ export function ProjectPhotoMap({ photos, onPhotoClick }: ProjectPhotoMapProps) 
   }
 
   return (
-    <div className="flex-1 relative">
+    <div className="flex-1 relative min-h-0">
       <div ref={mapContainer} className="absolute inset-0" />
       
       {/* Info-Badge */}
