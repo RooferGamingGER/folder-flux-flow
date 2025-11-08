@@ -2316,7 +2316,7 @@ function MobileLayout({
         />
         
         {/* View Content */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
           {view === "chat" ? (
             <ChatView project={selectedProject} />
           ) : view === "files" ? (
