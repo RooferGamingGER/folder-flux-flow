@@ -3690,7 +3690,67 @@ function FilesView({ project }: { project: Project }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      {showOverview ? (
+      {/* View-Mode-Tabs - immer sichtbar für berechtigte Rollen */}
+      {canAccessDashboard && (
+        <div className="p-3 border-b border-border bg-card">
+          <div className="flex items-center justify-center gap-1 border border-border rounded-lg p-1 bg-background max-w-md mx-auto">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex-1 px-3 py-2 rounded text-sm transition-all flex items-center justify-center gap-2 ${
+                viewMode === 'list' 
+                  ? 'bg-primary text-primary-foreground font-medium' 
+                  : 'hover:bg-accent text-muted-foreground'
+              }`}
+            >
+              <span className="text-base">📋</span> 
+              <span>Liste</span>
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`flex-1 px-3 py-2 rounded text-sm transition-all flex items-center justify-center gap-2 ${
+                viewMode === 'map' 
+                  ? 'bg-primary text-primary-foreground font-medium' 
+                  : 'hover:bg-accent text-muted-foreground'
+              }`}
+              title="Georeferenzierte Fotos auf Karte anzeigen"
+            >
+              <span className="text-base">🗺️</span> 
+              <span>Karte</span>
+              {georefPhotos.length > 0 && (
+                <span className="bg-primary-foreground text-primary px-1.5 py-0.5 rounded-full text-xs font-semibold">
+                  {georefPhotos.length}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {viewMode === 'map' ? (
+        // Karten-Ansicht mit Info-Banner
+        <div className="flex-1 flex flex-col">
+          {georefPhotos.length > 0 && (
+            <div className="p-3 bg-primary/10 border-b border-border">
+              <div className="max-w-4xl mx-auto flex items-center gap-2 text-sm">
+                <span className="text-lg">📍</span>
+                <span className="font-medium">
+                  {georefPhotos.length} Foto{georefPhotos.length !== 1 ? 's' : ''} mit GPS-Daten
+                </span>
+                <span className="text-muted-foreground">
+                  • Aus allen Ordnern
+                </span>
+              </div>
+            </div>
+          )}
+          <ProjectPhotoMap 
+            photos={georefPhotos}
+            onPhotoClick={(photo) => {
+              const file = allFiles.find(f => f.id === photo.id);
+              if (file) openPreview(file);
+            }}
+          />
+        </div>
+      ) : showOverview ? (
         // Dokument-Übersicht
         <div className="flex-1 flex flex-col">
           <div className="p-4 border-b border-border bg-card shadow-sm">
@@ -3787,46 +3847,10 @@ function FilesView({ project }: { project: Project }) {
               )}
             </div>
             <div className="flex items-center gap-2">
-              {/* View Mode Tabs */}
-              <div className="flex gap-1 border border-border rounded-lg p-1 bg-background">
-                  <button
-                    onClick={() => setViewMode('list')}
-                    className={`px-3 py-1.5 rounded text-sm transition-all flex items-center gap-2 ${
-                      viewMode === 'list' 
-                        ? 'bg-primary text-primary-foreground font-medium' 
-                        : 'hover:bg-accent text-muted-foreground'
-                    }`}
-                  >
-                    <span>📋</span> Liste
-                  </button>
-                  {canAccessDashboard && (
-                    <button
-                      onClick={() => setViewMode('map')}
-                      className={`px-3 py-1.5 rounded text-sm transition-all flex items-center gap-2 ${
-                        viewMode === 'map' 
-                          ? 'bg-primary text-primary-foreground font-medium' 
-                          : 'hover:bg-accent text-muted-foreground'
-                      }`}
-                      title="Georeferenzierte Fotos auf Karte anzeigen"
-                    >
-                      <span>🗺️</span> Karte
-                      {georefPhotos.length > 0 && (
-                        <span className="bg-primary-foreground text-primary px-1.5 py-0.5 rounded-full text-xs font-semibold">
-                          {georefPhotos.length}
-                        </span>
-                      )}
-                    </button>
-                  )}
-              </div>
-              
-              {viewMode === 'list' && (
-                <>
-                  <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { addFiles(e.target.files, true); e.target.value = ""; }} />
-                  <input ref={uploadRef} type="file" multiple accept="image/*,application/pdf,.pdf,application/*,text/*" className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
-                  <button onClick={() => cameraRef.current?.click()} className="px-4 py-2 rounded-lg border border-border bg-background hover:bg-accent transition-colors">📷 Kamera</button>
-                  <button onClick={() => uploadRef.current?.click()} className="px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground transition-all">📤 Dateien hochladen</button>
-                </>
-              )}
+              <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { addFiles(e.target.files, true); e.target.value = ""; }} />
+              <input ref={uploadRef} type="file" multiple accept="image/*,application/pdf,.pdf,application/*,text/*" className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+              <button onClick={() => cameraRef.current?.click()} className="px-4 py-2 rounded-lg border border-border bg-background hover:bg-accent transition-colors">📷 Kamera</button>
+              <button onClick={() => uploadRef.current?.click()} className="px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground transition-all">📤 Dateien hochladen</button>
             </div>
           </div>
 
@@ -3909,28 +3933,23 @@ function FilesView({ project }: { project: Project }) {
             </div>
           )}
 
-              {viewMode === 'list' ? (
-                <div className="flex-1 overflow-auto p-6">
-...
-                </div>
-              ) : canAccessDashboard ? (
-                <ProjectPhotoMap 
-                  photos={georefPhotos}
-                  onPhotoClick={(photo) => {
-                    const file = allFiles.find(f => f.id === photo.id);
-                    if (file) openPreview(file);
-                  }}
-                />
-              ) : (
-                <div className="flex-1 flex items-center justify-center p-6">
-                  <div className="text-center space-y-3">
-                    <div className="text-4xl">🔒</div>
-                    <p className="text-muted-foreground">
-                      Die Kartenansicht ist nur für Geschäftsführer, Bürokräfte und Projektleiter verfügbar.
-                    </p>
-                  </div>
-                </div>
-              )}
+          <div className="flex-1 overflow-auto p-6">
+            <div className="grid gap-4">
+              {allFiles
+                .filter(f => f.folder === currentDir)
+                .map(file => (
+                  <FileCard
+                    key={file.id}
+                    file={file}
+                    dirs={listDirs}
+                    onMove={(fileId, targetDir) => moveFile(fileId, targetDir)}
+                    onOpen={() => openPreview(file)}
+                    onDelete={() => deleteFile(file.id)}
+                    canDelete={canDeleteFile(file)}
+                  />
+                ))}
+            </div>
+          </div>
         </>
       )}
 

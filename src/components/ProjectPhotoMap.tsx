@@ -175,14 +175,19 @@ export function ProjectPhotoMap({ photos, onPhotoClick }: ProjectPhotoMapProps) 
   // Fallback wenn keine GPS-Daten
   if (photos.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-secondary/30 rounded-lg m-6">
-        <div className="text-center p-8">
-          <div className="text-6xl mb-4">🗺️</div>
-          <h3 className="text-xl font-semibold mb-2">Keine georeferenzierten Fotos</h3>
-          <p className="text-sm text-muted-foreground max-w-md">
-            Lade Fotos mit GPS-Daten hoch, um sie auf der Karte anzuzeigen.
-            Die meisten Smartphones speichern automatisch den Aufnahmeort in den Bildern.
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="text-center space-y-4 max-w-md">
+          <div className="text-6xl">📍</div>
+          <h3 className="text-xl font-semibold">
+            Keine georeferenzierten Fotos
+          </h3>
+          <p className="text-muted-foreground">
+            Fotos mit GPS-Daten werden automatisch auf der Karte angezeigt.
+            Laden Sie Fotos hoch, die mit einem Smartphone aufgenommen wurden.
           </p>
+          <div className="pt-2 text-sm text-muted-foreground">
+            <p>💡 Tipp: Aktivieren Sie die Standort-Berechtigung in Ihrer Kamera-App</p>
+          </div>
         </div>
       </div>
     );
