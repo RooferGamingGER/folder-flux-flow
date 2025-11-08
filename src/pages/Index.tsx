@@ -3354,7 +3354,7 @@ const MessageBubble = memo(function MessageBubble({ msg, getFileUrl, onDelete }:
 
 function FilesView({ project }: { project: Project }) {
   const { user } = useAuth();
-  const { hasFullAccess, role, canManageProjects } = useUserRole();
+  const { hasFullAccess, role, canManageProjects, canAccessDashboard } = useUserRole();
   const uploadRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [currentDir, setCurrentDir] = useState("Bilder");
@@ -3372,6 +3372,13 @@ function FilesView({ project }: { project: Project }) {
   } | null>(null);
   const [showOverview, setShowOverview] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+
+  // Automatisch auf Liste zurücksetzen wenn keine Berechtigung für Karte
+  useEffect(() => {
+    if (viewMode === 'map' && !canAccessDashboard) {
+      setViewMode('list');
+    }
+  }, [viewMode, canAccessDashboard]);
   
   const { files: dbFiles, uploadFile, isUploading, getFileUrl, deleteFile, moveFile: dbMoveFile } = useProjectFiles(project.id);
   const { directories, createDirectory, renameDirectory, deleteDirectory } = useProjectDirectories(project.id);
@@ -3782,31 +3789,34 @@ function FilesView({ project }: { project: Project }) {
             <div className="flex items-center gap-2">
               {/* View Mode Tabs */}
               <div className="flex gap-1 border border-border rounded-lg p-1 bg-background">
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`px-3 py-1.5 rounded text-sm transition-all flex items-center gap-2 ${
-                    viewMode === 'list' 
-                      ? 'bg-primary text-primary-foreground font-medium' 
-                      : 'hover:bg-accent text-muted-foreground'
-                  }`}
-                >
-                  <span>📋</span> Liste
-                </button>
-                <button
-                  onClick={() => setViewMode('map')}
-                  className={`px-3 py-1.5 rounded text-sm transition-all flex items-center gap-2 ${
-                    viewMode === 'map' 
-                      ? 'bg-primary text-primary-foreground font-medium' 
-                      : 'hover:bg-accent text-muted-foreground'
-                  }`}
-                >
-                  <span>🗺️</span> Karte
-                  {georefPhotos.length > 0 && (
-                    <span className="bg-primary-foreground text-primary px-1.5 py-0.5 rounded-full text-xs font-semibold">
-                      {georefPhotos.length}
-                    </span>
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`px-3 py-1.5 rounded text-sm transition-all flex items-center gap-2 ${
+                      viewMode === 'list' 
+                        ? 'bg-primary text-primary-foreground font-medium' 
+                        : 'hover:bg-accent text-muted-foreground'
+                    }`}
+                  >
+                    <span>📋</span> Liste
+                  </button>
+                  {canAccessDashboard && (
+                    <button
+                      onClick={() => setViewMode('map')}
+                      className={`px-3 py-1.5 rounded text-sm transition-all flex items-center gap-2 ${
+                        viewMode === 'map' 
+                          ? 'bg-primary text-primary-foreground font-medium' 
+                          : 'hover:bg-accent text-muted-foreground'
+                      }`}
+                      title="Georeferenzierte Fotos auf Karte anzeigen"
+                    >
+                      <span>🗺️</span> Karte
+                      {georefPhotos.length > 0 && (
+                        <span className="bg-primary-foreground text-primary px-1.5 py-0.5 rounded-full text-xs font-semibold">
+                          {georefPhotos.length}
+                        </span>
+                      )}
+                    </button>
                   )}
-                </button>
               </div>
               
               {viewMode === 'list' && (
@@ -3899,26 +3909,28 @@ function FilesView({ project }: { project: Project }) {
             </div>
           )}
 
-          {viewMode === 'list' ? (
-            <div className="flex-1 overflow-auto p-6">
-        <h4 className="font-semibold mb-4 text-lg">📂 {currentDir}</h4>
-              {filesInDir(currentDir).length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-12">Keine Dateien im Verzeichnis vorhanden.</div>
+              {viewMode === 'list' ? (
+                <div className="flex-1 overflow-auto p-6">
+...
+                </div>
+              ) : canAccessDashboard ? (
+                <ProjectPhotoMap 
+                  photos={georefPhotos}
+                  onPhotoClick={(photo) => {
+                    const file = allFiles.find(f => f.id === photo.id);
+                    if (file) openPreview(file);
+                  }}
+                />
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {filesInDir(currentDir).map((f) => (<FileCard key={f.id} file={f} dirs={listDirs} onMove={moveFile} onOpen={() => openPreview(f)} onDelete={deleteFile} canDelete={canDeleteFile(f)} />))}
+                <div className="flex-1 flex items-center justify-center p-6">
+                  <div className="text-center space-y-3">
+                    <div className="text-4xl">🔒</div>
+                    <p className="text-muted-foreground">
+                      Die Kartenansicht ist nur für Geschäftsführer, Bürokräfte und Projektleiter verfügbar.
+                    </p>
+                  </div>
                 </div>
               )}
-            </div>
-          ) : (
-            <ProjectPhotoMap 
-              photos={georefPhotos}
-              onPhotoClick={(photo) => {
-                const file = allFiles.find(f => f.id === photo.id);
-                if (file) openPreview(file);
-              }}
-            />
-          )}
         </>
       )}
 
