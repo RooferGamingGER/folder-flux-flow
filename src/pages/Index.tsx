@@ -2873,9 +2873,12 @@ function ChatView({ project, fullWidth = false }: { project: Project; fullWidth?
       const isImage = file.type.startsWith('image/');
       const targetFolder = isImage ? 'Bilder' : 'Dokumente';
       
+      console.log('📤 Starte Upload:', file.name, 'Typ:', file.type, 'Größe:', file.size);
+      
       // Upload in Zielordner (Bilder oder Dokumente)
       uploadFile({ file, folder: targetFolder }, {
         onSuccess: (result) => {
+          console.log('✅ Upload erfolgreich:', result.data.id);
           // Chat-Nachricht mit Datei-Referenz erstellen
           const fileUrl = getFileUrl(result.data);
           sendMessage({
@@ -2888,6 +2891,10 @@ function ChatView({ project, fullWidth = false }: { project: Project; fullWidth?
               fileId: result.data.id, // Referenz zur Datei in project_files
             }
           });
+        },
+        onError: (error) => {
+          console.error('❌ Upload fehlgeschlagen:', file.name, error);
+          // Upload-Status wird automatisch durch useMutation zurückgesetzt
         }
       });
     }
@@ -2896,8 +2903,11 @@ function ChatView({ project, fullWidth = false }: { project: Project; fullWidth?
   const handleAudioUpload = async (blob: Blob) => {
     const file = new File([blob], `audio_${Date.now()}.webm`, { type: 'audio/webm' });
     
+    console.log('📤 Starte Audio-Upload:', file.name);
+    
     uploadFile({ file, folder: 'Sprachnachrichten' }, {
       onSuccess: (result) => {
+        console.log('✅ Audio-Upload erfolgreich:', result.data.id);
         const fileUrl = getFileUrl(result.data);
         sendMessage({
           type: 'audio',
@@ -2907,6 +2917,9 @@ function ChatView({ project, fullWidth = false }: { project: Project; fullWidth?
             fileId: result.data.id,
           }
         });
+      },
+      onError: (error) => {
+        console.error('❌ Audio-Upload fehlgeschlagen:', error);
       }
     });
   };
@@ -2914,8 +2927,11 @@ function ChatView({ project, fullWidth = false }: { project: Project; fullWidth?
   const handleVideoUpload = async (blob: Blob) => {
     const file = new File([blob], `video_${Date.now()}.webm`, { type: 'video/webm' });
     
+    console.log('📤 Starte Video-Upload:', file.name);
+    
     uploadFile({ file, folder: 'Videos' }, {
       onSuccess: (result) => {
+        console.log('✅ Video-Upload erfolgreich:', result.data.id);
         const fileUrl = getFileUrl(result.data);
         sendMessage({
           type: 'video',
@@ -2925,6 +2941,9 @@ function ChatView({ project, fullWidth = false }: { project: Project; fullWidth?
             fileId: result.data.id,
           }
         });
+      },
+      onError: (error) => {
+        console.error('❌ Video-Upload fehlgeschlagen:', error);
       }
     });
   };
