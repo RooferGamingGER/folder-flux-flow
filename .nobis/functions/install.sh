@@ -211,12 +211,28 @@ install_supabase() {
     mkdir -p "$SUPABASE_DIR"
     cd "$SUPABASE_DIR"
     
-    # Clone Supabase
+    # Clone Supabase Repository
     if [ ! -d "$SUPABASE_DIR/docker" ]; then
         log_info "Clone Supabase Repository..."
         git clone --depth 1 https://github.com/supabase/supabase.git temp
+        
+        # Verschiebe docker Verzeichnis
+        log_info "Verschiebe Docker-Konfiguration..."
         mv temp/docker .
         rm -rf temp
+        
+        log_success "Supabase Repository gecloned"
+    else
+        log_info "Supabase Docker Verzeichnis existiert bereits"
+    fi
+    
+    # Prüfe ob docker-compose.yml existiert
+    if [ ! -f "$SUPABASE_DIR/docker/docker-compose.yml" ]; then
+        log_error "docker-compose.yml fehlt! Installation fehlgeschlagen."
+        log_error "Bitte führen Sie eine Neuinstallation durch:"
+        log_error "  rm -rf $SUPABASE_DIR/docker"
+        log_error "  sudo ./nobis.sh install"
+        return 1
     fi
     
     cd docker
@@ -224,7 +240,7 @@ install_supabase() {
     # Lade unsere Konfiguration
     load_env
     
-    # Erstelle .env Datei direkt (ohne Template)
+    # Erstelle .env Datei direkt
     log_info "Erstelle Supabase .env Konfiguration..."
     cat > .env <<EOF
 ############
@@ -242,25 +258,25 @@ DASHBOARD_USERNAME="supabase"
 DASHBOARD_PASSWORD="$DASHBOARD_PASSWORD"
 
 ############
-# Database - You can change these to any PostgreSQL database that has logical replication enabled.
+# Database
 ############
 POSTGRES_HOST=db
 POSTGRES_DB=postgres
 POSTGRES_PORT=5432
 
 ############
-# API Proxy - Configuration for the Kong Reverse proxy.
+# API Proxy
 ############
 KONG_HTTP_PORT=8000
 KONG_HTTPS_PORT=8443
 
 ############
-# API - Configuration for PostgREST.
+# API
 ############
 PGRST_DB_SCHEMAS=public,storage,graphql_public
 
 ############
-# Auth - Configuration for the GoTrue authentication server.
+# Auth
 ############
 SITE_URL=https://$DOMAIN
 ADDITIONAL_REDIRECT_URLS=
@@ -269,38 +285,30 @@ DISABLE_SIGNUP=false
 API_EXTERNAL_URL=https://$DOMAIN
 
 ############
-# Studio - Configuration for the Dashboard
+# Studio
 ############
 STUDIO_DEFAULT_ORGANIZATION=Default Organization
 STUDIO_DEFAULT_PROJECT=Default Project
-
 STUDIO_PORT=3000
 SUPABASE_PUBLIC_URL=https://$DOMAIN
 
 ############
-# Functions - Configuration for Functions
+# Functions
 ############
 FUNCTIONS_VERIFY_JWT=false
 
 ############
-# Logs - Configuration for Logflare
+# Logs
 ############
 LOGFLARE_LOGGER_BACKEND_API_KEY=your-super-secret-and-long-logflare-key
 
 ############
-# Metrics - Configuration for Prometheus
+# Metrics
 ############
 ENABLE_METRICS=false
 EOF
 
     log_success "Supabase .env Datei erstellt"
-    
-    # Starte Supabase Services
-    log_info "Starte Supabase Container..."
-    docker compose pull
-    docker compose up -d
-    
-    log_success "Supabase Services gestartet"
 }
 
 setup_database_schema() {
