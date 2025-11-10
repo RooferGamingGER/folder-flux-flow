@@ -3762,7 +3762,15 @@ function FilesView({ project }: { project: Project }) {
             </div>
           )}
           <ProjectPhotoMap 
-            photos={georefPhotos}
+            photos={georefPhotos.map(f => ({
+              id: f.id,
+              name: f.name,
+              url: f.url,
+              latitude: f.latitude!,
+              longitude: f.longitude!,
+              altitude: f.gps_altitude,
+              modified: f.modified
+            }))}
             onPhotoClick={(photo) => {
               const file = allFiles.find(f => f.id === photo.id);
               if (file) openPreview(file);
