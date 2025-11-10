@@ -6,20 +6,31 @@
 -- 1. Enums erstellen
 -- =============================================
 
-CREATE TYPE IF NOT EXISTS public.user_role AS ENUM (
-  'geschaeftsfuehrer',
-  'buerokraft',
-  'team_projektleiter',
-  'vorarbeiter',
-  'mitarbeiter',
-  'azubi'
-);
+-- PostgreSQL < 13 compatible ENUM creation
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+    CREATE TYPE public.user_role AS ENUM (
+      'geschaeftsfuehrer',
+      'buerokraft',
+      'team_projektleiter',
+      'vorarbeiter',
+      'mitarbeiter',
+      'azubi'
+    );
+  END IF;
+END $$;
 
-CREATE TYPE IF NOT EXISTS public.sync_status AS ENUM (
-  'synced',
-  'pending',
-  'failed'
-);
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'sync_status') THEN
+    CREATE TYPE public.sync_status AS ENUM (
+      'synced',
+      'pending',
+      'failed'
+    );
+  END IF;
+END $$;
 
 -- 2. Tabellen erstellen
 -- =============================================
@@ -802,12 +813,12 @@ CREATE POLICY "Users can delete their own sync queue entries" ON public.sync_que
 -- 8. Storage Buckets erstellen
 -- =============================================
 
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('project-files', 'project-files', true)
+INSERT INTO storage.buckets (id, name) 
+VALUES ('project-files', 'project-files')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('project-images', 'project-images', true)
+INSERT INTO storage.buckets (id, name) 
+VALUES ('project-images', 'project-images')
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage Policies für project-files
