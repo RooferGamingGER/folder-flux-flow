@@ -164,26 +164,26 @@ interactive_setup() {
 # Erstellt am: $(date +%Y-%m-%d\ %H:%M:%S)
 
 # Domain und SSL
-DOMAIN=$DOMAIN
-EMAIL=$EMAIL
+DOMAIN="$DOMAIN"
+EMAIL="$EMAIL"
 
 # Supabase Credentials
-POSTGRES_PASSWORD=$POSTGRES_PASSWORD
-JWT_SECRET=$JWT_SECRET
-ANON_KEY=$ANON_KEY
-SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY
-DASHBOARD_USERNAME=supabase
-DASHBOARD_PASSWORD=$DASHBOARD_PASSWORD
+POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
+JWT_SECRET="$JWT_SECRET"
+ANON_KEY="$ANON_KEY"
+SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+DASHBOARD_USERNAME="supabase"
+DASHBOARD_PASSWORD="$DASHBOARD_PASSWORD"
 
 # Mapbox (optional)
-MAPBOX_TOKEN=${MAPBOX_TOKEN:-}
+MAPBOX_TOKEN="${MAPBOX_TOKEN:-}"
 
 # Migration
-MIGRATE_FROM_CLOUD=$MIGRATE_CHOICE
+MIGRATE_FROM_CLOUD="$MIGRATE_CHOICE"
 
 # Installation
-INSTALL_DATE=$(date +%Y-%m-%d)
-VERSION=$VERSION
+INSTALL_DATE="$(date +%Y-%m-%d)"
+VERSION="$VERSION"
 EOF
     
     chmod 600 "$INSTALL_DIR/.env"
@@ -226,12 +226,12 @@ install_supabase() {
     
     # Update .env mit unseren Werten
     load_env
-    sed -i "s|POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$POSTGRES_PASSWORD|" .env
-    sed -i "s|JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" .env
-    sed -i "s|ANON_KEY=.*|ANON_KEY=$ANON_KEY|" .env
-    sed -i "s|SERVICE_ROLE_KEY=.*|SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY|" .env
-    sed -i "s|DASHBOARD_USERNAME=.*|DASHBOARD_USERNAME=supabase|" .env
-    sed -i "s|DASHBOARD_PASSWORD=.*|DASHBOARD_PASSWORD=$DASHBOARD_PASSWORD|" .env
+    sed -i "s|POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=\"$POSTGRES_PASSWORD\"|" .env
+    sed -i "s|JWT_SECRET=.*|JWT_SECRET=\"$JWT_SECRET\"|" .env
+    sed -i "s|ANON_KEY=.*|ANON_KEY=\"$ANON_KEY\"|" .env
+    sed -i "s|SERVICE_ROLE_KEY=.*|SERVICE_ROLE_KEY=\"$SERVICE_ROLE_KEY\"|" .env
+    sed -i "s|DASHBOARD_USERNAME=.*|DASHBOARD_USERNAME=\"supabase\"|" .env
+    sed -i "s|DASHBOARD_PASSWORD=.*|DASHBOARD_PASSWORD=\"$DASHBOARD_PASSWORD\"|" .env
     
     log_success "Supabase konfiguriert"
 }
@@ -285,9 +285,9 @@ build_frontend() {
     # Erstelle .env für Frontend
     load_env
     cat > "$SCRIPT_DIR/.env" <<EOF
-VITE_SUPABASE_URL=http://localhost:8000
-VITE_SUPABASE_PUBLISHABLE_KEY=$ANON_KEY
-VITE_MAPBOX_PUBLIC_TOKEN=${MAPBOX_TOKEN:-}
+VITE_SUPABASE_URL="http://localhost:8000"
+VITE_SUPABASE_PUBLISHABLE_KEY="$ANON_KEY"
+VITE_MAPBOX_PUBLIC_TOKEN="${MAPBOX_TOKEN:-}"
 EOF
     
     # Build
