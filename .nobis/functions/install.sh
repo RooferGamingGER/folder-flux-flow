@@ -240,7 +240,13 @@ install_supabase() {
     # Lade unsere Konfiguration
     load_env
     
-    # Erstelle .env Datei direkt
+    # Generiere zusätzliche Secrets
+    SECRET_KEY_BASE=$(openssl rand -base64 32 | tr -d '\n')
+    VAULT_ENC_KEY=$(openssl rand -base64 32 | tr -d '\n')
+    LOGFLARE_API_KEY=$(openssl rand -base64 32 | tr -d '\n')
+    PG_META_CRYPTO_KEY=$(openssl rand -base64 32 | tr -d '\n')
+    
+    # Erstelle vollständige .env Datei
     log_info "Erstelle Supabase .env Konfiguration..."
     cat > .env <<EOF
 ############
@@ -283,6 +289,25 @@ ADDITIONAL_REDIRECT_URLS=
 JWT_EXPIRY=3600
 DISABLE_SIGNUP=false
 API_EXTERNAL_URL=https://$DOMAIN
+ENABLE_EMAIL_SIGNUP=true
+ENABLE_EMAIL_AUTOCONFIRM=true
+ENABLE_PHONE_SIGNUP=false
+ENABLE_PHONE_AUTOCONFIRM=false
+ENABLE_ANONYMOUS_USERS=false
+
+############
+# Email (SMTP)
+############
+SMTP_ADMIN_EMAIL=admin@$DOMAIN
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+SMTP_SENDER_NAME=Nobis
+MAILER_URLPATHS_CONFIRMATION=/auth/v1/verify
+MAILER_URLPATHS_INVITE=/auth/v1/verify
+MAILER_URLPATHS_RECOVERY=/auth/v1/verify
+MAILER_URLPATHS_EMAIL_CHANGE=/auth/v1/verify
 
 ############
 # Studio
@@ -298,17 +323,49 @@ SUPABASE_PUBLIC_URL=https://$DOMAIN
 FUNCTIONS_VERIFY_JWT=false
 
 ############
-# Logs
+# Logs - Logflare
 ############
-LOGFLARE_LOGGER_BACKEND_API_KEY=your-super-secret-and-long-logflare-key
+LOGFLARE_API_KEY=$LOGFLARE_API_KEY
+LOGFLARE_PUBLIC_ACCESS_TOKEN=$LOGFLARE_API_KEY
+LOGFLARE_PRIVATE_ACCESS_TOKEN=$LOGFLARE_API_KEY
+LOGFLARE_LOGGER_BACKEND_API_KEY=$LOGFLARE_API_KEY
 
 ############
 # Metrics
 ############
 ENABLE_METRICS=false
+
+############
+# Pooler
+############
+POOLER_DEFAULT_POOL_SIZE=20
+POOLER_MAX_CLIENT_CONN=100
+POOLER_DB_POOL_SIZE=10
+POOLER_PROXY_PORT_TRANSACTION=6543
+POOLER_TENANT_ID=default
+
+############
+# Storage
+############
+STORAGE_BACKEND=file
+FILE_SIZE_LIMIT=52428800
+FILE_STORAGE_BACKEND_PATH=/var/lib/storage
+IMGPROXY_ENABLE_WEBP_DETECTION=true
+
+############
+# Additional Secrets
+############
+SECRET_KEY_BASE=$SECRET_KEY_BASE
+VAULT_ENC_KEY=$VAULT_ENC_KEY
+PG_META_CRYPTO_KEY=$PG_META_CRYPTO_KEY
+
+############
+# Docker
+############
+DOCKER_SOCKET_LOCATION=/var/run/docker.sock
 EOF
 
-    log_success "Supabase .env Datei erstellt"
+    log_success "Supabase .env Datei mit allen erforderlichen Variablen erstellt"
 }
 
 setup_database_schema() {
