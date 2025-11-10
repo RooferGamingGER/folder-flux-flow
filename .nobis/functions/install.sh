@@ -221,19 +221,86 @@ install_supabase() {
     
     cd docker
     
-    # Kopiere .env Template
-    cp .env.example .env
-    
-    # Update .env mit unseren Werten
+    # Lade unsere Konfiguration
     load_env
-    sed -i "s|POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=\"$POSTGRES_PASSWORD\"|" .env
-    sed -i "s|JWT_SECRET=.*|JWT_SECRET=\"$JWT_SECRET\"|" .env
-    sed -i "s|ANON_KEY=.*|ANON_KEY=\"$ANON_KEY\"|" .env
-    sed -i "s|SERVICE_ROLE_KEY=.*|SERVICE_ROLE_KEY=\"$SERVICE_ROLE_KEY\"|" .env
-    sed -i "s|DASHBOARD_USERNAME=.*|DASHBOARD_USERNAME=\"supabase\"|" .env
-    sed -i "s|DASHBOARD_PASSWORD=.*|DASHBOARD_PASSWORD=\"$DASHBOARD_PASSWORD\"|" .env
     
-    log_success "Supabase konfiguriert"
+    # Erstelle .env Datei direkt (ohne Template)
+    log_info "Erstelle Supabase .env Konfiguration..."
+    cat > .env <<EOF
+############
+# Secrets
+############
+POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
+JWT_SECRET="$JWT_SECRET"
+ANON_KEY="$ANON_KEY"
+SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+
+############
+# Dashboard
+############
+DASHBOARD_USERNAME="supabase"
+DASHBOARD_PASSWORD="$DASHBOARD_PASSWORD"
+
+############
+# Database - You can change these to any PostgreSQL database that has logical replication enabled.
+############
+POSTGRES_HOST=db
+POSTGRES_DB=postgres
+POSTGRES_PORT=5432
+
+############
+# API Proxy - Configuration for the Kong Reverse proxy.
+############
+KONG_HTTP_PORT=8000
+KONG_HTTPS_PORT=8443
+
+############
+# API - Configuration for PostgREST.
+############
+PGRST_DB_SCHEMAS=public,storage,graphql_public
+
+############
+# Auth - Configuration for the GoTrue authentication server.
+############
+SITE_URL=https://$DOMAIN
+ADDITIONAL_REDIRECT_URLS=
+JWT_EXPIRY=3600
+DISABLE_SIGNUP=false
+API_EXTERNAL_URL=https://$DOMAIN
+
+############
+# Studio - Configuration for the Dashboard
+############
+STUDIO_DEFAULT_ORGANIZATION=Default Organization
+STUDIO_DEFAULT_PROJECT=Default Project
+
+STUDIO_PORT=3000
+SUPABASE_PUBLIC_URL=https://$DOMAIN
+
+############
+# Functions - Configuration for Functions
+############
+FUNCTIONS_VERIFY_JWT=false
+
+############
+# Logs - Configuration for Logflare
+############
+LOGFLARE_LOGGER_BACKEND_API_KEY=your-super-secret-and-long-logflare-key
+
+############
+# Metrics - Configuration for Prometheus
+############
+ENABLE_METRICS=false
+EOF
+
+    log_success "Supabase .env Datei erstellt"
+    
+    # Starte Supabase Services
+    log_info "Starte Supabase Container..."
+    docker compose pull
+    docker compose up -d
+    
+    log_success "Supabase Services gestartet"
 }
 
 setup_database_schema() {
