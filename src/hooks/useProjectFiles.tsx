@@ -42,6 +42,27 @@ export function useProjectFiles(projectId?: string) {
       const originalSize = file.size;
       const originalName = file.name;
       
+      // GPS-Daten extrahieren VOR der Kompression (da EXIF-Daten verloren gehen können)
+      let gpsData: { latitude?: number; longitude?: number; altitude?: number; accuracy?: number } | null = null;
+      
+      if (file.type.startsWith('image/')) {
+        console.log('🖼️ Bild erkannt, starte GPS-Extraktion...');
+        try {
+          const { extractGPSFromImageWithFallback } = await import('@/lib/exifUtils');
+          gpsData = await extractGPSFromImageWithFallback(file);
+          
+          if (gpsData) {
+            console.log('✅ GPS-Daten erfolgreich extrahiert:', gpsData);
+          } else {
+            console.warn('⚠️ Keine GPS-Daten im Bild gefunden');
+          }
+        } catch (error) {
+          console.error('❌ GPS-Extraktion fehlgeschlagen:', error);
+        }
+      } else {
+        console.log('ℹ️ Kein Bild, überspringe GPS-Extraktion');
+      }
+      
       // Bildkompression vor Upload
       if (shouldCompressImage(file)) {
         console.log('🖼️ Komprimiere Bild:', file.name, 'Original:', formatBytes(file.size));
@@ -88,6 +109,10 @@ export function useProjectFiles(projectId?: string) {
           ext,
           mime: file.type,
           modified: new Date().toISOString(),
+          latitude: gpsData?.latitude,
+          longitude: gpsData?.longitude,
+          gps_altitude: gpsData?.altitude,
+          gps_accuracy: gpsData?.accuracy,
         })
         .select()
         .single();
@@ -102,14 +127,42 @@ export function useProjectFiles(projectId?: string) {
       console.log('✅ File uploaded successfully:', data.id);
       return { data, originalSize, compressedSize: file.size };
     },
-    onSuccess: (result) => {
+    onSuccess: (result, variables) => {
       queryClient.invalidateQueries({ queryKey: ['project_files', projectId] });
       
       const savedPercent = Math.round(
         ((result.originalSize - result.compressedSize) / result.originalSize) * 100
       );
       
-      if (savedPercent > 30) {
+      const hasGPS = result.data.latitude && result.data.longitude;
+      
+      console.log('📊 Upload-Ergebnis:', {
+        hasGPS,
+        latitude: result.data.latitude,
+        longitude: result.data.longitude,
+        savedPercent
+      });
+
+      if (hasGPS && savedPercent > 30) {
+        toast({ 
+          title: '✅ Datei mit GPS hochgeladen',
+          description: `📍 GPS-Daten gefunden (${result.data.latitude.toFixed(4)}, ${result.data.longitude.toFixed(4)}) • ${savedPercent}% Speicherplatz gespart`,
+          duration: 5000
+        });
+      } else if (hasGPS) {
+        toast({ 
+          title: '✅ Datei hochgeladen',
+          description: `📍 GPS-Daten erfolgreich extrahiert: ${result.data.latitude.toFixed(4)}, ${result.data.longitude.toFixed(4)}`,
+          duration: 5000
+        });
+      } else if (variables.file.type.startsWith('image/')) {
+        // Explizite Warnung wenn Bild OHNE GPS hochgeladen wurde
+        toast({ 
+          title: '⚠️ Bild ohne GPS-Daten',
+          description: 'Das Foto enthält keine Standortinformationen. Aktivieren Sie den Standort in Ihrer Kamera-App.',
+          duration: 6000
+        });
+      } else if (savedPercent > 30) {
         toast({ 
           title: 'Datei hochgeladen & komprimiert',
           description: `${savedPercent}% Speicherplatz gespart (${formatBytes(result.originalSize)} → ${formatBytes(result.compressedSize)})`
