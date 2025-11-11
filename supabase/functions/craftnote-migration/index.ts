@@ -63,6 +63,9 @@ serve(async (req) => {
       case 'analyze':
         return await analyzeScope(params.apiKey, supabaseClient);
       
+      case 'discover-api':
+        return await discoverAPI(params.apiKey);
+      
       case 'start-migration':
         return await startMigration(supabaseClient, params);
       
@@ -122,6 +125,146 @@ async function testConnection(apiKey: string) {
         error: error.message 
       }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+async function discoverAPI(apiKey: string) {
+  try {
+    console.log('🔍 Starting Craftnote API discovery...');
+    
+    const discovery: any = {
+      timestamp: new Date().toISOString(),
+      endpoints: {},
+      projectStructure: null,
+      dataAvailability: {
+        files: false,
+        messages: false,
+        notes: false,
+        contacts: false,
+        tasks: false
+      }
+    };
+
+    // Test base endpoints
+    const baseEndpoints = [
+      '/projects',
+      '/users',
+      '/teams',
+      '/folders'
+    ];
+
+    for (const endpoint of baseEndpoints) {
+      try {
+        const data = await fetchCraftnoteAPI(apiKey, `${endpoint}?limit=1`);
+        discovery.endpoints[endpoint] = {
+          available: true,
+          sampleKeys: Object.keys(data)
+        };
+      } catch (error: any) {
+        discovery.endpoints[endpoint] = {
+          available: false,
+          error: error.message
+        };
+      }
+    }
+
+    // Get a sample project to analyze its structure
+    try {
+      const projectsData = await fetchCraftnoteAPI(apiKey, '/projects?limit=1');
+      
+      if (projectsData.projects && projectsData.projects.length > 0) {
+        const sampleProject = projectsData.projects[0];
+        const projectId = sampleProject.id;
+        
+        discovery.projectStructure = {
+          topLevelKeys: Object.keys(sampleProject),
+          sampleProject: sampleProject
+        };
+
+        // Test project-specific endpoints
+        const projectEndpoints = [
+          `/projects/${projectId}/files`,
+          `/projects/${projectId}/messages`,
+          `/projects/${projectId}/notes`,
+          `/projects/${projectId}/contacts`,
+          `/projects/${projectId}/tasks`,
+          `/projects/${projectId}/media`,
+          `/projects/${projectId}/attachments`,
+          `/projects/${projectId}/documents`
+        ];
+
+        for (const endpoint of projectEndpoints) {
+          try {
+            const data = await fetchCraftnoteAPI(apiKey, endpoint);
+            const dataType = endpoint.split('/').pop() || '';
+            discovery.endpoints[endpoint] = {
+              available: true,
+              hasData: Array.isArray(data) ? data.length > 0 : Object.keys(data).length > 0,
+              sampleData: Array.isArray(data) ? data[0] : data,
+              count: Array.isArray(data) ? data.length : null
+            };
+            
+            if (discovery.endpoints[endpoint].hasData) {
+              discovery.dataAvailability[dataType] = true;
+            }
+          } catch (error: any) {
+            discovery.endpoints[endpoint] = {
+              available: false,
+              error: error.message
+            };
+          }
+        }
+
+        // Check if data is nested in project object
+        if (sampleProject.files && Array.isArray(sampleProject.files)) {
+          discovery.dataAvailability.files = true;
+          discovery.projectStructure.filesNested = {
+            count: sampleProject.files.length,
+            sample: sampleProject.files[0]
+          };
+        }
+        
+        if (sampleProject.messages && Array.isArray(sampleProject.messages)) {
+          discovery.dataAvailability.messages = true;
+          discovery.projectStructure.messagesNested = {
+            count: sampleProject.messages.length,
+            sample: sampleProject.messages[0]
+          };
+        }
+        
+        if (sampleProject.notes && Array.isArray(sampleProject.notes)) {
+          discovery.dataAvailability.notes = true;
+          discovery.projectStructure.notesNested = {
+            count: sampleProject.notes.length,
+            sample: sampleProject.notes[0]
+          };
+        }
+        
+        if (sampleProject.contacts && Array.isArray(sampleProject.contacts)) {
+          discovery.dataAvailability.contacts = true;
+          discovery.projectStructure.contactsNested = {
+            count: sampleProject.contacts.length,
+            sample: sampleProject.contacts[0]
+          };
+        }
+      }
+    } catch (error: any) {
+      console.error('Error analyzing project structure:', error);
+      discovery.projectStructure = { error: error.message };
+    }
+
+    console.log('✅ API discovery complete');
+    
+    return new Response(
+      JSON.stringify({ success: true, discovery }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error: any) {
+    console.error('❌ Error during API discovery:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 }
