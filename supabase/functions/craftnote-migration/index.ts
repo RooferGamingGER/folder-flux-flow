@@ -58,7 +58,7 @@ serve(async (req) => {
         return await testConnection(params.apiKey);
       
       case 'analyze':
-        return await analyzeScope(params.apiKey);
+        return await analyzeScope(params.apiKey, supabaseClient);
       
       case 'start-migration':
         return await startMigration(supabaseClient, params);
@@ -123,41 +123,47 @@ async function testConnection(apiKey: string) {
   }
 }
 
-async function analyzeScope(apiKey: string) {
+async function analyzeScope(apiKey: string, supabaseClient: any) {
   try {
-    // Craftnote API ohne Limit aufrufen, um 'total' zu erhalten
-    const projectsResponse = await fetch(
-      'https://europe-west1-craftnote-live.cloudfunctions.net/api/v1/projects',
-      {
-        headers: {
-          'X-CN-API-KEY': apiKey.trim(),
-          'Content-Type': 'application/json'
-        }
-      }
+    // Hole ALLE Projekte mit Pagination
+    const allProjects = await fetchAllCraftnoteProjects(apiKey);
+    
+    // Prüfe, welche Projekte bereits existieren
+    const { data: existingDetails } = await supabaseClient
+      .from('project_details')
+      .select('auftragsnummer');
+
+    const existingAuftragsnummern = new Set(
+      (existingDetails || [])
+        .map((d: any) => d.auftragsnummer)
+        .filter(Boolean)
     );
 
-    if (!projectsResponse.ok) {
-      const errorText = await projectsResponse.text();
-      throw new Error(`Craftnote API Fehler: ${projectsResponse.status} - ${errorText}`);
-    }
+    // Filtere bereits migrierte Projekte heraus
+    const newProjects = allProjects.filter((p: any) => {
+      const auftragsnummer = p.auftragsnummer || p.projectNumber || p.id;
+      return auftragsnummer && !existingAuftragsnummern.has(auftragsnummer);
+    });
 
-    const projectsData = await projectsResponse.json();
-    
-    // Craftnote API gibt 'total' für die Gesamtanzahl zurück
-    const totalProjects = projectsData.total || projectsData.projects?.length || 0;
+    const totalProjects = allProjects.length;
+    const newProjectsCount = newProjects.length;
+    const skippedCount = totalProjects - newProjectsCount;
 
-    console.log('Craftnote API Response:', { 
-      total: projectsData.total, 
-      projectsLength: projectsData.projects?.length,
-      calculatedTotal: totalProjects 
+    console.log('Analyze Scope:', { 
+      totalProjects, 
+      newProjectsCount, 
+      skippedCount,
+      alreadyMigrated: existingAuftragsnummern.size
     });
 
     const estimates = {
       projects: totalProjects,
-      estimatedFiles: totalProjects * 20,
-      estimatedMessages: totalProjects * 50,
-      estimatedStorageMB: totalProjects * 40,
-      estimatedDurationMinutes: Math.ceil(totalProjects / 20),
+      newProjects: newProjectsCount,
+      skippedProjects: skippedCount,
+      estimatedFiles: newProjectsCount * 20,
+      estimatedMessages: newProjectsCount * 50,
+      estimatedStorageMB: newProjectsCount * 40,
+      estimatedDurationMinutes: Math.ceil(newProjectsCount / 20),
     };
 
     return new Response(
@@ -243,17 +249,47 @@ async function processMigration(supabaseClient: any, runId: string, apiKey: stri
       .update({ status: 'analyzing' })
       .eq('id', runId);
 
+    // Hole User-Daten
     const usersData = await fetchCraftnoteAPI(apiKey, '/users');
     const users = usersData.users || usersData || [];
+
+    // Hole ALLE Projekte mit Pagination
+    const allProjects = await fetchAllCraftnoteProjects(apiKey);
+
+    console.log(`Found ${users.length} users and ${allProjects.length} projects`);
+
+    // Prüfe, welche Projekte bereits existieren (anhand auftragsnummer)
+    const { data: existingDetails } = await supabaseClient
+      .from('project_details')
+      .select('auftragsnummer');
+
+    const existingAuftragsnummern = new Set(
+      (existingDetails || [])
+        .map((d: any) => d.auftragsnummer)
+        .filter(Boolean)
+    );
+
+    // Filtere bereits migrierte Projekte heraus
+    const newProjects = allProjects.filter((p: any) => {
+      const auftragsnummer = p.auftragsnummer || p.projectNumber || p.id;
+      return auftragsnummer && !existingAuftragsnummern.has(auftragsnummer);
+    });
+
+    console.log(`${newProjects.length} neue Projekte (${existingAuftragsnummern.size} bereits migriert, ${allProjects.length - newProjects.length} übersprungen)`);
 
     await supabaseClient
       .from('migration_runs')
       .update({ 
-        total_items: { users: users.length },
-        progress: { users: 0 }
+        total_items: { 
+          users: users.length, 
+          projects: newProjects.length,
+          skipped: allProjects.length - newProjects.length
+        },
+        progress: { users: 0, projects: 0 }
       })
       .eq('id', runId);
 
+    // Phase 1: User migrieren
     await supabaseClient
       .from('migration_runs')
       .update({ status: 'migrating', phase: 'users' })
@@ -264,7 +300,27 @@ async function processMigration(supabaseClient: any, runId: string, apiKey: stri
       
       await supabaseClient
         .from('migration_runs')
-        .update({ progress: { users: i + 1 } })
+        .update({ progress: { users: i + 1, projects: 0 } })
+        .eq('id', runId);
+    }
+
+    // Phase 2: Projekte migrieren (nur neue)
+    await supabaseClient
+      .from('migration_runs')
+      .update({ phase: 'projects' })
+      .eq('id', runId);
+
+    for (let i = 0; i < newProjects.length; i++) {
+      await migrateProject(supabaseClient, newProjects[i], runId);
+      
+      await supabaseClient
+        .from('migration_runs')
+        .update({ 
+          progress: { 
+            users: users.length, 
+            projects: i + 1 
+          } 
+        })
         .eq('id', runId);
     }
 
@@ -305,6 +361,98 @@ async function fetchCraftnoteAPI(apiKey: string, endpoint: string) {
   }
 
   return await response.json();
+}
+
+// Alle Projekte mit Pagination laden
+async function fetchAllCraftnoteProjects(apiKey: string): Promise<any[]> {
+  const allProjects: any[] = [];
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    console.log(`Fetching projects page ${page}...`);
+    
+    const data = await fetchCraftnoteAPI(apiKey, `/projects?page=${page}&limit=100`);
+    
+    const projects = data.projects || data || [];
+    allProjects.push(...projects);
+
+    // Prüfe ob weitere Seiten existieren
+    const total = data.total || 0;
+    hasMore = allProjects.length < total;
+    page++;
+
+    // Sicherheits-Limit: Maximal 50 Seiten (5000 Projekte)
+    if (page > 50) {
+      console.warn('Reached maximum page limit (50)');
+      break;
+    }
+  }
+
+  console.log(`Loaded total of ${allProjects.length} projects from Craftnote`);
+  return allProjects;
+}
+
+async function migrateProject(supabaseClient: any, cnProject: any, runId: string) {
+  try {
+    // Erstelle Projekt
+    const projectId = crypto.randomUUID();
+    const auftragsnummer = cnProject.auftragsnummer || cnProject.projectNumber || cnProject.id;
+
+    const { error: projectError } = await supabaseClient
+      .from('projects')
+      .insert({
+        id: projectId,
+        title: cnProject.name || cnProject.title || 'Unbenanntes Projekt',
+        user_id: (await supabaseClient.auth.getUser()).data.user?.id,
+        created_at: cnProject.createdAt || new Date().toISOString()
+      });
+
+    if (projectError && projectError.code !== '23505') {
+      throw projectError;
+    }
+
+    // Erstelle Project Details
+    await supabaseClient
+      .from('project_details')
+      .insert({
+        project_id: projectId,
+        projektname: cnProject.name || cnProject.title,
+        auftragsnummer: auftragsnummer,
+        projektstatus: cnProject.status || 'aktiv',
+        ansprechpartner: cnProject.contact?.name || cnProject.contactName,
+        strasse: cnProject.address?.street || cnProject.street,
+        plz: cnProject.address?.zipCode || cnProject.zipCode,
+        stadt: cnProject.address?.city || cnProject.city,
+        startdatum: cnProject.startDate,
+        enddatum: cnProject.endDate,
+        notiz: cnProject.description || cnProject.notes
+      });
+
+    // Erstelle Standard-Verzeichnisse
+    const directories = ['Bilder', 'Dokumente', 'Sonstiges'];
+    for (let i = 0; i < directories.length; i++) {
+      await supabaseClient
+        .from('project_directories')
+        .insert({
+          project_id: projectId,
+          name: directories[i],
+          order_index: i,
+          created_by: (await supabaseClient.auth.getUser()).data.user?.id
+        });
+    }
+
+  } catch (error: any) {
+    console.error('Project migration error:', error);
+    await supabaseClient
+      .from('migration_errors')
+      .insert({
+        migration_run_id: runId,
+        error_type: 'project',
+        error_message: error.message,
+        data: cnProject
+      });
+  }
 }
 
 async function migrateUser(supabaseClient: any, cnUser: any, runId: string) {

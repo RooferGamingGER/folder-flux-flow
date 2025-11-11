@@ -11,6 +11,8 @@ import { toast } from '@/hooks/use-toast';
 
 interface MigrationEstimates {
   projects: number;
+  newProjects?: number;
+  skippedProjects?: number;
   estimatedFiles: number;
   estimatedMessages: number;
   estimatedStorageMB: number;
@@ -221,7 +223,15 @@ export function CraftnoteigrationDialog({ open, onClose }: { open: boolean; onCl
             <div className="bg-muted p-4 rounded-lg space-y-2">
               <h3 className="font-semibold">Geschätzter Umfang:</h3>
               <ul className="space-y-1 text-sm">
-                <li>📊 {estimates.projects} Projekte</li>
+                <li>📊 {estimates.projects} Projekte gesamt</li>
+                {estimates.newProjects !== undefined && (
+                  <>
+                    <li className="text-green-600">✅ {estimates.newProjects} neue Projekte (werden migriert)</li>
+                    {estimates.skippedProjects !== undefined && estimates.skippedProjects > 0 && (
+                      <li className="text-muted-foreground">⏭️ {estimates.skippedProjects} bereits migriert (werden übersprungen)</li>
+                    )}
+                  </>
+                )}
                 <li>📁 ~{estimates.estimatedFiles} Dateien</li>
                 <li>💬 ~{estimates.estimatedMessages} Nachrichten</li>
                 <li>💾 ~{estimates.estimatedStorageMB} MB Speicher</li>
@@ -234,6 +244,11 @@ export function CraftnoteigrationDialog({ open, onClose }: { open: boolean; onCl
               <AlertDescription>
                 <strong>Wichtig:</strong> Die Migration kann nicht rückgängig gemacht werden. 
                 Stellen Sie sicher, dass genügend Speicherplatz vorhanden ist.
+                {estimates.skippedProjects !== undefined && estimates.skippedProjects > 0 && (
+                  <><br/><br/>
+                  <strong>Hinweis:</strong> {estimates.skippedProjects} bereits migrierte Projekte werden automatisch übersprungen.
+                  </>
+                )}
               </AlertDescription>
             </Alert>
 
