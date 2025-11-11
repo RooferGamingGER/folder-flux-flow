@@ -124,31 +124,56 @@ async function testConnection(apiKey: string) {
 }
 
 async function analyzeScope(apiKey: string) {
-  const projectsResponse = await fetch(
-    'https://europe-west1-craftnote-live.cloudfunctions.net/api/v1/projects?limit=1',
-    {
-      headers: {
-        'X-CN-API-KEY': apiKey.trim(),
-        'Content-Type': 'application/json'
+  try {
+    // Craftnote API ohne Limit aufrufen, um 'total' zu erhalten
+    const projectsResponse = await fetch(
+      'https://europe-west1-craftnote-live.cloudfunctions.net/api/v1/projects',
+      {
+        headers: {
+          'X-CN-API-KEY': apiKey.trim(),
+          'Content-Type': 'application/json'
+        }
       }
+    );
+
+    if (!projectsResponse.ok) {
+      const errorText = await projectsResponse.text();
+      throw new Error(`Craftnote API Fehler: ${projectsResponse.status} - ${errorText}`);
     }
-  );
 
-  const projectsData = await projectsResponse.json();
-  const totalProjects = projectsData.total || projectsData.projects?.length || 0;
+    const projectsData = await projectsResponse.json();
+    
+    // Craftnote API gibt 'total' für die Gesamtanzahl zurück
+    const totalProjects = projectsData.total || projectsData.projects?.length || 0;
 
-  const estimates = {
-    projects: totalProjects,
-    estimatedFiles: totalProjects * 20,
-    estimatedMessages: totalProjects * 50,
-    estimatedStorageMB: totalProjects * 40,
-    estimatedDurationMinutes: Math.ceil(totalProjects / 20),
-  };
+    console.log('Craftnote API Response:', { 
+      total: projectsData.total, 
+      projectsLength: projectsData.projects?.length,
+      calculatedTotal: totalProjects 
+    });
 
-  return new Response(
-    JSON.stringify({ success: true, estimates }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
+    const estimates = {
+      projects: totalProjects,
+      estimatedFiles: totalProjects * 20,
+      estimatedMessages: totalProjects * 50,
+      estimatedStorageMB: totalProjects * 40,
+      estimatedDurationMinutes: Math.ceil(totalProjects / 20),
+    };
+
+    return new Response(
+      JSON.stringify({ success: true, estimates }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error: any) {
+    console.error('analyzeScope Error:', error);
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: error.message 
+      }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 }
 
 async function startMigration(supabaseClient: any, params: any) {
