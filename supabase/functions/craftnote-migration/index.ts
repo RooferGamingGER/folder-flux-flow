@@ -203,7 +203,7 @@ async function startMigration(supabaseClient: any, params: any) {
 
   // Starte Migration als Background-Task
   EdgeRuntime.waitUntil(
-    processMigration(supabaseClient, run.id, apiKey)
+    processMigration(supabaseClient, run.id, apiKey, userId)
       .catch(err => {
         console.error('Background migration error:', err);
       })
@@ -251,7 +251,7 @@ async function cancelMigration(supabaseClient: any, runId: string) {
   );
 }
 
-async function processMigration(supabaseClient: any, runId: string, apiKey: string) {
+async function processMigration(supabaseClient: any, runId: string, apiKey: string, userId: string) {
   try {
     console.log(`Starting migration run: ${runId}`);
     
@@ -319,7 +319,7 @@ async function processMigration(supabaseClient: any, runId: string, apiKey: stri
 
     // Phase 1: Neue Projekte migrieren
     for (let i = 0; i < newProjects.length; i++) {
-      await migrateProject(supabaseClient, newProjects[i], runId, false);
+      await migrateProject(supabaseClient, newProjects[i], runId, false, userId);
       
       await supabaseClient
         .from('migration_runs')
@@ -339,7 +339,7 @@ async function processMigration(supabaseClient: any, runId: string, apiKey: stri
       .eq('id', runId);
 
     for (let i = 0; i < updateProjects.length; i++) {
-      await migrateProject(supabaseClient, updateProjects[i], runId, true);
+      await migrateProject(supabaseClient, updateProjects[i], runId, true, userId);
       
       await supabaseClient
         .from('migration_runs')
@@ -423,7 +423,7 @@ async function fetchAllCraftnoteProjects(apiKey: string): Promise<any[]> {
   return allProjects;
 }
 
-async function migrateProject(supabaseClient: any, cnProject: any, runId: string, isUpdate: boolean = false) {
+async function migrateProject(supabaseClient: any, cnProject: any, runId: string, isUpdate: boolean = false, userId: string) {
   try {
     const auftragsnummer = cnProject.auftragsnummer || cnProject.projectNumber || cnProject.id;
     
@@ -467,7 +467,7 @@ async function migrateProject(supabaseClient: any, cnProject: any, runId: string
         .insert({
           id: projectId,
           title: cnProject.name || cnProject.title || 'Unbenanntes Projekt',
-          user_id: (await supabaseClient.auth.getUser()).data.user?.id,
+          user_id: userId,
           created_at: cnProject.createdAt || new Date().toISOString()
         });
 
@@ -501,7 +501,7 @@ async function migrateProject(supabaseClient: any, cnProject: any, runId: string
             project_id: projectId,
             name: directories[i],
             order_index: i,
-            created_by: (await supabaseClient.auth.getUser()).data.user?.id
+            created_by: userId
           });
       }
     }
