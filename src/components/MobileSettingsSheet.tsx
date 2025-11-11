@@ -1,6 +1,7 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Moon, Sun, LogOut, User } from "lucide-react";
+import { Moon, Sun, LogOut, User, Database } from "lucide-react";
 import { useThemePreference } from "@/hooks/useThemePreference";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
@@ -9,10 +10,12 @@ interface MobileSettingsSheetProps {
   onClose: () => void;
   onSignOut: () => void;
   userEmail?: string;
+  onCraftnoteigrationClick?: () => void;
 }
 
-export function MobileSettingsSheet({ open, onClose, onSignOut, userEmail }: MobileSettingsSheetProps) {
+export function MobileSettingsSheet({ open, onClose, onSignOut, userEmail, onCraftnoteigrationClick }: MobileSettingsSheetProps) {
   const { theme, setTheme, isLoading } = useThemePreference();
+  const { isAdmin } = useUserRole();
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -64,6 +67,25 @@ export function MobileSettingsSheet({ open, onClose, onSignOut, userEmail }: Mob
           </div>
           
           <Separator />
+          
+          {/* Craftnote Migration (nur für Admins) */}
+          {isAdmin && onCraftnoteigrationClick && (
+            <>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  onCraftnoteigrationClick();
+                  onClose();
+                }}
+              >
+                <Database className="w-4 h-4 mr-2" />
+                Craftnote Migration
+              </Button>
+              
+              <Separator />
+            </>
+          )}
           
           {/* Sign Out */}
           <Button

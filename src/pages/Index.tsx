@@ -66,6 +66,7 @@ import { DeletedItemsDialog } from "@/components/DeletedItemsDialog";
 import { MobileSettingsSheet } from "@/components/MobileSettingsSheet";
 import { MobileNotificationsSheet } from "@/components/MobileNotificationsSheet";
 import { ProjectPhotoMap } from "@/components/ProjectPhotoMap";
+import { CraftnoteigrationDialog } from "@/components/CraftnoteigrationDialog";
 
 const uid = (pfx = "id_") => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : pfx + Math.random().toString(36).slice(2, 10));
 
@@ -241,6 +242,7 @@ export default function Index() {
   const [showFolderMembers, setShowFolderMembers] = useState(false);
   const [selectedFolderForMembers, setSelectedFolderForMembers] = useState<string | null>(null);
   const [selectedProjectForMembers, setSelectedProjectForMembers] = useState<string | null>(null);
+  const [showCraftnoteigration, setShowCraftnoteigration] = useState(false);
   
   // Dashboard & Calendar Dialog states
   const [showDashboardDialog, setShowDashboardDialog] = useState(false);
@@ -593,6 +595,8 @@ export default function Index() {
           setFilterStatus={setFilterStatus}
           showUserManagement={showUserManagement}
           setShowUserManagement={setShowUserManagement}
+          showCraftnoteigration={showCraftnoteigration}
+          setShowCraftnoteigration={setShowCraftnoteigration}
           showFolderMembers={showFolderMembers}
           setShowFolderMembers={setShowFolderMembers}
           showProjectMembers={showProjectMembers}
@@ -623,6 +627,8 @@ export default function Index() {
           setShowMobileNotifications={setShowMobileNotifications}
           showUserManagement={showUserManagement}
           setShowUserManagement={setShowUserManagement}
+          showCraftnoteigration={showCraftnoteigration}
+          setShowCraftnoteigration={setShowCraftnoteigration}
           showFolderMembers={showFolderMembers}
           setShowFolderMembers={setShowFolderMembers}
           selectedFolderForMembers={selectedFolderForMembers}
@@ -1442,6 +1448,8 @@ function MobileLayout({
   setFilterStatus,
   showUserManagement,
   setShowUserManagement,
+  showCraftnoteigration,
+  setShowCraftnoteigration,
   showFolderMembers,
   setShowFolderMembers,
   showProjectMembers,
@@ -1506,6 +1514,8 @@ function MobileLayout({
   setFilterStatus: (status: string | null) => void;
   showUserManagement: boolean;
   setShowUserManagement: (show: boolean) => void;
+  showCraftnoteigration: boolean;
+  setShowCraftnoteigration: (show: boolean) => void;
   showFolderMembers: boolean;
   setShowFolderMembers: (show: boolean) => void;
   showProjectMembers: boolean;
@@ -2382,6 +2392,8 @@ function MobileLayoutSheets({
   setShowMobileNotifications,
   showUserManagement,
   setShowUserManagement,
+  showCraftnoteigration,
+  setShowCraftnoteigration,
   showFolderMembers,
   setShowFolderMembers,
   selectedFolderForMembers,
@@ -2399,6 +2411,8 @@ function MobileLayoutSheets({
   setShowMobileNotifications: (show: boolean) => void;
   showUserManagement: boolean;
   setShowUserManagement: (show: boolean) => void;
+  showCraftnoteigration: boolean;
+  setShowCraftnoteigration: (show: boolean) => void;
   showFolderMembers: boolean;
   setShowFolderMembers: (show: boolean) => void;
   selectedFolderForMembers: string | null;
@@ -2420,6 +2434,7 @@ function MobileLayoutSheets({
           toast({ title: "Abgemeldet", description: "Sie wurden erfolgreich abgemeldet." });
         }}
         userEmail={user?.email}
+        onCraftnoteigrationClick={() => setShowCraftnoteigration(true)}
       />
 
       <MobileNotificationsSheet 
@@ -2430,6 +2445,11 @@ function MobileLayoutSheets({
       <UserManagementDialog 
         open={showUserManagement} 
         onClose={() => setShowUserManagement(false)} 
+      />
+      
+      <CraftnoteigrationDialog
+        open={showCraftnoteigration}
+        onClose={() => setShowCraftnoteigration(false)}
       />
       
       {selectedFolderForMembers && (

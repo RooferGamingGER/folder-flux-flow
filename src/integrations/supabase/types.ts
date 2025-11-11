@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_settings: {
+        Row: {
+          key: string
+          updated_at: string | null
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string | null
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
+      alerts: {
+        Row: {
+          created_at: string | null
+          id: string
+          level: string
+          message: string
+          metrics: Json | null
+          resolved: boolean | null
+          resolved_at: string | null
+          resolved_by: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          level: string
+          message: string
+          metrics?: Json | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          level?: string
+          message?: string
+          metrics?: Json | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
       contacts: {
         Row: {
           created_at: string | null
@@ -168,6 +225,151 @@ export type Database = {
           {
             foreignKeyName: "messages_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      metrics_history: {
+        Row: {
+          api_avg_response_time_ms: number | null
+          api_error_rate: number | null
+          api_requests_per_minute: number | null
+          collected_at: string | null
+          db_active_connections: number | null
+          db_avg_query_time_ms: number | null
+          db_slow_queries: number | null
+          db_total_connections: number | null
+          id: string
+          raw_metrics: Json | null
+          storage_files_count: number | null
+          storage_total_bytes: number | null
+          storage_usage_percent: number | null
+          storage_used_bytes: number | null
+          system_cpu_percent: number | null
+          system_disk_percent: number | null
+          system_memory_percent: number | null
+        }
+        Insert: {
+          api_avg_response_time_ms?: number | null
+          api_error_rate?: number | null
+          api_requests_per_minute?: number | null
+          collected_at?: string | null
+          db_active_connections?: number | null
+          db_avg_query_time_ms?: number | null
+          db_slow_queries?: number | null
+          db_total_connections?: number | null
+          id?: string
+          raw_metrics?: Json | null
+          storage_files_count?: number | null
+          storage_total_bytes?: number | null
+          storage_usage_percent?: number | null
+          storage_used_bytes?: number | null
+          system_cpu_percent?: number | null
+          system_disk_percent?: number | null
+          system_memory_percent?: number | null
+        }
+        Update: {
+          api_avg_response_time_ms?: number | null
+          api_error_rate?: number | null
+          api_requests_per_minute?: number | null
+          collected_at?: string | null
+          db_active_connections?: number | null
+          db_avg_query_time_ms?: number | null
+          db_slow_queries?: number | null
+          db_total_connections?: number | null
+          id?: string
+          raw_metrics?: Json | null
+          storage_files_count?: number | null
+          storage_total_bytes?: number | null
+          storage_usage_percent?: number | null
+          storage_used_bytes?: number | null
+          system_cpu_percent?: number | null
+          system_disk_percent?: number | null
+          system_memory_percent?: number | null
+        }
+        Relationships: []
+      }
+      migration_errors: {
+        Row: {
+          data: Json | null
+          error_message: string | null
+          error_type: string | null
+          id: string
+          migration_run_id: string | null
+          timestamp: string | null
+        }
+        Insert: {
+          data?: Json | null
+          error_message?: string | null
+          error_type?: string | null
+          id?: string
+          migration_run_id?: string | null
+          timestamp?: string | null
+        }
+        Update: {
+          data?: Json | null
+          error_message?: string | null
+          error_type?: string | null
+          id?: string
+          migration_run_id?: string | null
+          timestamp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "migration_errors_migration_run_id_fkey"
+            columns: ["migration_run_id"]
+            isOneToOne: false
+            referencedRelation: "migration_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      migration_runs: {
+        Row: {
+          completed_at: string | null
+          craftnote_api_key: string | null
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          phase: string | null
+          progress: Json | null
+          started_at: string | null
+          started_by: string | null
+          status: string
+          total_items: Json | null
+        }
+        Insert: {
+          completed_at?: string | null
+          craftnote_api_key?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          phase?: string | null
+          progress?: Json | null
+          started_at?: string | null
+          started_by?: string | null
+          status: string
+          total_items?: Json | null
+        }
+        Update: {
+          completed_at?: string | null
+          craftnote_api_key?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          phase?: string | null
+          progress?: Json | null
+          started_at?: string | null
+          started_by?: string | null
+          status?: string
+          total_items?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "migration_runs_started_by_fkey"
+            columns: ["started_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -662,6 +864,7 @@ export type Database = {
         Returns: boolean
       }
       can_manage_projects: { Args: { _user_id: string }; Returns: boolean }
+      cleanup_old_metrics: { Args: never; Returns: undefined }
       has_full_access: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
