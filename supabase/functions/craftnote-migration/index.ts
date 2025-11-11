@@ -17,6 +17,40 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Auth-Check: User muss authentifiziert sein
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Nicht authentifiziert' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // User-Rolle prüfen
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    );
+
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Ungültige Authentifizierung' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { data: roleData } = await supabaseClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
+
+    if (roleData?.role !== 'geschaeftsfuehrer') {
+      return new Response(
+        JSON.stringify({ error: 'Keine Berechtigung - nur für Geschäftsführer' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { action, ...params } = await req.json();
 
     switch (action) {
@@ -51,30 +85,42 @@ serve(async (req) => {
 });
 
 async function testConnection(apiKey: string) {
-  const response = await fetch(
-    'https://europe-west1-craftnote-live.cloudfunctions.net/api/v1/projects?limit=1',
-    {
-      headers: {
-        'X-CN-API-KEY': apiKey,
-        'Content-Type': 'application/json'
+  try {
+    const response = await fetch(
+      'https://europe-west1-craftnote-live.cloudfunctions.net/api/v1/projects?limit=1',
+      {
+        headers: {
+          'X-CN-API-KEY': apiKey.trim(),
+          'Content-Type': 'application/json'
+        }
       }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API-Verbindung fehlgeschlagen: ${response.status} - ${errorText}`);
     }
-  );
 
-  if (!response.ok) {
-    throw new Error(`API-Verbindung fehlgeschlagen: ${response.status}`);
-  }
-
-  const data = await response.json();
+    const data = await response.json();
   
-  return new Response(
-    JSON.stringify({ 
-      success: true, 
-      message: 'Verbindung erfolgreich',
-      projectCount: data.total || data.projects?.length || 0
-    }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: 'Verbindung erfolgreich',
+        projectCount: data.total || data.projects?.length || 0
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error: any) {
+    console.error('Craftnote API Error:', error);
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: error.message 
+      }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 }
 
 async function analyzeScope(apiKey: string) {
@@ -82,7 +128,7 @@ async function analyzeScope(apiKey: string) {
     'https://europe-west1-craftnote-live.cloudfunctions.net/api/v1/projects?limit=1',
     {
       headers: {
-        'X-CN-API-KEY': apiKey,
+        'X-CN-API-KEY': apiKey.trim(),
         'Content-Type': 'application/json'
       }
     }
@@ -223,7 +269,7 @@ async function fetchCraftnoteAPI(apiKey: string, endpoint: string) {
     `https://europe-west1-craftnote-live.cloudfunctions.net/api/v1${endpoint}`,
     {
       headers: {
-        'X-CN-API-KEY': apiKey,
+        'X-CN-API-KEY': apiKey.trim(),
         'Content-Type': 'application/json'
       }
     }

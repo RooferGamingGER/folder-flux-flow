@@ -1,1 +1,13 @@
 project_id = "oeytdfnpisbjlalpeohf"
+
+[functions.create-user]
+verify_jwt = false
+
+[functions.update-user]
+verify_jwt = false
+
+[functions.delete-user]
+verify_jwt = false
+
+[functions.craftnote-migration]
+verify_jwt = false

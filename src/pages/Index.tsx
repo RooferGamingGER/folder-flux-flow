@@ -33,7 +33,7 @@ import { UserRoleBadge } from "@/components/UserRoleBadge";
 import { 
   FileText, Image as ImageIcon, Video, FileArchive, Music, Code, File as FileIcon,
   Download, ArrowUpDown, Filter as FilterIcon, Trash2, RotateCcw, X, ChevronLeft, ChevronRight, Bell, AlertTriangle, Archive, Users, UserPlus, LogOut, Menu, FolderInput, Folder, Search, Plus,
-  ChevronDown, Settings, SlidersHorizontal, MoreVertical, Edit2, MessageSquare, Briefcase, FolderOpen, Folder as FolderIcon, Moon, Sun, Calendar as CalendarIcon
+  ChevronDown, Settings, SlidersHorizontal, MoreVertical, Edit2, MessageSquare, Briefcase, FolderOpen, Folder as FolderIcon, Moon, Sun, Calendar as CalendarIcon, Database
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -533,6 +533,17 @@ export default function Index() {
             >
               <Users className="w-4 h-4" />
               {!isMobile && <span>Benutzer</span>}
+            </button>
+          )}
+
+          {isAdmin && (
+            <button
+              onClick={() => setShowCraftnoteigration(true)}
+              className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center gap-2 text-sm font-medium"
+              title="Craftnote Migration"
+            >
+              <Database className="w-4 h-4" />
+              {!isMobile && <span>Craftnote</span>}
             </button>
           )}
           

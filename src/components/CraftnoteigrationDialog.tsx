@@ -42,10 +42,14 @@ export function CraftnoteigrationDialog({ open, onClose }: { open: boolean; onCl
       if (!user) throw new Error('Nicht angemeldet');
 
       const response = await supabase.functions.invoke('craftnote-migration', {
-        body: { action: 'test-connection', apiKey }
+        body: { action: 'test-connection', apiKey: apiKey.trim() }
       });
 
       if (response.error) throw response.error;
+      
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || 'Unbekannter Fehler');
+      }
 
       toast({
         title: 'Verbindung erfolgreich',
@@ -68,7 +72,7 @@ export function CraftnoteigrationDialog({ open, onClose }: { open: boolean; onCl
     setAnalyzing(true);
     try {
       const response = await supabase.functions.invoke('craftnote-migration', {
-        body: { action: 'analyze', apiKey }
+        body: { action: 'analyze', apiKey: apiKey.trim() }
       });
 
       if (response.error) throw response.error;
@@ -92,7 +96,7 @@ export function CraftnoteigrationDialog({ open, onClose }: { open: boolean; onCl
       if (!user) throw new Error('Nicht angemeldet');
 
       const response = await supabase.functions.invoke('craftnote-migration', {
-        body: { action: 'start-migration', apiKey, userId: user.id }
+        body: { action: 'start-migration', apiKey: apiKey.trim(), userId: user.id }
       });
 
       if (response.error) throw response.error;
