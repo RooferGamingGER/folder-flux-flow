@@ -285,7 +285,57 @@ export default function Index() {
   const folders = useMemo(() => {
     if (!dbFolders || !dbProjects) return [];
     
-    return dbFolders.map(folder => {
+    // Projekte ohne folder_id (z.B. aus Craftnote Migration)
+    let unsortedProjects = dbProjects
+      .filter(p => !p.folder_id)
+      .map(p => {
+        const details = getDetailsForProject(p.id);
+        return {
+          id: p.id,
+          title: p.title,
+          archived: p.archived,
+          created_at: p.created_at,
+          auftragsnummer: details?.auftragsnummer || '',
+          projektstatus: details?.projektstatus || '',
+          dirs: ["Bilder", "Dokumente"],
+          messages: [],
+          files: [],
+          details: {
+            projektname: details?.projektname || p.title,
+            startdatum: details?.startdatum || "",
+            enddatum: details?.enddatum || "",
+            auftragsnummer: details?.auftragsnummer || '',
+            projektstatus: details?.projektstatus || '',
+            notiz: "",
+            strasse: details?.strasse || '',
+            plz: details?.plz || '',
+            stadt: details?.stadt || '',
+            land: "",
+            ansprechpartner: details?.ansprechpartner || '',
+            notes: [],
+            contacts: [],
+          },
+        };
+      });
+    
+    // Filter by status for unsorted projects
+    if (filterStatus) {
+      unsortedProjects = unsortedProjects.filter(p => p.projektstatus === filterStatus);
+    }
+    
+    // Sort unsorted projects
+    unsortedProjects.sort((a, b) => {
+      let aVal: any = sortBy === 'created_at' ? new Date(a.created_at || 0).getTime() : (a[sortBy] || '');
+      let bVal: any = sortBy === 'created_at' ? new Date(b.created_at || 0).getTime() : (b[sortBy] || '');
+      
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+      
+      if (sortOrder === 'asc') return aVal > bVal ? 1 : -1;
+      return aVal < bVal ? 1 : -1;
+    });
+    
+    const foldersList = dbFolders.map(folder => {
       let projectsList = dbProjects
         .filter(p => p.folder_id === folder.id)
         .map(p => {
@@ -343,7 +393,20 @@ export default function Index() {
         projects: projectsList,
       };
     });
-  }, [dbFolders, dbProjects, getDetailsForProject, sortBy, sortOrder, filterStatus]);
+    
+    // Virtueller "Unsortiert" Ordner für Projekte ohne folder_id (nur wenn welche existieren)
+    if (unsortedProjects.length > 0) {
+      foldersList.unshift({
+        id: '__unsorted__',
+        name: '📥 Unsortiert',
+        user_id: user?.id || '',
+        archived: false,
+        projects: unsortedProjects,
+      });
+    }
+    
+    return foldersList;
+  }, [dbFolders, dbProjects, getDetailsForProject, sortBy, sortOrder, filterStatus, user?.id]);
 
   const isLoading = foldersLoading || projectsLoading;
 
@@ -384,6 +447,15 @@ export default function Index() {
   }
 
   const deleteFolder = (folderId: string) => {
+    if (folderId === '__unsorted__') {
+      toast({
+        title: 'Nicht möglich',
+        description: 'Der "Unsortiert" Ordner kann nicht gelöscht werden. Verschieben Sie die Projekte in andere Ordner.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     const f = folders.find((x) => x.id === folderId);
     if (!f) return;
     if (!confirm(`Ordner "${f.name}" inkl. Projekte löschen?`)) return;
@@ -397,6 +469,15 @@ export default function Index() {
   };
   
   const toggleArchiveFolder = (folderId: string) => {
+    if (folderId === '__unsorted__') {
+      toast({
+        title: 'Nicht möglich',
+        description: 'Der "Unsortiert" Ordner kann nicht archiviert werden.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     const folder = dbFolders.find(f => f.id === folderId);
     if (!folder) return;
     dbToggleArchive({ id: folderId, archived: folder.archived });
@@ -733,7 +814,7 @@ export default function Index() {
                             Projekt-Mitglieder
                           </button>
                         )}
-                        {selectedFolder && (
+                        {selectedFolder && selectedFolder.id !== '__unsorted__' && (
                           <button onClick={() => { setSelectedFolderForMembers(selectedFolderId); setShowFolderMembers(true); setFabOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-md hover:bg-accent text-sm font-medium transition-colors">
                             <Users className="w-4 h-4 inline mr-2" />
                             Ordner-Mitglieder
@@ -1972,6 +2053,14 @@ function MobileLayout({
           <div className="flex items-center gap-2 shrink-0">
             <button 
               onClick={() => {
+                if (selectedFolder?.id === '__unsorted__') {
+                  toast({
+                    title: 'Nicht möglich',
+                    description: 'Der "Unsortiert" Ordner kann keine Mitglieder haben.',
+                    variant: 'destructive',
+                  });
+                  return;
+                }
                 setSelectedFolderForMembers(selectedFolder?.id || null); 
                 setShowFolderMembers(true);
               }}
@@ -1982,6 +2071,14 @@ function MobileLayout({
             </button>
             <button 
               onClick={() => {
+                if (selectedFolder?.id === '__unsorted__') {
+                  toast({
+                    title: 'Nicht möglich',
+                    description: 'Der "Unsortiert" Ordner kann nicht bearbeitet werden.',
+                    variant: 'destructive',
+                  });
+                  return;
+                }
                 toast({ title: "Ordner bearbeiten", description: "Diese Funktion wird bald verfügbar sein." });
               }}
               className="p-2 hover:bg-accent rounded-lg transition-colors" 
@@ -2145,7 +2242,7 @@ function MobileLayout({
                   >
                     🏗️ Neues Projekt anlegen
                   </button>
-                  {selectedFolder && (
+                  {selectedFolder && selectedFolder.id !== '__unsorted__' && (
                   <button 
                     onClick={() => { 
                       setSelectedFolderForMembers(selectedFolder?.id || null); 
