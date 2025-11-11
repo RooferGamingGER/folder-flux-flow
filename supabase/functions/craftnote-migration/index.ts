@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// @ts-ignore: EdgeRuntime is available in Supabase Edge Functions
+declare const EdgeRuntime: any;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -198,7 +201,13 @@ async function startMigration(supabaseClient: any, params: any) {
 
   if (error) throw error;
 
-  processMigration(supabaseClient, run.id, apiKey);
+  // Starte Migration als Background-Task
+  EdgeRuntime.waitUntil(
+    processMigration(supabaseClient, run.id, apiKey)
+      .catch(err => {
+        console.error('Background migration error:', err);
+      })
+  );
 
   return new Response(
     JSON.stringify({ success: true, runId: run.id }),
@@ -244,86 +253,107 @@ async function cancelMigration(supabaseClient: any, runId: string) {
 
 async function processMigration(supabaseClient: any, runId: string, apiKey: string) {
   try {
+    console.log(`Starting migration run: ${runId}`);
+    
     await supabaseClient
       .from('migration_runs')
       .update({ status: 'analyzing' })
       .eq('id', runId);
 
-    // Hole User-Daten
-    const usersData = await fetchCraftnoteAPI(apiKey, '/users');
-    const users = usersData.users || usersData || [];
-
-    // Hole ALLE Projekte mit Pagination
+    // Hole ALLE Projekte mit Pagination (keine Users mehr)
+    console.log('Fetching all projects from Craftnote...');
     const allProjects = await fetchAllCraftnoteProjects(apiKey);
+    console.log(`Found ${allProjects.length} projects total`);
 
-    console.log(`Found ${users.length} users and ${allProjects.length} projects`);
-
-    // Prüfe, welche Projekte bereits existieren (anhand auftragsnummer)
+    // Prüfe, welche Projekte bereits existieren oder aktualisiert werden müssen
     const { data: existingDetails } = await supabaseClient
       .from('project_details')
-      .select('auftragsnummer');
+      .select('auftragsnummer, updated_at, project_id');
 
-    const existingAuftragsnummern = new Set(
+    const existingProjectsMap = new Map<string, { updated_at: string; project_id: string }>(
       (existingDetails || [])
-        .map((d: any) => d.auftragsnummer)
-        .filter(Boolean)
+        .filter((d: any) => d.auftragsnummer)
+        .map((d: any) => [d.auftragsnummer, { updated_at: d.updated_at, project_id: d.project_id }])
     );
 
-    // Filtere bereits migrierte Projekte heraus
-    const newProjects = allProjects.filter((p: any) => {
-      const auftragsnummer = p.auftragsnummer || p.projectNumber || p.id;
-      return auftragsnummer && !existingAuftragsnummern.has(auftragsnummer);
-    });
+    // Kategorisiere Projekte: neu vs. update
+    const newProjects: any[] = [];
+    const updateProjects: any[] = [];
 
-    console.log(`${newProjects.length} neue Projekte (${existingAuftragsnummern.size} bereits migriert, ${allProjects.length - newProjects.length} übersprungen)`);
+    for (const cnProject of allProjects) {
+      const auftragsnummer = cnProject.auftragsnummer || cnProject.projectNumber || cnProject.id;
+      if (!auftragsnummer) continue;
+
+      const existing = existingProjectsMap.get(auftragsnummer);
+      
+      if (!existing) {
+        // Komplett neues Projekt
+        newProjects.push(cnProject);
+      } else {
+        // Prüfe ob Update nötig (wenn Craftnote updated_at neuer ist)
+        const cnUpdated = cnProject.updatedAt || cnProject.updated_at;
+        if (cnUpdated && new Date(cnUpdated) > new Date(existing.updated_at)) {
+          updateProjects.push({ ...cnProject, existingProjectId: existing.project_id });
+        }
+      }
+    }
+
+    console.log(`${newProjects.length} neue Projekte, ${updateProjects.length} zu aktualisierende Projekte, ${allProjects.length - newProjects.length - updateProjects.length} unverändert`);
 
     await supabaseClient
       .from('migration_runs')
       .update({ 
         total_items: { 
-          users: users.length, 
-          projects: newProjects.length,
-          skipped: allProjects.length - newProjects.length
+          new_projects: newProjects.length,
+          update_projects: updateProjects.length,
+          unchanged: allProjects.length - newProjects.length - updateProjects.length
         },
-        progress: { users: 0, projects: 0 }
+        progress: { new_projects: 0, update_projects: 0 }
       })
       .eq('id', runId);
 
-    // Phase 1: User migrieren
     await supabaseClient
       .from('migration_runs')
-      .update({ status: 'migrating', phase: 'users' })
+      .update({ status: 'migrating', phase: 'new_projects' })
       .eq('id', runId);
 
-    for (let i = 0; i < users.length; i++) {
-      await migrateUser(supabaseClient, users[i], runId);
-      
-      await supabaseClient
-        .from('migration_runs')
-        .update({ progress: { users: i + 1, projects: 0 } })
-        .eq('id', runId);
-    }
-
-    // Phase 2: Projekte migrieren (nur neue)
-    await supabaseClient
-      .from('migration_runs')
-      .update({ phase: 'projects' })
-      .eq('id', runId);
-
+    // Phase 1: Neue Projekte migrieren
     for (let i = 0; i < newProjects.length; i++) {
-      await migrateProject(supabaseClient, newProjects[i], runId);
+      await migrateProject(supabaseClient, newProjects[i], runId, false);
       
       await supabaseClient
         .from('migration_runs')
         .update({ 
           progress: { 
-            users: users.length, 
-            projects: i + 1 
+            new_projects: i + 1, 
+            update_projects: 0 
           } 
         })
         .eq('id', runId);
     }
 
+    // Phase 2: Bestehende Projekte aktualisieren
+    await supabaseClient
+      .from('migration_runs')
+      .update({ phase: 'update_projects' })
+      .eq('id', runId);
+
+    for (let i = 0; i < updateProjects.length; i++) {
+      await migrateProject(supabaseClient, updateProjects[i], runId, true);
+      
+      await supabaseClient
+        .from('migration_runs')
+        .update({ 
+          progress: { 
+            new_projects: newProjects.length, 
+            update_projects: i + 1 
+          } 
+        })
+        .eq('id', runId);
+    }
+
+    console.log('Migration completed successfully');
+    
     await supabaseClient
       .from('migration_runs')
       .update({ 
@@ -393,53 +423,87 @@ async function fetchAllCraftnoteProjects(apiKey: string): Promise<any[]> {
   return allProjects;
 }
 
-async function migrateProject(supabaseClient: any, cnProject: any, runId: string) {
+async function migrateProject(supabaseClient: any, cnProject: any, runId: string, isUpdate: boolean = false) {
   try {
-    // Erstelle Projekt
-    const projectId = crypto.randomUUID();
     const auftragsnummer = cnProject.auftragsnummer || cnProject.projectNumber || cnProject.id;
-
-    const { error: projectError } = await supabaseClient
-      .from('projects')
-      .insert({
-        id: projectId,
-        title: cnProject.name || cnProject.title || 'Unbenanntes Projekt',
-        user_id: (await supabaseClient.auth.getUser()).data.user?.id,
-        created_at: cnProject.createdAt || new Date().toISOString()
-      });
-
-    if (projectError && projectError.code !== '23505') {
-      throw projectError;
-    }
-
-    // Erstelle Project Details
-    await supabaseClient
-      .from('project_details')
-      .insert({
-        project_id: projectId,
-        projektname: cnProject.name || cnProject.title,
-        auftragsnummer: auftragsnummer,
-        projektstatus: cnProject.status || 'aktiv',
-        ansprechpartner: cnProject.contact?.name || cnProject.contactName,
-        strasse: cnProject.address?.street || cnProject.street,
-        plz: cnProject.address?.zipCode || cnProject.zipCode,
-        stadt: cnProject.address?.city || cnProject.city,
-        startdatum: cnProject.startDate,
-        enddatum: cnProject.endDate,
-        notiz: cnProject.description || cnProject.notes
-      });
-
-    // Erstelle Standard-Verzeichnisse
-    const directories = ['Bilder', 'Dokumente', 'Sonstiges'];
-    for (let i = 0; i < directories.length; i++) {
+    
+    if (isUpdate && cnProject.existingProjectId) {
+      // Update bestehendes Projekt
+      console.log(`Updating project: ${auftragsnummer}`);
+      
       await supabaseClient
-        .from('project_directories')
+        .from('projects')
+        .update({
+          title: cnProject.name || cnProject.title || 'Unbenanntes Projekt',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', cnProject.existingProjectId);
+
+      // Update Project Details
+      await supabaseClient
+        .from('project_details')
+        .update({
+          projektname: cnProject.name || cnProject.title,
+          projektstatus: cnProject.status || 'aktiv',
+          ansprechpartner: cnProject.contact?.name || cnProject.contactName,
+          strasse: cnProject.address?.street || cnProject.street,
+          plz: cnProject.address?.zipCode || cnProject.zipCode,
+          stadt: cnProject.address?.city || cnProject.city,
+          startdatum: cnProject.startDate,
+          enddatum: cnProject.endDate,
+          notiz: cnProject.description || cnProject.notes,
+          updated_at: new Date().toISOString()
+        })
+        .eq('project_id', cnProject.existingProjectId);
+
+    } else {
+      // Erstelle neues Projekt
+      console.log(`Creating new project: ${auftragsnummer}`);
+      
+      const projectId = crypto.randomUUID();
+
+      const { error: projectError } = await supabaseClient
+        .from('projects')
+        .insert({
+          id: projectId,
+          title: cnProject.name || cnProject.title || 'Unbenanntes Projekt',
+          user_id: (await supabaseClient.auth.getUser()).data.user?.id,
+          created_at: cnProject.createdAt || new Date().toISOString()
+        });
+
+      if (projectError && projectError.code !== '23505') {
+        throw projectError;
+      }
+
+      // Erstelle Project Details
+      await supabaseClient
+        .from('project_details')
         .insert({
           project_id: projectId,
-          name: directories[i],
-          order_index: i,
-          created_by: (await supabaseClient.auth.getUser()).data.user?.id
+          projektname: cnProject.name || cnProject.title,
+          auftragsnummer: auftragsnummer,
+          projektstatus: cnProject.status || 'aktiv',
+          ansprechpartner: cnProject.contact?.name || cnProject.contactName,
+          strasse: cnProject.address?.street || cnProject.street,
+          plz: cnProject.address?.zipCode || cnProject.zipCode,
+          stadt: cnProject.address?.city || cnProject.city,
+          startdatum: cnProject.startDate,
+          enddatum: cnProject.endDate,
+          notiz: cnProject.description || cnProject.notes
         });
+
+      // Erstelle Standard-Verzeichnisse
+      const directories = ['Bilder', 'Dokumente', 'Sonstiges'];
+      for (let i = 0; i < directories.length; i++) {
+        await supabaseClient
+          .from('project_directories')
+          .insert({
+            project_id: projectId,
+            name: directories[i],
+            order_index: i,
+            created_by: (await supabaseClient.auth.getUser()).data.user?.id
+          });
+      }
     }
 
   } catch (error: any) {
@@ -448,7 +512,7 @@ async function migrateProject(supabaseClient: any, cnProject: any, runId: string
       .from('migration_errors')
       .insert({
         migration_run_id: runId,
-        error_type: 'project',
+        error_type: isUpdate ? 'project_update' : 'project_create',
         error_message: error.message,
         data: cnProject
       });
